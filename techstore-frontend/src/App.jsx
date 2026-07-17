@@ -10,6 +10,8 @@ import CartPage from './pages/CartPage'
 import PedidosPage from './pages/PedidosPage'
 import AdminProductosPage from './pages/AdminProductosPage'
 import AdminReportesPage from './pages/AdminReportesPage'
+import AdminFacturasPage from './pages/AdminFacturasPage'
+import RegisterPage from './pages/RegisterPage'
 import './App.css'
 
 const queryClient = new QueryClient({
@@ -29,6 +31,7 @@ function App() {
               <Route path="/" element={<CatalogoPage />} />
               <Route path="/productos/:id" element={<ProductoDetallePage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/registro" element={<RegisterPage />} />
               <Route path="/carrito" element={<CartPage />} />
               <Route
                 path="/pedidos"
@@ -51,6 +54,14 @@ function App() {
                 element={
                   <ProtectedRoute rol="Admin">
                     <AdminProductosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/facturas"
+                element={
+                  <ProtectedRoute rol="Admin">
+                    <AdminFacturasPage />
                   </ProtectedRoute>
                 }
               />

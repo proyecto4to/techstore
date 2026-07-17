@@ -2,6 +2,7 @@ package com.techstore.controller;
 
 import com.techstore.dto.request.LoginRequest;
 import com.techstore.dto.request.RefreshTokenRequest;
+import com.techstore.dto.request.RegistroRequest;
 import com.techstore.dto.response.AuthResponse;
 import com.techstore.dto.response.UsuarioResponse;
 import com.techstore.service.AuthService;
@@ -9,8 +10,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +26,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+
+    @PostMapping("/registro")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Crear cuenta", description = "Alta pública de clientes; devuelve tokens con la sesión ya iniciada")
+    public AuthResponse registrar(@Valid @RequestBody RegistroRequest request) {
+        return authService.registrar(request);
+    }
 
     @PostMapping("/login")
     @Operation(summary = "Iniciar sesión", description = "Devuelve un access token (corto) y un refresh token (largo)")

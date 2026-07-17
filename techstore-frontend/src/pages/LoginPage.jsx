@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Zap } from 'lucide-react'
 import { authService } from '../services/authService'
 import { useAuthStore } from '../store/authStore'
@@ -86,6 +86,13 @@ function LoginPage() {
           <button type="submit" disabled={cargando} className="btn btn-primary w-full">
             {cargando ? 'Ingresando…' : 'Ingresar'}
           </button>
+
+          <p className="text-center text-sm text-neutral-secondary">
+            ¿No tenés cuenta?{' '}
+            <Link to="/registro" className="text-primary-300 hover:text-accent-400">
+              Registrate
+            </Link>
+          </p>
 
           <div className="text-center text-sm text-neutral-secondary">
             <p>Credenciales de prueba:</p>

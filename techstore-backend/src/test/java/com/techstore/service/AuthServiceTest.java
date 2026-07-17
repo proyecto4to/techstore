@@ -2,9 +2,12 @@ package com.techstore.service;
 
 import com.techstore.dto.request.LoginRequest;
 import com.techstore.dto.request.RefreshTokenRequest;
+import com.techstore.dto.request.RegistroRequest;
 import com.techstore.dto.response.AuthResponse;
 import com.techstore.entity.Rol;
 import com.techstore.entity.Usuario;
+import com.techstore.exception.BusinessException;
+import com.techstore.repository.RolRepository;
 import com.techstore.repository.UsuarioRepository;
 import com.techstore.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +32,9 @@ class AuthServiceTest {
     @Mock
     private UsuarioRepository usuarioRepository;
 
+    @Mock
+    private RolRepository rolRepository;
+
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     private final JwtService jwtService =
             new JwtService("clave-de-prueba-suficientemente-larga-para-hmac-sha!!", 900_000, 604_800_000);
@@ -38,7 +44,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(usuarioRepository, encoder, jwtService);
+        authService = new AuthService(usuarioRepository, rolRepository, encoder, jwtService);
 
         Rol rol = new Rol();
         rol.setId(1L);
@@ -110,5 +116,56 @@ class AuthServiceTest {
 
         assertThrows(BadCredentialsException.class,
                 () -> authService.refresh(new RefreshTokenRequest(accessToken)));
+    }
+
+    @Test
+    void registroCreaClienteConSesionIniciada() {
+        Rol rolCliente = new Rol();
+        rolCliente.setId(3L);
+        rolCliente.setNombre("Cliente");
+        when(usuarioRepository.existsByEmail("juan@test.py")).thenReturn(false);
+        when(rolRepository.findByNombre("Cliente")).thenReturn(Optional.of(rolCliente));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> {
+            Usuario u = inv.getArgument(0);
+            u.setId(20L);
+            return u;
+        });
+
+        AuthResponse response = authService.registrar(
+                new RegistroRequest("Juan", "Pérez", "juan@test.py", "clave12345"));
+
+        assertNotNull(response.accessToken());
+        assertEquals("juan@test.py", response.usuario().email());
+        assertEquals("Cliente", response.usuario().rol());
+    }
+
+    @Test
+    void registroConEmailDuplicadoFalla() {
+        when(usuarioRepository.existsByEmail("admin@techstore.py")).thenReturn(true);
+
+        assertThrows(BusinessException.class, () -> authService.registrar(
+                new RegistroRequest("Otro", "Admin", "admin@techstore.py", "clave12345")));
+    }
+
+    @Test
+    void registroGuardaPasswordHasheada() {
+        Rol rolCliente = new Rol();
+        rolCliente.setId(3L);
+        rolCliente.setNombre("Cliente");
+        when(usuarioRepository.existsByEmail("ana@test.py")).thenReturn(false);
+        when(rolRepository.findByNombre("Cliente")).thenReturn(Optional.of(rolCliente));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> {
+            Usuario u = inv.getArgument(0);
+            u.setId(21L);
+            return u;
+        });
+
+        authService.registrar(new RegistroRequest("Ana", "López", "ana@test.py", "secreta123"));
+
+        org.mockito.ArgumentCaptor<Usuario> captor = org.mockito.ArgumentCaptor.forClass(Usuario.class);
+        org.mockito.Mockito.verify(usuarioRepository).save(captor.capture());
+        String hash = captor.getValue().getPasswordHash();
+        org.junit.jupiter.api.Assertions.assertNotEquals("secreta123", hash);
+        org.junit.jupiter.api.Assertions.assertTrue(encoder.matches("secreta123", hash));
     }
 }

@@ -1,15 +1,18 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { pedidoService } from '../services/pedidoService'
 import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
 import AdminTabs from '../components/admin/AdminTabs'
+import PedidoDetallePanel from '../components/admin/PedidoDetallePanel'
 
 const TIPOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'Cheque']
 
 function AdminPage() {
   const [page, setPage] = useState(0)
   const [tipoPagoPorPedido, setTipoPagoPorPedido] = useState({})
+  const [detalleAbierto, setDetalleAbierto] = useState(null)
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
@@ -103,9 +106,21 @@ function AdminPage() {
             <tbody>
               {data.content.map((pedido) => {
                 const estado = estadoPedido(pedido.estado)
+                const abierto = detalleAbierto === pedido.id
                 return (
-                  <tr key={pedido.id}>
-                    <td className="font-semibold text-neutral-text">#{pedido.numero}</td>
+                  <Fragment key={pedido.id}>
+                  <tr>
+                    <td className="font-semibold text-neutral-text">
+                      <button
+                        onClick={() => setDetalleAbierto(abierto ? null : pedido.id)}
+                        className="inline-flex items-center gap-1 text-neutral-text transition-colors hover:text-primary-300"
+                        aria-expanded={abierto}
+                        aria-label={`Ver detalle del pedido ${pedido.numero}`}
+                      >
+                        {abierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        #{pedido.numero}
+                      </button>
+                    </td>
                     <td>{new Date(pedido.fecha).toLocaleString('es-PY')}</td>
                     <td className="text-neutral-secondary">{pedido.usuarioEmail}</td>
                     <td>
@@ -170,6 +185,14 @@ function AdminPage() {
                       )}
                     </td>
                   </tr>
+                  {abierto && (
+                    <tr>
+                      <td colSpan={6} className="bg-dark-bg/30 p-3">
+                        <PedidoDetallePanel pedidoId={pedido.id} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 )
               })}
             </tbody>
