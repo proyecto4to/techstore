@@ -1,0 +1,22 @@
+package com.techstore.mapper;
+
+import com.techstore.dto.response.PedidoResponse;
+import com.techstore.dto.response.PedidoResumenResponse;
+import com.techstore.entity.Pedido;
+import com.techstore.entity.PedidoDetalle;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+
+@Mapper(componentModel = "spring")
+public interface PedidoMapper {
+
+    @Mapping(target = "usuarioEmail", source = "usuario.email")
+    PedidoResponse toResponse(Pedido pedido);
+
+    @Mapping(target = "usuarioEmail", source = "usuario.email")
+    PedidoResumenResponse toResumen(Pedido pedido);
+
+    @Mapping(target = "productoId", source = "producto.id")
+    @Mapping(target = "productoNombre", source = "producto.nombre")
+    PedidoResponse.DetalleResponse toDetalleResponse(PedidoDetalle detalle);
+}

@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (Maven + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: techstore-backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Compilar y correr tests
+        run: mvn -B clean verify
+
+  frontend:
+    name: Frontend (Vite build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: techstore-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: techstore-frontend/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci --legacy-peer-deps
+      - name: Build de producción
+        run: npm run build

@@ -1,0 +1,32 @@
+{
+  "name": "techstore-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "TechStore E-Commerce Frontend - React 18 + Vite + Tailwind",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .js,.jsx",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "axios": "^1.6.2",
+    "@tanstack/react-query": "^5.28.0",
+    "zustand": "^4.4.6",
+    "tailwindcss": "^3.4.1",
+    "autoprefixer": "^10.4.16"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.0.8",
+    "postcss": "^8.4.32"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
