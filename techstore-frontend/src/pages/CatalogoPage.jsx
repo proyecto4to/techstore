@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { Search } from 'lucide-react'
 import { productoService } from '../services/productoService'
 import ProductCard from '../components/product/ProductCard'
 
@@ -33,24 +34,32 @@ function CatalogoPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <h2 className="mb-6 text-center text-4xl font-bold text-navy">Catálogo</h2>
+    <div className="container mx-auto px-6 py-8">
+      <div className="mb-8">
+        <h1 className="mb-2 text-4xl font-bold text-neutral-text">
+          Catálogo de <span className="gradient-text">Productos</span>
+        </h1>
+        <p className="text-neutral-secondary">Componentes de PC de alta calidad</p>
+      </div>
 
-      <form onSubmit={handleBuscar} className="mb-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-        <input
-          type="search"
-          placeholder="Buscar productos…"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          className="w-full rounded border border-gray-300 p-2 focus:border-gold focus:outline-none sm:w-80"
-        />
+      <form onSubmit={handleBuscar} className="mb-8 flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1 sm:max-w-md">
+          <Search className="absolute left-4 top-2.5 text-neutral-muted" size={18} />
+          <input
+            type="search"
+            placeholder="Buscar productos…"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="input pl-11"
+          />
+        </div>
         <select
           value={marcaId}
           onChange={(e) => {
             setPage(0)
             setMarcaId(e.target.value)
           }}
-          className="rounded border border-gray-300 p-2 focus:border-gold focus:outline-none"
+          className="input sm:w-56"
         >
           <option value="">Todas las marcas</option>
           {marcas.map((marca) => (
@@ -59,17 +68,14 @@ function CatalogoPage() {
             </option>
           ))}
         </select>
-        <button
-          type="submit"
-          className="rounded bg-navy px-6 py-2 font-semibold text-gold hover:bg-navy-light"
-        >
+        <button type="submit" className="btn btn-primary">
           Buscar
         </button>
       </form>
 
-      {isLoading && <p className="text-center text-gray-500">Cargando catálogo…</p>}
+      {isLoading && <p className="text-center text-neutral-muted">Cargando catálogo…</p>}
       {isError && (
-        <p className="text-center text-red-500">
+        <p className="alerta-error text-center">
           No se pudo cargar el catálogo. ¿Está corriendo la API en el puerto 8080?
         </p>
       )}
@@ -77,7 +83,7 @@ function CatalogoPage() {
       {productos && (
         <>
           {productos.content.length === 0 ? (
-            <p className="text-center text-gray-500">No se encontraron productos.</p>
+            <p className="text-center text-neutral-muted">No se encontraron productos.</p>
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {productos.content.map((producto) => (
@@ -91,17 +97,17 @@ function CatalogoPage() {
               <button
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 disabled={page === 0}
-                className="rounded border border-navy px-4 py-2 text-navy disabled:opacity-40"
+                className="btn btn-secondary"
               >
                 ← Anterior
               </button>
-              <span className="text-navy">
+              <span className="text-neutral-secondary">
                 Página {productos.page + 1} de {productos.totalPages}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(productos.totalPages - 1, p + 1))}
                 disabled={page >= productos.totalPages - 1}
-                className="rounded border border-navy px-4 py-2 text-navy disabled:opacity-40"
+                className="btn btn-secondary"
               >
                 Siguiente →
               </button>

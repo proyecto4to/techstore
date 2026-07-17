@@ -118,38 +118,31 @@ function AdminProductosPage() {
     guardarMutation.mutate(form)
   }
 
-  const campo = (props) => ({
-    className:
-      'w-full rounded border border-gray-300 p-2 focus:border-gold focus:outline-none',
-    ...props,
-  })
-
   return (
-    <div className="container mx-auto p-6">
-      <h2 className="mb-6 text-3xl font-bold text-navy">Panel de administración — Productos</h2>
+    <div className="container mx-auto px-6 py-8">
+      <h1 className="mb-6 text-4xl font-bold text-neutral-text">
+        ⚙️ Administración — <span className="gradient-text">Productos</span>
+      </h1>
       <AdminTabs />
 
       {mensaje && (
-        <p className="mb-4 rounded bg-green-50 p-3 text-green-700" role="status">
+        <p className="alerta-ok" role="status">
           {mensaje}
         </p>
       )}
       {error && (
-        <p className="mb-4 rounded bg-red-50 p-3 text-red-600" role="alert">
+        <p className="alerta-error" role="alert">
           {error}
         </p>
       )}
 
-      <form
-        onSubmit={handleSubmit}
-        className="mb-8 grid grid-cols-1 gap-4 rounded-lg border-2 border-gold bg-white p-6 shadow-md md:grid-cols-3"
-      >
-        <h3 className="col-span-full text-lg font-bold text-navy">
-          {form.id ? `Editando producto #${form.id}` : 'Nuevo producto'}
+      <form onSubmit={handleSubmit} className="card mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <h3 className="col-span-full text-lg font-semibold text-neutral-text">
+          {form.id ? `Editando producto #${form.id}` : '➕ Nuevo producto'}
         </h3>
 
         <div className="md:col-span-2">
-          <label className="mb-1 block text-sm font-medium text-navy" htmlFor="nombre">
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="nombre">
             Nombre *
           </label>
           <input
@@ -158,19 +151,19 @@ function AdminProductosPage() {
             maxLength={255}
             value={form.nombre}
             onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-            {...campo()}
+            className="input"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-navy" htmlFor="marca">
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="marca">
             Marca
           </label>
           <select
             id="marca"
             value={form.marcaId}
             onChange={(e) => setForm({ ...form, marcaId: e.target.value })}
-            {...campo()}
+            className="input"
           >
             <option value="">Sin marca</option>
             {marcas.map((marca) => (
@@ -182,19 +175,19 @@ function AdminProductosPage() {
         </div>
 
         <div className="md:col-span-3">
-          <label className="mb-1 block text-sm font-medium text-navy" htmlFor="descripcion">
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="descripcion">
             Descripción
           </label>
           <input
             id="descripcion"
             value={form.descripcion}
             onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-            {...campo()}
+            className="input"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-navy" htmlFor="precio">
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="precio">
             Precio (₲) *
           </label>
           <input
@@ -205,12 +198,12 @@ function AdminProductosPage() {
             step="0.01"
             value={form.precio}
             onChange={(e) => setForm({ ...form, precio: e.target.value })}
-            {...campo()}
+            className="input"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-navy" htmlFor="iva">
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="iva">
             IVA (%) *
           </label>
           <input
@@ -221,12 +214,12 @@ function AdminProductosPage() {
             max="100"
             value={form.iva}
             onChange={(e) => setForm({ ...form, iva: e.target.value })}
-            {...campo()}
+            className="input"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-navy" htmlFor="stock">
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="stock">
             Stock real *
           </label>
           <input
@@ -236,76 +229,67 @@ function AdminProductosPage() {
             min="0"
             value={form.stockReal}
             onChange={(e) => setForm({ ...form, stockReal: e.target.value })}
-            {...campo()}
+            className="input"
           />
         </div>
 
         <div className="col-span-full flex items-center gap-4">
-          <button
-            type="submit"
-            disabled={guardarMutation.isPending}
-            className="rounded bg-navy px-6 py-2 font-semibold text-gold hover:bg-navy-light disabled:opacity-50"
-          >
+          <button type="submit" disabled={guardarMutation.isPending} className="btn btn-primary">
             {form.id ? 'Guardar cambios' : 'Crear producto'}
           </button>
           {form.id && (
-            <button
-              type="button"
-              onClick={() => setForm(FORM_VACIO)}
-              className="rounded border border-navy px-6 py-2 text-navy hover:bg-gray-50"
-            >
+            <button type="button" onClick={() => setForm(FORM_VACIO)} className="btn btn-secondary">
               Cancelar edición
             </button>
           )}
         </div>
       </form>
 
-      {isLoading && <p className="text-gray-500">Cargando productos…</p>}
+      {isLoading && <p className="text-neutral-muted">Cargando productos…</p>}
 
       {data && (
-        <div className="overflow-x-auto rounded-lg border-2 border-gold bg-white shadow-md">
-          <table className="w-full text-left">
-            <thead className="bg-navy text-gold">
+        <div className="card overflow-x-auto p-0">
+          <table className="tabla-admin">
+            <thead>
               <tr>
-                <th className="p-3">Producto</th>
-                <th className="p-3">Marca</th>
-                <th className="p-3">Precio</th>
-                <th className="p-3">Stock</th>
-                <th className="p-3">Comprometido</th>
-                <th className="p-3">Estado</th>
-                <th className="p-3">Acciones</th>
+                <th>Producto</th>
+                <th>Marca</th>
+                <th>Precio</th>
+                <th>Stock</th>
+                <th>Comprometido</th>
+                <th>Estado</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {data.content.map((producto) => (
-                <tr key={producto.id} className={`border-t ${producto.activo ? '' : 'opacity-60'}`}>
-                  <td className="p-3 font-medium text-navy">{producto.nombre}</td>
-                  <td className="p-3">{producto.marca?.nombre ?? '—'}</td>
-                  <td className="p-3">{formatPrecio(producto.precio)}</td>
-                  <td className="p-3">{producto.stockReal}</td>
-                  <td className="p-3">{producto.stockComprometido}</td>
-                  <td className="p-3">
+                <tr key={producto.id} className={producto.activo ? '' : 'opacity-50'}>
+                  <td className="font-medium text-neutral-text">{producto.nombre}</td>
+                  <td className="text-neutral-secondary">{producto.marca?.nombre ?? '—'}</td>
+                  <td className="text-primary-300">{formatPrecio(producto.precio)}</td>
+                  <td>{producto.stockReal}</td>
+                  <td>{producto.stockComprometido}</td>
+                  <td>
                     <span
-                      className={`rounded px-2 py-1 text-xs font-semibold ${
-                        producto.activo ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        producto.activo
+                          ? 'bg-emerald-400/20 text-emerald-400'
+                          : 'bg-neutral-muted/20 text-neutral-muted'
                       }`}
                     >
                       {producto.activo ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
-                  <td className="p-3">
+                  <td>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => editar(producto)}
-                        className="rounded border border-navy px-3 py-1 text-sm text-navy hover:bg-gray-50"
-                      >
+                      <button onClick={() => editar(producto)} className="btn btn-secondary text-sm">
                         Editar
                       </button>
                       {producto.activo ? (
                         <button
                           onClick={() => desactivarMutation.mutate(producto.id)}
                           disabled={desactivarMutation.isPending}
-                          className="rounded border border-red-400 px-3 py-1 text-sm text-red-500 hover:bg-red-50 disabled:opacity-50"
+                          className="btn btn-danger text-sm"
                         >
                           Desactivar
                         </button>
@@ -313,7 +297,7 @@ function AdminProductosPage() {
                         <button
                           onClick={() => reactivarMutation.mutate(producto)}
                           disabled={reactivarMutation.isPending}
-                          className="rounded bg-gold px-3 py-1 text-sm font-semibold text-navy hover:bg-gold-light disabled:opacity-50"
+                          className="btn btn-primary text-sm"
                         >
                           Reactivar
                         </button>
@@ -332,17 +316,17 @@ function AdminProductosPage() {
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="rounded border border-navy px-4 py-2 text-navy disabled:opacity-40"
+            className="btn btn-secondary"
           >
             ← Anterior
           </button>
-          <span className="text-navy">
+          <span className="text-neutral-secondary">
             Página {data.page + 1} de {data.totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(data.totalPages - 1, p + 1))}
             disabled={page >= data.totalPages - 1}
-            className="rounded border border-navy px-4 py-2 text-navy disabled:opacity-40"
+            className="btn btn-secondary"
           >
             Siguiente →
           </button>

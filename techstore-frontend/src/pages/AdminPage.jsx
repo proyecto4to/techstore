@@ -66,66 +66,68 @@ function AdminPage() {
     confirmarMutation.isPending || cobrarMutation.isPending || anularMutation.isPending
 
   return (
-    <div className="container mx-auto p-6">
-      <h2 className="mb-6 text-3xl font-bold text-navy">Panel de administración — Pedidos</h2>
+    <div className="container mx-auto px-6 py-8">
+      <h1 className="mb-6 text-4xl font-bold text-neutral-text">
+        ⚙️ Administración — <span className="gradient-text">Pedidos</span>
+      </h1>
       <AdminTabs />
 
       {mensaje && (
-        <p className="mb-4 rounded bg-green-50 p-3 text-green-700" role="status">
+        <p className="alerta-ok" role="status">
           {mensaje}
         </p>
       )}
       {error && (
-        <p className="mb-4 rounded bg-red-50 p-3 text-red-600" role="alert">
+        <p className="alerta-error" role="alert">
           {error}
         </p>
       )}
 
-      {isLoading && <p className="text-gray-500">Cargando pedidos…</p>}
+      {isLoading && <p className="text-neutral-muted">Cargando pedidos…</p>}
 
-      {data && data.content.length === 0 && <p className="text-gray-500">No hay pedidos aún.</p>}
+      {data && data.content.length === 0 && <p className="text-neutral-muted">No hay pedidos aún.</p>}
 
       {data && data.content.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border-2 border-gold bg-white shadow-md">
-          <table className="w-full text-left">
-            <thead className="bg-navy text-gold">
+        <div className="card overflow-x-auto p-0">
+          <table className="tabla-admin">
+            <thead>
               <tr>
-                <th className="p-3">N.º</th>
-                <th className="p-3">Fecha</th>
-                <th className="p-3">Cliente</th>
-                <th className="p-3">Estado</th>
-                <th className="p-3">Total</th>
-                <th className="p-3">Acciones</th>
+                <th>N.º</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Estado</th>
+                <th>Total</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {data.content.map((pedido) => {
                 const estado = estadoPedido(pedido.estado)
                 return (
-                  <tr key={pedido.id} className="border-t">
-                    <td className="p-3 font-semibold text-navy">{pedido.numero}</td>
-                    <td className="p-3">{new Date(pedido.fecha).toLocaleString('es-PY')}</td>
-                    <td className="p-3">{pedido.usuarioEmail}</td>
-                    <td className="p-3">
-                      <span className={`rounded px-2 py-1 text-xs font-semibold ${estado.clase}`}>
+                  <tr key={pedido.id}>
+                    <td className="font-semibold text-neutral-text">#{pedido.numero}</td>
+                    <td>{new Date(pedido.fecha).toLocaleString('es-PY')}</td>
+                    <td className="text-neutral-secondary">{pedido.usuarioEmail}</td>
+                    <td>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${estado.clase}`}>
                         {estado.label}
                       </span>
                     </td>
-                    <td className="p-3 font-semibold">{formatPrecio(pedido.total)}</td>
-                    <td className="p-3">
+                    <td className="font-semibold text-primary-300">{formatPrecio(pedido.total)}</td>
+                    <td>
                       {pedido.estado === 'P' && (
                         <div className="flex gap-2">
                           <button
                             onClick={() => confirmarMutation.mutate(pedido.id)}
                             disabled={ocupado}
-                            className="rounded bg-navy px-3 py-1 text-sm font-semibold text-gold hover:bg-navy-light disabled:opacity-50"
+                            className="btn btn-primary text-sm"
                           >
                             Confirmar
                           </button>
                           <button
                             onClick={() => anularMutation.mutate(pedido.id)}
                             disabled={ocupado}
-                            className="rounded border border-red-400 px-3 py-1 text-sm text-red-500 hover:bg-red-50 disabled:opacity-50"
+                            className="btn btn-danger text-sm"
                           >
                             Anular
                           </button>
@@ -141,7 +143,7 @@ function AdminPage() {
                                 [pedido.id]: e.target.value,
                               }))
                             }
-                            className="rounded border border-gray-300 p-1 text-sm"
+                            className="input w-auto py-1 text-sm"
                           >
                             {TIPOS_PAGO.map((tipo) => (
                               <option key={tipo} value={tipo}>
@@ -157,13 +159,15 @@ function AdminPage() {
                               })
                             }
                             disabled={ocupado}
-                            className="rounded bg-gold px-3 py-1 text-sm font-semibold text-navy hover:bg-gold-light disabled:opacity-50"
+                            className="btn btn-primary text-sm"
                           >
                             💵 Cobrar
                           </button>
                         </div>
                       )}
-                      {pedido.estado === 'G' && <span className="text-sm text-gray-500">Facturado ✓</span>}
+                      {pedido.estado === 'G' && (
+                        <span className="text-sm text-emerald-400">Facturado ✓</span>
+                      )}
                     </td>
                   </tr>
                 )
@@ -178,36 +182,28 @@ function AdminPage() {
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="rounded border border-navy px-4 py-2 text-navy disabled:opacity-40"
+            className="btn btn-secondary"
           >
             ← Anterior
           </button>
-          <span className="text-navy">
+          <span className="text-neutral-secondary">
             Página {data.page + 1} de {data.totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(data.totalPages - 1, p + 1))}
             disabled={page >= data.totalPages - 1}
-            className="rounded border border-navy px-4 py-2 text-navy disabled:opacity-40"
+            className="btn btn-secondary"
           >
             Siguiente →
           </button>
         </div>
       )}
 
-      <p className="mt-6 text-sm text-gray-500">
-        Flujo: <strong>Pendiente</strong> (stock reservado) → <strong>Confirmar</strong> (descuenta
-        stock real) → <strong>Cobrar</strong> (registra el pago y emite la factura con IVA
-        desglosado). API completa en{' '}
-        <a
-          href="http://localhost:8080/swagger-ui.html"
-          target="_blank"
-          rel="noreferrer"
-          className="text-navy underline hover:text-gold-dark"
-        >
-          Swagger UI
-        </a>
-        .
+      <p className="mt-6 text-sm text-neutral-muted">
+        Flujo: <strong className="text-neutral-secondary">Pendiente</strong> (stock reservado) →{' '}
+        <strong className="text-neutral-secondary">Confirmar</strong> (descuenta stock real) →{' '}
+        <strong className="text-neutral-secondary">Cobrar</strong> (registra el pago y emite la
+        factura con IVA desglosado).
       </p>
     </div>
   )

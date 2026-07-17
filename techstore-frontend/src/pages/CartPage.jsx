@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Trash2, PartyPopper } from 'lucide-react'
 import { useCartStore, selectTotalMonto } from '../store/cartStore'
 import { useAuthStore } from '../store/authStore'
 import { pedidoService } from '../services/pedidoService'
@@ -36,22 +37,23 @@ function CartPage() {
 
   if (pedidoCreado) {
     return (
-      <div className="container mx-auto p-6 text-center">
-        <div className="mx-auto max-w-lg rounded-lg border-2 border-gold bg-white p-8 shadow-lg">
-          <h2 className="mb-4 text-3xl font-bold text-navy">¡Pedido confirmado! 🎉</h2>
-          <p className="mb-2 text-gray-700">
-            Tu pedido <span className="font-bold text-gold-dark">N.º {pedidoCreado.numero}</span> fue
-            registrado por un total de{' '}
-            <span className="font-bold">{formatPrecio(pedidoCreado.total)}</span>.
+      <div className="container mx-auto px-6 py-8 text-center">
+        <div className="card mx-auto max-w-lg p-8">
+          <PartyPopper className="mx-auto mb-4 text-accent-400" size={40} />
+          <h2 className="mb-4 text-3xl font-bold text-neutral-text">¡Pedido registrado!</h2>
+          <p className="mb-2 text-neutral-secondary">
+            Tu pedido <span className="font-bold text-primary-300">N.º {pedidoCreado.numero}</span>{' '}
+            fue creado por un total de{' '}
+            <span className="font-bold text-neutral-text">{formatPrecio(pedidoCreado.total)}</span>.
           </p>
-          <p className="mb-6 text-sm text-gray-500">
+          <p className="mb-6 text-sm text-neutral-muted">
             Estado: Pendiente — el stock quedó reservado a tu nombre.
           </p>
           <div className="flex justify-center gap-4">
-            <Link to="/pedidos" className="rounded bg-navy px-4 py-2 font-semibold text-gold hover:bg-navy-light">
+            <Link to="/pedidos" className="btn btn-primary">
               Ver mis pedidos
             </Link>
-            <Link to="/" className="rounded border border-navy px-4 py-2 text-navy hover:bg-gray-50">
+            <Link to="/" className="btn btn-secondary">
               Seguir comprando
             </Link>
           </div>
@@ -62,9 +64,9 @@ function CartPage() {
 
   if (items.length === 0) {
     return (
-      <div className="container mx-auto p-6 text-center">
-        <h2 className="mb-4 text-3xl font-bold text-navy">Tu carrito está vacío</h2>
-        <Link to="/" className="text-navy underline hover:text-gold-dark">
+      <div className="container mx-auto px-6 py-16 text-center">
+        <h2 className="mb-4 text-3xl font-bold text-neutral-text">Tu carrito está vacío</h2>
+        <Link to="/" className="text-primary-300 underline hover:text-accent-400">
           Ir al catálogo
         </Link>
       </div>
@@ -72,36 +74,36 @@ function CartPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <h2 className="mb-6 text-3xl font-bold text-navy">Carrito</h2>
+    <div className="container mx-auto px-6 py-8">
+      <h1 className="mb-6 text-4xl font-bold text-neutral-text">Carrito</h1>
 
       {error && (
-        <p className="mb-4 rounded bg-red-50 p-3 text-red-600" role="alert">
+        <p className="alerta-error" role="alert">
           {error}
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-lg border-2 border-gold bg-white shadow-md">
-        <table className="w-full text-left">
-          <thead className="bg-navy text-gold">
+      <div className="card overflow-x-auto p-0">
+        <table className="tabla-admin">
+          <thead>
             <tr>
-              <th className="p-3">Producto</th>
-              <th className="p-3">Precio</th>
-              <th className="p-3">Cantidad</th>
-              <th className="p-3">Subtotal</th>
-              <th className="p-3"></th>
+              <th>Producto</th>
+              <th>Precio</th>
+              <th>Cantidad</th>
+              <th>Subtotal</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {items.map(({ producto, cantidad }) => (
-              <tr key={producto.id} className="border-t">
-                <td className="p-3 font-medium text-navy">{producto.nombre}</td>
-                <td className="p-3">{formatPrecio(producto.precio)}</td>
-                <td className="p-3">
+              <tr key={producto.id}>
+                <td className="font-medium text-neutral-text">{producto.nombre}</td>
+                <td>{formatPrecio(producto.precio)}</td>
+                <td>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setCantidad(producto.id, cantidad - 1)}
-                      className="h-7 w-7 rounded border border-navy text-navy hover:bg-gray-100"
+                      className="h-7 w-7 rounded border border-dark-border text-neutral-text hover:border-primary-400 hover:bg-primary-400/10"
                       aria-label={`Restar uno de ${producto.nombre}`}
                     >
                       −
@@ -109,21 +111,23 @@ function CartPage() {
                     <span className="w-8 text-center">{cantidad}</span>
                     <button
                       onClick={() => setCantidad(producto.id, cantidad + 1)}
-                      className="h-7 w-7 rounded border border-navy text-navy hover:bg-gray-100"
+                      className="h-7 w-7 rounded border border-dark-border text-neutral-text hover:border-primary-400 hover:bg-primary-400/10"
                       aria-label={`Sumar uno de ${producto.nombre}`}
                     >
                       +
                     </button>
                   </div>
                 </td>
-                <td className="p-3 font-semibold">{formatPrecio(producto.precio * cantidad)}</td>
-                <td className="p-3">
+                <td className="font-semibold text-primary-300">
+                  {formatPrecio(producto.precio * cantidad)}
+                </td>
+                <td>
                   <button
                     onClick={() => quitar(producto.id)}
-                    className="text-red-500 hover:text-red-700"
+                    className="text-red-400 hover:text-red-300"
                     aria-label={`Quitar ${producto.nombre}`}
                   >
-                    Quitar
+                    <Trash2 size={18} />
                   </button>
                 </td>
               </tr>
@@ -138,17 +142,13 @@ function CartPage() {
           onChange={(e) => setNotas(e.target.value)}
           placeholder="Notas para el pedido (opcional)"
           rows={3}
-          className="w-full rounded border border-gray-300 p-2 focus:border-gold focus:outline-none md:max-w-md"
+          className="input md:max-w-md"
         />
         <div className="text-right">
-          <p className="mb-3 text-2xl font-bold text-navy">
-            Total: <span className="text-gold-dark">{formatPrecio(total)}</span>
+          <p className="mb-3 text-2xl font-bold text-neutral-text">
+            Total: <span className="gradient-text">{formatPrecio(total)}</span>
           </p>
-          <button
-            onClick={handleCheckout}
-            disabled={enviando}
-            className="rounded bg-navy px-8 py-3 font-semibold text-gold hover:bg-navy-light disabled:opacity-50"
-          >
+          <button onClick={handleCheckout} disabled={enviando} className="btn btn-primary px-8 py-3">
             {enviando ? 'Procesando…' : usuario ? 'Finalizar compra' : 'Ingresar para comprar'}
           </button>
         </div>

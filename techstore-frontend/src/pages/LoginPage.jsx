@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Zap } from 'lucide-react'
 import { authService } from '../services/authService'
 import { useAuthStore } from '../store/authStore'
 
@@ -31,53 +32,67 @@ function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-md rounded-lg border-2 border-gold bg-white p-8 shadow-lg"
-      >
-        <h2 className="mb-6 text-center text-2xl font-bold text-navy">Iniciar sesión</h2>
+    <div className="flex min-h-[80vh] items-center justify-center px-6">
+      <div className="w-full max-w-md">
+        <div className="mb-8 text-center">
+          <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg bg-gradient-to-br from-primary-400 to-secondary-400 text-white">
+            <Zap size={26} />
+          </div>
+          <h1 className="text-3xl font-bold gradient-text">TechStore</h1>
+          <p className="mt-2 text-neutral-secondary">Sistema de e-commerce profesional</p>
+        </div>
 
-        {error && (
-          <p className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600" role="alert">
-            {error}
-          </p>
-        )}
+        <form onSubmit={handleSubmit} className="card space-y-6">
+          <h2 className="text-2xl font-bold text-neutral-text">Bienvenido</h2>
 
-        <label className="mb-1 block text-sm font-medium text-navy" htmlFor="email">
-          Email
-        </label>
-        <input
-          id="email"
-          type="email"
-          required
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="mb-4 w-full rounded border border-gray-300 p-2 focus:border-gold focus:outline-none"
-        />
+          {error && (
+            <p className="alerta-error mb-0 text-sm" role="alert">
+              {error}
+            </p>
+          )}
 
-        <label className="mb-1 block text-sm font-medium text-navy" htmlFor="password">
-          Contraseña
-        </label>
-        <input
-          id="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="mb-6 w-full rounded border border-gray-300 p-2 focus:border-gold focus:outline-none"
-        />
+          <div>
+            <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="email">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="input"
+              placeholder="tu@email.com"
+            />
+          </div>
 
-        <button
-          type="submit"
-          disabled={cargando}
-          className="w-full rounded bg-navy py-2 font-semibold text-gold hover:bg-navy-light disabled:opacity-50"
-        >
-          {cargando ? 'Ingresando…' : 'Ingresar'}
-        </button>
-      </form>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="password">
+              Contraseña
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button type="submit" disabled={cargando} className="btn btn-primary w-full">
+            {cargando ? 'Ingresando…' : 'Ingresar'}
+          </button>
+
+          <div className="text-center text-sm text-neutral-secondary">
+            <p>Credenciales de prueba:</p>
+            <p className="text-primary-300">admin@techstore.py / admin123</p>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

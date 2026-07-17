@@ -3,16 +3,7 @@ import { reporteService } from '../services/reporteService'
 import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
 import AdminTabs from '../components/admin/AdminTabs'
-
-function StatTile({ etiqueta, valor, detalle }) {
-  return (
-    <div className="rounded-lg border-2 border-gold bg-white p-6 shadow-md">
-      <p className="text-sm font-medium text-gray-500">{etiqueta}</p>
-      <p className="mt-1 text-3xl font-bold text-navy">{valor}</p>
-      {detalle && <p className="mt-1 text-sm text-gray-500">{detalle}</p>}
-    </div>
-  )
-}
+import StatCard from '../components/common/StatCard'
 
 function AdminReportesPage() {
   const { data, isLoading, isError } = useQuery({
@@ -25,32 +16,36 @@ function AdminReportesPage() {
     : 0
 
   return (
-    <div className="container mx-auto p-6">
-      <h2 className="mb-6 text-3xl font-bold text-navy">Panel de administración — Reportes</h2>
+    <div className="container mx-auto px-6 py-8">
+      <h1 className="mb-6 text-4xl font-bold text-neutral-text">
+        ⚙️ Administración — <span className="gradient-text">Reportes</span>
+      </h1>
       <AdminTabs />
 
-      {isLoading && <p className="text-gray-500">Cargando reporte…</p>}
-      {isError && <p className="text-red-500">No se pudo cargar el reporte de ventas.</p>}
+      {isLoading && <p className="text-neutral-muted">Cargando reporte…</p>}
+      {isError && <p className="alerta-error">No se pudo cargar el reporte de ventas.</p>}
 
       {data && (
         <>
           <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <StatTile
+            <StatCard
               etiqueta="Total facturado"
               valor={formatPrecio(data.totalFacturado)}
               detalle="Suma de facturas pagadas"
+              icono="💰"
             />
-            <StatTile
+            <StatCard
               etiqueta="Facturas emitidas"
               valor={data.cantidadFacturas}
               detalle="Facturas en estado Pagada"
+              icono="🧾"
             />
           </div>
 
-          <div className="mb-8 rounded-lg border-2 border-gold bg-white p-6 shadow-md">
-            <h3 className="mb-4 text-lg font-bold text-navy">Pedidos por estado</h3>
+          <div className="card mb-8">
+            <h3 className="mb-4 text-lg font-semibold text-neutral-text">Pedidos por estado</h3>
             {data.pedidosPorEstado.length === 0 ? (
-              <p className="text-gray-500">Aún no hay pedidos.</p>
+              <p className="text-neutral-muted">Aún no hay pedidos.</p>
             ) : (
               <div className="flex flex-wrap gap-3">
                 {data.pedidosPorEstado.map((fila) => {
@@ -58,7 +53,7 @@ function AdminReportesPage() {
                   return (
                     <span
                       key={fila.estado}
-                      className={`rounded px-3 py-2 text-sm font-semibold ${estado.clase}`}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold ${estado.clase}`}
                     >
                       {estado.label}: {fila.cantidad}
                     </span>
@@ -68,29 +63,31 @@ function AdminReportesPage() {
             )}
           </div>
 
-          <div className="rounded-lg border-2 border-gold bg-white p-6 shadow-md">
-            <h3 className="mb-4 text-lg font-bold text-navy">Productos más vendidos</h3>
+          <div className="card">
+            <h3 className="mb-4 text-lg font-semibold text-neutral-text">
+              Productos más vendidos
+            </h3>
             {data.topProductos.length === 0 ? (
-              <p className="text-gray-500">Todavía no hay ventas registradas.</p>
+              <p className="text-neutral-muted">Todavía no hay ventas registradas.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left">
+                <table className="tabla-admin">
                   <thead>
-                    <tr className="border-b text-sm text-gray-500">
-                      <th className="p-2 font-medium">Producto</th>
-                      <th className="p-2 font-medium">Unidades</th>
-                      <th className="w-1/3 p-2"></th>
-                      <th className="p-2 text-right font-medium">Monto</th>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Unidades</th>
+                      <th className="w-1/3"></th>
+                      <th className="text-right">Monto</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.topProductos.map((producto) => (
-                      <tr key={producto.productoId} className="border-b last:border-0">
-                        <td className="p-2 font-medium text-navy">{producto.nombre}</td>
-                        <td className="p-2">{producto.unidadesVendidas}</td>
-                        <td className="p-2">
+                      <tr key={producto.productoId}>
+                        <td className="font-medium text-neutral-text">{producto.nombre}</td>
+                        <td>{producto.unidadesVendidas}</td>
+                        <td>
                           <div
-                            className="h-3 rounded bg-gold"
+                            className="h-3 rounded bg-gradient-to-r from-primary-400 to-accent-400"
                             style={{
                               width: `${maxUnidades ? (producto.unidadesVendidas / maxUnidades) * 100 : 0}%`,
                               minWidth: '4px',
@@ -98,7 +95,7 @@ function AdminReportesPage() {
                             aria-hidden="true"
                           />
                         </td>
-                        <td className="p-2 text-right font-semibold">
+                        <td className="text-right font-semibold text-primary-300">
                           {formatPrecio(producto.montoVendido)}
                         </td>
                       </tr>
