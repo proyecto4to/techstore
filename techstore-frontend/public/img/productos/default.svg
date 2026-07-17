@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <linearGradient id="caja" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0F66E6"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <path d="M 200 60 L 300 105 L 300 205 L 200 250 L 100 205 L 100 105 Z" fill="url(#caja)"/>
+  <path d="M 200 60 L 300 105 L 200 150 L 100 105 Z" fill="#F1F5F9" opacity="0.15"/>
+  <path d="M 200 150 L 200 250 L 100 205 L 100 105 Z" fill="#0F172A" opacity="0.3"/>
+  <text x="200" y="285" font-family="Segoe UI, sans-serif" font-size="14" fill="#94A3B8" text-anchor="middle">PRODUCTO TECHSTORE</text>
+</svg>

@@ -14,6 +14,7 @@ public record ProductoResponse(
         Integer stockDisponible,
         MarcaRef marca,
         ModeloRef modelo,
+        String imagenUrl,
         Boolean activo,
         LocalDateTime createdAt) {
 

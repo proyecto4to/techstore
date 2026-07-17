@@ -55,6 +55,9 @@ public class Producto {
     @JoinColumn(name = "modelo_id")
     private Modelo modelo;
 
+    @Column(name = "imagen_url", length = 500)
+    private String imagenUrl;
+
     private Boolean activo = true;
 
     @CreationTimestamp

@@ -1,31 +1,46 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ShoppingCart, Check } from 'lucide-react'
 import { formatPrecio } from '../../utils/format'
 import { useCartStore } from '../../store/cartStore'
 
-const ICONOS_MARCA = {
-  Intel: '💻',
-  NVIDIA: '🎮',
-  Samsung: '💾',
-  Kingston: '🔧',
-  Corsair: '⚡',
-}
+const IMAGEN_DEFAULT = '/img/productos/default.svg'
 
 function ProductCard({ producto }) {
   const disponible = producto.stockDisponible > 0
   const agregar = useCartStore((state) => state.agregar)
   const [agregado, setAgregado] = useState(false)
+  const [imgError, setImgError] = useState(false)
+  const navigate = useNavigate()
 
-  const handleAgregar = () => {
+  const handleAgregar = (e) => {
+    e.stopPropagation()
     agregar(producto)
     setAgregado(true)
     setTimeout(() => setAgregado(false), 1200)
   }
 
+  const irAlDetalle = () => navigate(`/productos/${producto.id}`)
+
+  const src = !imgError && producto.imagenUrl ? producto.imagenUrl : IMAGEN_DEFAULT
+
   return (
-    <div className="card card-hover group flex flex-col overflow-hidden">
-      <div className="mb-4 flex h-32 w-full items-center justify-center rounded-md bg-gradient-to-br from-primary-400/20 to-secondary-400/20 transition-all group-hover:from-primary-400/30 group-hover:to-secondary-400/30">
-        <span className="text-5xl">{ICONOS_MARCA[producto.marca?.nombre] ?? '📦'}</span>
+    <div
+      onClick={irAlDetalle}
+      onKeyDown={(e) => e.key === 'Enter' && irAlDetalle()}
+      role="link"
+      tabIndex={0}
+      aria-label={`Ver detalle de ${producto.nombre}`}
+      className="card card-hover group flex cursor-pointer flex-col overflow-hidden focus:outline-none focus:ring-1 focus:ring-primary-400"
+    >
+      <div className="mb-4 h-40 w-full overflow-hidden rounded-md bg-gradient-to-br from-primary-400/10 to-secondary-400/10">
+        <img
+          src={src}
+          alt={producto.nombre}
+          onError={() => setImgError(true)}
+          loading="lazy"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+        />
       </div>
 
       <div className="mb-2 flex items-start justify-between gap-2">

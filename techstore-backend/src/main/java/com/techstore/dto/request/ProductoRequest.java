@@ -17,5 +17,6 @@ public record ProductoRequest(
         @NotNull @Min(0) Integer stockReal,
         Long marcaId,
         Long modeloId,
+        @Size(max = 500) String imagenUrl,
         Boolean activo) {
 }

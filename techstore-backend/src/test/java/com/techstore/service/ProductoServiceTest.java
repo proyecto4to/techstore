@@ -52,7 +52,8 @@ class ProductoServiceTest {
     private ProductoRequest requestBase(Long marcaId, Long modeloId) {
         return new ProductoRequest(
                 "Intel Core i9-13900K", "Procesador de 24 núcleos",
-                new BigDecimal("2500000.00"), 10, 5, marcaId, modeloId, null);
+                new BigDecimal("2500000.00"), 10, 5, marcaId, modeloId,
+                "/img/productos/cpu.svg", null);
     }
 
     @Test

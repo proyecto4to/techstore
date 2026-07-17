@@ -12,6 +12,7 @@ const FORM_VACIO = {
   iva: 10,
   stockReal: 0,
   marcaId: '',
+  imagenUrl: '',
   activo: true,
 }
 
@@ -56,6 +57,7 @@ function AdminProductosPage() {
     stockReal: Number(f.stockReal),
     marcaId: f.marcaId ? Number(f.marcaId) : null,
     modeloId: null,
+    imagenUrl: f.imagenUrl?.trim() || null,
     activo: f.activo,
   })
 
@@ -91,6 +93,7 @@ function AdminProductosPage() {
         stockReal: producto.stockReal,
         marcaId: producto.marca?.id ?? null,
         modeloId: producto.modelo?.id ?? null,
+        imagenUrl: producto.imagenUrl ?? null,
         activo: true,
       }),
     onSuccess: (producto) => {
@@ -110,6 +113,7 @@ function AdminProductosPage() {
       iva: producto.iva,
       stockReal: producto.stockReal,
       marcaId: producto.marca?.id ?? '',
+      imagenUrl: producto.imagenUrl ?? '',
       activo: producto.activo,
     })
 
@@ -184,6 +188,31 @@ function AdminProductosPage() {
             onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
             className="input"
           />
+        </div>
+
+        <div className="md:col-span-3">
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="imagenUrl">
+            Imagen (URL relativa o externa)
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              id="imagenUrl"
+              maxLength={500}
+              placeholder="/img/productos/default.svg o https://…"
+              value={form.imagenUrl}
+              onChange={(e) => setForm({ ...form, imagenUrl: e.target.value })}
+              className="input"
+            />
+            {form.imagenUrl && (
+              <img
+                src={form.imagenUrl}
+                alt="Vista previa"
+                className="h-12 w-16 flex-shrink-0 rounded border border-dark-border object-cover"
+                onError={(e) => (e.target.style.visibility = 'hidden')}
+                onLoad={(e) => (e.target.style.visibility = 'visible')}
+              />
+            )}
+          </div>
         </div>
 
         <div>
@@ -264,7 +293,17 @@ function AdminProductosPage() {
             <tbody>
               {data.content.map((producto) => (
                 <tr key={producto.id} className={producto.activo ? '' : 'opacity-50'}>
-                  <td className="font-medium text-neutral-text">{producto.nombre}</td>
+                  <td className="font-medium text-neutral-text">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={producto.imagenUrl || '/img/productos/default.svg'}
+                        alt=""
+                        className="h-10 w-14 flex-shrink-0 rounded border border-dark-border object-cover"
+                        onError={(e) => (e.target.src = '/img/productos/default.svg')}
+                      />
+                      {producto.nombre}
+                    </div>
+                  </td>
                   <td className="text-neutral-secondary">{producto.marca?.nombre ?? '—'}</td>
                   <td className="text-primary-300">{formatPrecio(producto.precio)}</td>
                   <td>{producto.stockReal}</td>

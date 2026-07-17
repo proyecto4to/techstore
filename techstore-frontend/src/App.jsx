@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Navbar from './components/common/Navbar'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import CatalogoPage from './pages/CatalogoPage'
+import ProductoDetallePage from './pages/ProductoDetallePage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import CartPage from './pages/CartPage'
@@ -26,6 +27,7 @@ function App() {
           <main>
             <Routes>
               <Route path="/" element={<CatalogoPage />} />
+              <Route path="/productos/:id" element={<ProductoDetallePage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/carrito" element={<CartPage />} />
               <Route
