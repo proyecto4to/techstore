@@ -53,8 +53,11 @@ class PagoServiceTest {
     @Mock
     private AutonumeradorService autonumeradorService;
 
-    private final FacturaPdfService facturaPdfService =
-            new FacturaPdfService("TechStore Paraguay", "12345678");
+    private final FacturaPdfService facturaPdfService = new FacturaPdfService(
+            new com.techstore.config.EmpresaProperties(
+                    "TechStore Paraguay", "80012345-6", "Avda. España 1234 c/ Brasil",
+                    "Asunción, Paraguay", "(021) 555-123", "Venta de equipos e insumos informáticos",
+                    "12345678", "01/01/2026 al 31/12/2026"));
 
     private PagoService pagoService;
     private Usuario cajero;

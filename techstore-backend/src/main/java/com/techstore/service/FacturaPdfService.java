@@ -1,6 +1,5 @@
 package com.techstore.service;
 
-import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
@@ -8,55 +7,56 @@ import com.lowagie.text.Font;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
-import com.lowagie.text.Rectangle;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
-import com.lowagie.text.pdf.draw.LineSeparator;
+import com.techstore.config.EmpresaProperties;
 import com.techstore.entity.Factura;
 import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
-import org.springframework.beans.factory.annotation.Value;
+import com.techstore.util.NumeroALetras;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
- * Genera el PDF imprimible de una factura con OpenPDF (licencia libre).
+ * Genera el PDF de la factura con el formato clásico exigido por la
+ * DNIT (Paraguay): timbrado con vigencia, condición de venta, columnas
+ * de exentas / gravadas 5% / gravadas 10%, total en letras y
+ * liquidación del IVA.
  */
 @Service
 public class FacturaPdfService {
 
-    private static final Color AZUL_OSCURO = new Color(15, 23, 42);
-    private static final Color AZUL_PRIMARIO = new Color(15, 102, 230);
-    private static final Color GRIS_CLARO = new Color(241, 245, 249);
-    private static final Color GRIS_BORDE = new Color(203, 213, 225);
+    private static final Color NEGRO = new Color(20, 20, 20);
+    private static final Color GRIS_TEXTO = new Color(90, 90, 90);
+    private static final Color GRIS_FONDO = new Color(235, 235, 235);
+    private static final Color GRIS_BORDE = new Color(120, 120, 120);
 
-    private static final Font F_TITULO = new Font(Font.HELVETICA, 20, Font.BOLD, AZUL_PRIMARIO);
-    private static final Font F_EMPRESA = new Font(Font.HELVETICA, 14, Font.BOLD, AZUL_OSCURO);
-    private static final Font F_NORMAL = new Font(Font.HELVETICA, 10, Font.NORMAL, AZUL_OSCURO);
-    private static final Font F_GRIS = new Font(Font.HELVETICA, 9, Font.NORMAL, new Color(100, 116, 139));
-    private static final Font F_NEGRITA = new Font(Font.HELVETICA, 10, Font.BOLD, AZUL_OSCURO);
-    private static final Font F_ENCABEZADO_TABLA = new Font(Font.HELVETICA, 10, Font.BOLD, Color.WHITE);
-    private static final Font F_TOTAL = new Font(Font.HELVETICA, 12, Font.BOLD, AZUL_PRIMARIO);
+    private static final Font F_EMPRESA = new Font(Font.HELVETICA, 13, Font.BOLD, NEGRO);
+    private static final Font F_TITULO = new Font(Font.HELVETICA, 13, Font.BOLD, NEGRO);
+    private static final Font F_NUMERO = new Font(Font.HELVETICA, 12, Font.BOLD, NEGRO);
+    private static final Font F_NORMAL = new Font(Font.HELVETICA, 9, Font.NORMAL, NEGRO);
+    private static final Font F_NEGRITA = new Font(Font.HELVETICA, 9, Font.BOLD, NEGRO);
+    private static final Font F_CHICA = new Font(Font.HELVETICA, 8, Font.NORMAL, GRIS_TEXTO);
+    private static final Font F_TOTAL = new Font(Font.HELVETICA, 11, Font.BOLD, NEGRO);
 
-    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final BigDecimal ONCE = BigDecimal.valueOf(11);
+    private static final BigDecimal VEINTIUNO = BigDecimal.valueOf(21);
 
-    private final String empresaNombre;
-    private final String empresaRuc;
+    private final EmpresaProperties empresa;
     private final NumberFormat formatoNumero;
 
-    public FacturaPdfService(
-            @Value("${empresa.nombre}") String empresaNombre,
-            @Value("${empresa.ruc}") String empresaRuc) {
-        this.empresaNombre = empresaNombre;
-        this.empresaRuc = empresaRuc;
+    public FacturaPdfService(EmpresaProperties empresa) {
+        this.empresa = empresa;
         this.formatoNumero = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-PY"));
         this.formatoNumero.setMaximumFractionDigits(2);
         this.formatoNumero.setMinimumFractionDigits(0);
@@ -64,14 +64,14 @@ public class FacturaPdfService {
 
     public byte[] generar(Factura factura) {
         try (ByteArrayOutputStream salida = new ByteArrayOutputStream()) {
-            Document documento = new Document(PageSize.A4, 40, 40, 40, 40);
+            Document documento = new Document(PageSize.A4, 36, 36, 36, 36);
             PdfWriter.getInstance(documento, salida);
             documento.open();
 
             agregarEncabezado(documento, factura);
-            agregarDatos(documento, factura);
+            agregarCondicionYFecha(documento, factura);
+            agregarCliente(documento, factura);
             agregarItems(documento, factura);
-            agregarTotales(documento, factura);
             agregarPie(documento);
 
             documento.close();
@@ -82,140 +82,192 @@ public class FacturaPdfService {
     }
 
     private void agregarEncabezado(Document documento, Factura factura) throws DocumentException {
-        PdfPTable encabezado = new PdfPTable(new float[]{60, 40});
+        PdfPTable encabezado = new PdfPTable(new float[]{58, 42});
         encabezado.setWidthPercentage(100);
 
-        PdfPCell empresa = celdaSinBorde();
-        empresa.addElement(new Paragraph(empresaNombre, F_EMPRESA));
-        empresa.addElement(new Paragraph("RUC: " + empresaRuc, F_NORMAL));
-        empresa.addElement(new Paragraph("Asunción, Paraguay", F_GRIS));
-        encabezado.addCell(empresa);
+        PdfPCell datosEmpresa = new PdfPCell();
+        datosEmpresa.setBorderColor(GRIS_BORDE);
+        datosEmpresa.setPadding(8);
+        datosEmpresa.addElement(new Paragraph(empresa.nombre(), F_EMPRESA));
+        datosEmpresa.addElement(new Paragraph(empresa.actividad(), F_CHICA));
+        datosEmpresa.addElement(new Paragraph(empresa.direccion(), F_NORMAL));
+        datosEmpresa.addElement(new Paragraph(empresa.ciudad(), F_NORMAL));
+        datosEmpresa.addElement(new Paragraph("Tel.: " + empresa.telefono(), F_NORMAL));
+        encabezado.addCell(datosEmpresa);
 
-        PdfPCell titulo = celdaSinBorde();
-        titulo.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        Paragraph factTitulo = new Paragraph("FACTURA", F_TITULO);
-        factTitulo.setAlignment(Element.ALIGN_RIGHT);
-        titulo.addElement(factTitulo);
-        Paragraph tipoNumero = new Paragraph(factura.getTipo() + " N.º " + factura.getNumero(), F_NEGRITA);
-        tipoNumero.setAlignment(Element.ALIGN_RIGHT);
-        titulo.addElement(tipoNumero);
-        Paragraph estado = new Paragraph("Estado: " + factura.getEstado(), F_GRIS);
-        estado.setAlignment(Element.ALIGN_RIGHT);
-        titulo.addElement(estado);
-        encabezado.addCell(titulo);
+        PdfPCell cajaTimbrado = new PdfPCell();
+        cajaTimbrado.setBorderColor(GRIS_BORDE);
+        cajaTimbrado.setPadding(8);
+        cajaTimbrado.setHorizontalAlignment(Element.ALIGN_CENTER);
+        Paragraph ruc = new Paragraph("RUC: " + empresa.ruc(), F_NEGRITA);
+        ruc.setAlignment(Element.ALIGN_CENTER);
+        cajaTimbrado.addElement(ruc);
+        Paragraph timbrado = new Paragraph("TIMBRADO N.º " + empresa.timbrado(), F_NEGRITA);
+        timbrado.setAlignment(Element.ALIGN_CENTER);
+        cajaTimbrado.addElement(timbrado);
+        Paragraph vigencia = new Paragraph("Vigencia: " + empresa.timbradoVigencia(), F_CHICA);
+        vigencia.setAlignment(Element.ALIGN_CENTER);
+        cajaTimbrado.addElement(vigencia);
+        Paragraph titulo = new Paragraph("FACTURA", F_TITULO);
+        titulo.setAlignment(Element.ALIGN_CENTER);
+        titulo.setSpacingBefore(6);
+        cajaTimbrado.addElement(titulo);
+        Paragraph numero = new Paragraph(factura.getNumero(), F_NUMERO);
+        numero.setAlignment(Element.ALIGN_CENTER);
+        cajaTimbrado.addElement(numero);
+        encabezado.addCell(cajaTimbrado);
 
         documento.add(encabezado);
-        documento.add(lineaSeparadora());
     }
 
-    private void agregarDatos(Document documento, Factura factura) throws DocumentException {
+    private void agregarCondicionYFecha(Document documento, Factura factura) throws DocumentException {
+        boolean contado = "CONTADO".equalsIgnoreCase(factura.getTipo());
+        PdfPTable fila = new PdfPTable(new float[]{60, 40});
+        fila.setWidthPercentage(100);
+
+        PdfPCell condicion = celdaBordeada(new Phrase(
+                "Condición de venta:   CONTADO [" + (contado ? "X" : " ") + "]"
+                        + "   CRÉDITO [" + (contado ? " " : "X") + "]", F_NORMAL));
+        fila.addCell(condicion);
+
+        PdfPCell fecha = celdaBordeada(new Phrase(
+                "Fecha de emisión: " + factura.getFecha().format(FORMATO_FECHA), F_NORMAL));
+        fila.addCell(fecha);
+
+        documento.add(fila);
+    }
+
+    private void agregarCliente(Document documento, Factura factura) throws DocumentException {
         Usuario cliente = factura.getPedido().getUsuario();
 
-        PdfPTable datos = new PdfPTable(new float[]{50, 50});
+        PdfPTable datos = new PdfPTable(new float[]{60, 40});
         datos.setWidthPercentage(100);
-        datos.setSpacingBefore(12);
-        datos.setSpacingAfter(12);
-
-        PdfPCell izquierda = celdaSinBorde();
-        izquierda.addElement(new Paragraph("Cliente", F_GRIS));
-        izquierda.addElement(new Paragraph(cliente.getNombre() + " " + cliente.getApellido(), F_NEGRITA));
-        izquierda.addElement(new Paragraph(cliente.getEmail(), F_NORMAL));
-        datos.addCell(izquierda);
-
-        PdfPCell derecha = celdaSinBorde();
-        derecha.addElement(new Paragraph("Fecha: " + factura.getFecha().format(FORMATO_FECHA), F_NORMAL));
-        derecha.addElement(new Paragraph("Pedido asociado: N.º " + factura.getPedido().getNumero(), F_NORMAL));
-        derecha.addElement(new Paragraph("Atendido por: " + factura.getUsuario().getNombre()
-                + " " + factura.getUsuario().getApellido(), F_NORMAL));
-        datos.addCell(derecha);
+        datos.addCell(celdaBordeada(new Phrase(
+                "Nombre o Razón Social: " + cliente.getNombre() + " " + cliente.getApellido(), F_NORMAL)));
+        datos.addCell(celdaBordeada(new Phrase("RUC / C.I.: —", F_NORMAL)));
+        datos.addCell(celdaBordeada(new Phrase("Email: " + cliente.getEmail(), F_NORMAL)));
+        datos.addCell(celdaBordeada(new Phrase(
+                "Pedido asociado: N.º " + factura.getPedido().getNumero(), F_NORMAL)));
 
         documento.add(datos);
     }
 
     private void agregarItems(Document documento, Factura factura) throws DocumentException {
-        PdfPTable tabla = new PdfPTable(new float[]{44, 10, 16, 10, 20});
+        PdfPTable tabla = new PdfPTable(new float[]{9, 33, 14, 14, 14, 16});
         tabla.setWidthPercentage(100);
+        tabla.setSpacingBefore(8);
 
-        for (String titulo : new String[]{"Producto", "Cant.", "Precio unit.", "IVA", "Subtotal"}) {
-            PdfPCell celda = new PdfPCell(new Phrase(titulo, F_ENCABEZADO_TABLA));
-            celda.setBackgroundColor(AZUL_OSCURO);
-            celda.setPadding(7);
+        String[] titulos = {"CANT.", "DESCRIPCIÓN", "PRECIO UNIT.", "EXENTAS", "GRAVADAS 5%", "GRAVADAS 10%"};
+        for (String tituloColumna : titulos) {
+            PdfPCell celda = new PdfPCell(new Phrase(tituloColumna, F_NEGRITA));
+            celda.setBackgroundColor(GRIS_FONDO);
+            celda.setHorizontalAlignment(Element.ALIGN_CENTER);
+            celda.setPadding(6);
             celda.setBorderColor(GRIS_BORDE);
             tabla.addCell(celda);
         }
 
-        boolean sombreada = false;
+        BigDecimal exentas = BigDecimal.ZERO;
+        BigDecimal gravadas5 = BigDecimal.ZERO;
+        BigDecimal gravadas10 = BigDecimal.ZERO;
+
         for (PedidoDetalle detalle : factura.getPedido().getDetalles()) {
-            Color fondo = sombreada ? GRIS_CLARO : Color.WHITE;
-            tabla.addCell(celdaItem(detalle.getProducto().getNombre(), Element.ALIGN_LEFT, fondo));
-            tabla.addCell(celdaItem(String.valueOf(detalle.getCantidad()), Element.ALIGN_CENTER, fondo));
-            tabla.addCell(celdaItem(gs(detalle.getPrecioUnitario()), Element.ALIGN_RIGHT, fondo));
-            tabla.addCell(celdaItem(detalle.getIvaAplicado().stripTrailingZeros().toPlainString() + "%",
-                    Element.ALIGN_CENTER, fondo));
-            tabla.addCell(celdaItem(gs(detalle.getSubtotal()), Element.ALIGN_RIGHT, fondo));
-            sombreada = !sombreada;
+            int tasa = detalle.getIvaAplicado() == null ? 0 : detalle.getIvaAplicado().intValue();
+            BigDecimal monto = detalle.getSubtotal();
+
+            tabla.addCell(celdaItem(String.valueOf(detalle.getCantidad()), Element.ALIGN_CENTER));
+            tabla.addCell(celdaItem(detalle.getProducto().getNombre(), Element.ALIGN_LEFT));
+            tabla.addCell(celdaItem(numero(detalle.getPrecioUnitario()), Element.ALIGN_RIGHT));
+            tabla.addCell(celdaItem(tasa == 0 ? numero(monto) : "", Element.ALIGN_RIGHT));
+            tabla.addCell(celdaItem(tasa == 5 ? numero(monto) : "", Element.ALIGN_RIGHT));
+            tabla.addCell(celdaItem(tasa == 10 ? numero(monto) : "", Element.ALIGN_RIGHT));
+
+            switch (tasa) {
+                case 5 -> gravadas5 = gravadas5.add(monto);
+                case 10 -> gravadas10 = gravadas10.add(monto);
+                default -> exentas = exentas.add(monto);
+            }
         }
+
+        PdfPCell subtotales = new PdfPCell(new Phrase("SUB-TOTALES:", F_NEGRITA));
+        subtotales.setColspan(3);
+        subtotales.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        subtotales.setPadding(6);
+        subtotales.setBorderColor(GRIS_BORDE);
+        subtotales.setBackgroundColor(GRIS_FONDO);
+        tabla.addCell(subtotales);
+        for (BigDecimal columna : new BigDecimal[]{exentas, gravadas5, gravadas10}) {
+            PdfPCell celda = new PdfPCell(new Phrase(numero(columna), F_NEGRITA));
+            celda.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            celda.setPadding(6);
+            celda.setBorderColor(GRIS_BORDE);
+            celda.setBackgroundColor(GRIS_FONDO);
+            tabla.addCell(celda);
+        }
+
+        PdfPCell etiquetaTotal = new PdfPCell(new Phrase("TOTAL A PAGAR:", F_TOTAL));
+        etiquetaTotal.setColspan(3);
+        etiquetaTotal.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        etiquetaTotal.setPadding(7);
+        etiquetaTotal.setBorderColor(GRIS_BORDE);
+        tabla.addCell(etiquetaTotal);
+        PdfPCell valorTotal = new PdfPCell(new Phrase("Gs. " + numero(factura.getTotal()), F_TOTAL));
+        valorTotal.setColspan(3);
+        valorTotal.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        valorTotal.setPadding(7);
+        valorTotal.setBorderColor(GRIS_BORDE);
+        tabla.addCell(valorTotal);
+
+        PdfPCell enLetras = new PdfPCell(new Phrase(
+                "TOTAL A PAGAR (EN LETRAS): "
+                        + capitalizar(NumeroALetras.enGuaranies(factura.getTotal())) + ".-", F_NORMAL));
+        enLetras.setColspan(6);
+        enLetras.setPadding(6);
+        enLetras.setBorderColor(GRIS_BORDE);
+        tabla.addCell(enLetras);
+
+        BigDecimal iva5 = gravadas5.divide(VEINTIUNO, 0, RoundingMode.HALF_UP);
+        BigDecimal iva10 = gravadas10.divide(ONCE, 0, RoundingMode.HALF_UP);
+        PdfPCell liquidacion = new PdfPCell(new Phrase(
+                "LIQUIDACIÓN DEL IVA:   (5%) " + numero(iva5)
+                        + "   (10%) " + numero(iva10)
+                        + "   TOTAL IVA: " + numero(iva5.add(iva10)), F_NORMAL));
+        liquidacion.setColspan(6);
+        liquidacion.setPadding(6);
+        liquidacion.setBorderColor(GRIS_BORDE);
+        tabla.addCell(liquidacion);
 
         documento.add(tabla);
     }
 
-    private void agregarTotales(Document documento, Factura factura) throws DocumentException {
-        PdfPTable totales = new PdfPTable(new float[]{60, 22, 18});
-        totales.setWidthPercentage(100);
-        totales.setSpacingBefore(10);
-
-        agregarFilaTotal(totales, "Subtotal (sin IVA)", gs(factura.getSubtotal()), F_NORMAL);
-        agregarFilaTotal(totales, "IVA incluido", gs(factura.getIva()), F_NORMAL);
-        agregarFilaTotal(totales, "TOTAL", gs(factura.getTotal()), F_TOTAL);
-
-        documento.add(totales);
-    }
-
-    private void agregarFilaTotal(PdfPTable tabla, String etiqueta, String valor, Font fuente) {
-        tabla.addCell(celdaSinBorde());
-        PdfPCell celdaEtiqueta = new PdfPCell(new Phrase(etiqueta, fuente));
-        celdaEtiqueta.setBorder(Rectangle.NO_BORDER);
-        celdaEtiqueta.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        celdaEtiqueta.setPadding(4);
-        tabla.addCell(celdaEtiqueta);
-        PdfPCell celdaValor = new PdfPCell(new Phrase(valor, fuente));
-        celdaValor.setBorder(Rectangle.NO_BORDER);
-        celdaValor.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        celdaValor.setPadding(4);
-        tabla.addCell(celdaValor);
-    }
-
     private void agregarPie(Document documento) throws DocumentException {
-        documento.add(lineaSeparadora());
-        Paragraph pie = new Paragraph(
-                "Precios expresados en guaraníes (Gs.) con IVA incluido. "
-                        + "Documento generado por TechStore.", F_GRIS);
-        pie.setSpacingBefore(8);
+        Paragraph pie = new Paragraph("Original: Cliente   —   Duplicado: Archivo Tributario", F_CHICA);
+        pie.setAlignment(Element.ALIGN_CENTER);
+        pie.setSpacingBefore(10);
         documento.add(pie);
     }
 
-    private PdfPCell celdaSinBorde() {
-        PdfPCell celda = new PdfPCell();
-        celda.setBorder(Rectangle.NO_BORDER);
-        return celda;
-    }
-
-    private PdfPCell celdaItem(String texto, int alineacion, Color fondo) {
-        PdfPCell celda = new PdfPCell(new Phrase(texto, F_NORMAL));
-        celda.setHorizontalAlignment(alineacion);
+    private PdfPCell celdaBordeada(Phrase contenido) {
+        PdfPCell celda = new PdfPCell(contenido);
         celda.setPadding(6);
-        celda.setBackgroundColor(fondo);
         celda.setBorderColor(GRIS_BORDE);
         return celda;
     }
 
-    private Element lineaSeparadora() {
-        LineSeparator linea = new LineSeparator();
-        linea.setLineColor(GRIS_BORDE);
-        return new Chunk(linea);
+    private PdfPCell celdaItem(String texto, int alineacion) {
+        PdfPCell celda = new PdfPCell(new Phrase(texto, F_NORMAL));
+        celda.setHorizontalAlignment(alineacion);
+        celda.setPadding(6);
+        celda.setBorderColor(GRIS_BORDE);
+        return celda;
     }
 
-    private String gs(BigDecimal valor) {
-        return "Gs. " + formatoNumero.format(valor);
+    private String numero(BigDecimal valor) {
+        return formatoNumero.format(valor);
+    }
+
+    private static String capitalizar(String texto) {
+        return texto.isEmpty() ? texto
+                : Character.toUpperCase(texto.charAt(0)) + texto.substring(1);
     }
 }
