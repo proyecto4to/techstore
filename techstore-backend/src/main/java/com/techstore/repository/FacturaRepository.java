@@ -10,14 +10,27 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface FacturaRepository extends JpaRepository<Factura, Long> {
 
-    @Query("select coalesce(sum(f.total), 0) from Factura f where f.estado = :estado")
-    BigDecimal totalPorEstado(@Param("estado") EstadoFactura estado);
+    @Query("select coalesce(sum(f.total), 0) from Factura f "
+            + "where f.estado = :estado and f.fecha >= :desde and f.fecha < :hasta")
+    BigDecimal totalPorEstadoEntre(@Param("estado") EstadoFactura estado,
+                                   @Param("desde") LocalDateTime desde,
+                                   @Param("hasta") LocalDateTime hasta);
 
-    long countByEstado(EstadoFactura estado);
+    long countByEstadoAndFechaGreaterThanEqualAndFechaLessThan(
+            EstadoFactura estado, LocalDateTime desde, LocalDateTime hasta);
+
+    @Query("select cast(f.fecha as date), coalesce(sum(f.total), 0), count(f) from Factura f "
+            + "where f.estado = :estado and f.fecha >= :desde and f.fecha < :hasta "
+            + "group by cast(f.fecha as date) order by cast(f.fecha as date)")
+    List<Object[]> ventasPorDia(@Param("estado") EstadoFactura estado,
+                                @Param("desde") LocalDateTime desde,
+                                @Param("hasta") LocalDateTime hasta);
 
     @Override
     @EntityGraph(attributePaths = {"pedido"})
