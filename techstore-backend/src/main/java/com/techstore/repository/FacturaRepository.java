@@ -25,4 +25,7 @@ public interface FacturaRepository extends JpaRepository<Factura, Long> {
 
     @EntityGraph(attributePaths = {"pedido"})
     Optional<Factura> findWithPedidoById(Long id);
+
+    @EntityGraph(attributePaths = {"pedido", "pedido.detalles", "pedido.detalles.producto", "pedido.usuario", "usuario"})
+    Optional<Factura> findParaPdfById(Long id);
 }

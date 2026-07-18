@@ -10,4 +10,11 @@ export const facturaService = {
     const { data } = await api.get(`/facturas/${id}`)
     return data
   },
+
+  async abrirPdf(id) {
+    const { data } = await api.get(`/facturas/${id}/pdf`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  },
 }

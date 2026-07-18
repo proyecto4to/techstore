@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { FileText } from 'lucide-react'
 import { facturaService } from '../services/facturaService'
 import { formatPrecio } from '../utils/format'
 import AdminTabs from '../components/admin/AdminTabs'
@@ -13,6 +14,20 @@ const ESTILOS_FACTURA = {
 
 function AdminFacturasPage() {
   const [page, setPage] = useState(0)
+  const [errorPdf, setErrorPdf] = useState(null)
+  const [abriendo, setAbriendo] = useState(null)
+
+  const verPdf = async (factura) => {
+    setErrorPdf(null)
+    setAbriendo(factura.id)
+    try {
+      await facturaService.abrirPdf(factura.id)
+    } catch {
+      setErrorPdf(`No se pudo generar el PDF de la factura ${factura.numero}.`)
+    } finally {
+      setAbriendo(null)
+    }
+  }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin-facturas', page],
@@ -29,6 +44,11 @@ function AdminFacturasPage() {
 
       {isLoading && <p className="text-neutral-muted">Cargando facturas…</p>}
       {isError && <p className="alerta-error">No se pudieron cargar las facturas.</p>}
+      {errorPdf && (
+        <p className="alerta-error" role="alert">
+          {errorPdf}
+        </p>
+      )}
 
       {data && data.content.length === 0 && (
         <p className="text-neutral-muted">Todavía no se emitió ninguna factura.</p>
@@ -47,6 +67,7 @@ function AdminFacturasPage() {
                 <th>IVA</th>
                 <th>Total</th>
                 <th>Estado</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -67,6 +88,17 @@ function AdminFacturasPage() {
                     >
                       {factura.estado}
                     </span>
+                  </td>
+                  <td>
+                    <button
+                      onClick={() => verPdf(factura)}
+                      disabled={abriendo === factura.id}
+                      className="btn btn-secondary inline-flex items-center gap-2 text-sm"
+                      aria-label={`Ver PDF de la factura ${factura.numero}`}
+                    >
+                      <FileText size={16} />
+                      {abriendo === factura.id ? 'Generando…' : 'PDF'}
+                    </button>
                   </td>
                 </tr>
               ))}

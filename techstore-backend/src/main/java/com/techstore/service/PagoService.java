@@ -40,6 +40,7 @@ public class PagoService {
     private final PedidoRepository pedidoRepository;
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
+    private final FacturaPdfService facturaPdfService;
 
     /**
      * Registra el cobro total de un pedido confirmado y emite su factura
@@ -101,6 +102,17 @@ public class PagoService {
         return facturaRepository.findWithPedidoById(id)
                 .map(FacturaResponse::from)
                 .orElseThrow(() -> new ResourceNotFoundException("Factura", id));
+    }
+
+    /** Número de factura + contenido PDF listos para descargar. */
+    public record FacturaPdf(String numero, byte[] contenido) {
+    }
+
+    @Transactional(readOnly = true)
+    public FacturaPdf generarPdf(Long id) {
+        Factura factura = facturaRepository.findParaPdfById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Factura", id));
+        return new FacturaPdf(factura.getNumero(), facturaPdfService.generar(factura));
     }
 
     private BigDecimal calcularIvaIncluido(Pedido pedido) {

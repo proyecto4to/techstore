@@ -53,6 +53,9 @@ class PagoServiceTest {
     @Mock
     private AutonumeradorService autonumeradorService;
 
+    private final FacturaPdfService facturaPdfService =
+            new FacturaPdfService("TechStore Paraguay", "12345678");
+
     private PagoService pagoService;
     private Usuario cajero;
     private Pedido pedido;
@@ -60,7 +63,8 @@ class PagoServiceTest {
     @BeforeEach
     void setUp() {
         pagoService = new PagoService(
-                pagoRepository, facturaRepository, pedidoRepository, usuarioRepository, autonumeradorService);
+                pagoRepository, facturaRepository, pedidoRepository, usuarioRepository,
+                autonumeradorService, facturaPdfService);
 
         Rol rol = new Rol();
         rol.setId(2L);
