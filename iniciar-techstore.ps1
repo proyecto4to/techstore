@@ -28,8 +28,19 @@ if ($LASTEXITCODE -ne 0) {
 # 2) Backend
 if (-not (Test-Url 'http://localhost:8080/actuator/health')) {
     Write-Host '  [2/3] Iniciando backend (Spring Boot)...' -NoNewline
+    # Si quedo un java colgado en el puerto 8080 (p. ej. sin base de datos), se baja primero.
+    $ocupantes = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue
+    foreach ($idProc in ($ocupantes.OwningProcess | Sort-Object -Unique)) {
+        try {
+            if ((Get-Process -Id $idProc -ErrorAction Stop).ProcessName -eq 'java') {
+                Stop-Process -Id $idProc -Force
+            }
+        } catch { }
+    }
+    # Ruta relativa a proposito: PowerShell 5.1 no agrega comillas a argumentos
+    # con espacios y esta ruta de usuario los tiene ("Dell Vostro").
     Start-Process -FilePath 'java' `
-        -ArgumentList '-jar', "$root\techstore-backend\target\techstore-backend-1.0.0.jar" `
+        -ArgumentList '-jar', 'target\techstore-backend-1.0.0.jar' `
         -WorkingDirectory "$root\techstore-backend" -WindowStyle Minimized
     $intentos = 0
     while (-not (Test-Url 'http://localhost:8080/actuator/health') -and $intentos -lt 40) {
