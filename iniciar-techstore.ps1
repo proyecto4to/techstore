@@ -38,6 +38,20 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host '  [1/3] PostgreSQL ya estaba corriendo' -ForegroundColor Green
 }
 
+# El postmaster puede estar "corriendo" pero aun en recuperacion, rechazando
+# conexiones; si el backend arranca en ese momento, muere. pg_isready espera
+# a que la base acepte conexiones de verdad.
+$pgIsReady = Join-Path $root 'tools\pgsql\bin\pg_isready.exe'
+Write-Host '        Esperando a que la base acepte conexiones...' -NoNewline
+$intentosListo = 0
+do {
+    & $pgIsReady -h localhost -p 5432 *> $null
+    if ($LASTEXITCODE -eq 0) { break }
+    Start-Sleep -Seconds 2; $intentosListo++
+} while ($intentosListo -lt 30)
+if ($intentosListo -ge 30) { Write-Host ' SIN RESPUESTA' -ForegroundColor Red }
+else { Write-Host ' lista' -ForegroundColor Green }
+
 # 2) Backend
 if (-not (Test-Url 'http://localhost:8080/actuator/health')) {
     Write-Host '  [2/3] Iniciando backend (Spring Boot)...' -NoNewline
