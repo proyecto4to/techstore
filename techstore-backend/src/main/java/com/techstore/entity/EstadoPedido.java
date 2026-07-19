@@ -13,7 +13,7 @@ public enum EstadoPedido {
     G,
     /** Entregado. */
     N,
-    /** Rechazado. */
+    /** Devuelto: se emitió nota de crédito sobre su factura. */
     R,
     /** Anulado: stock comprometido liberado. */
     X

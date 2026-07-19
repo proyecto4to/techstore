@@ -12,6 +12,7 @@ import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import com.techstore.config.EmpresaProperties;
 import com.techstore.entity.Factura;
+import com.techstore.entity.NotaCredito;
 import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
@@ -63,25 +64,46 @@ public class FacturaPdfService {
     }
 
     public byte[] generar(Factura factura) {
+        return render(factura, "FACTURA", factura.getNumero(), factura.getFecha(),
+                null, "TOTAL A PAGAR:");
+    }
+
+    public byte[] generarNotaCredito(NotaCredito notaCredito) {
+        return render(notaCredito.getFactura(), "NOTA DE CRÉDITO", notaCredito.getNumero(),
+                notaCredito.getFecha(),
+                "Factura afectada: " + notaCredito.getFactura().getNumero()
+                        + "   —   Motivo: " + notaCredito.getMotivo(),
+                "TOTAL ACREDITADO:");
+    }
+
+    private byte[] render(Factura factura, String tituloDoc, String numeroDoc,
+                          java.time.LocalDateTime fecha, String referencia, String etiquetaTotal) {
         try (ByteArrayOutputStream salida = new ByteArrayOutputStream()) {
             Document documento = new Document(PageSize.A4, 36, 36, 36, 36);
             PdfWriter.getInstance(documento, salida);
             documento.open();
 
-            agregarEncabezado(documento, factura);
-            agregarCondicionYFecha(documento, factura);
+            agregarEncabezado(documento, factura, tituloDoc, numeroDoc);
+            agregarCondicionYFecha(documento, factura, fecha);
             agregarCliente(documento, factura);
-            agregarItems(documento, factura);
+            if (referencia != null) {
+                PdfPTable fila = new PdfPTable(1);
+                fila.setWidthPercentage(100);
+                fila.addCell(celdaBordeada(new Phrase(referencia, F_NORMAL)));
+                documento.add(fila);
+            }
+            agregarItems(documento, factura, etiquetaTotal);
             agregarPie(documento);
 
             documento.close();
             return salida.toByteArray();
         } catch (DocumentException | java.io.IOException ex) {
-            throw new BusinessException("No se pudo generar el PDF de la factura: " + ex.getMessage());
+            throw new BusinessException("No se pudo generar el PDF: " + ex.getMessage());
         }
     }
 
-    private void agregarEncabezado(Document documento, Factura factura) throws DocumentException {
+    private void agregarEncabezado(Document documento, Factura factura,
+                                   String tituloDoc, String numeroDoc) throws DocumentException {
         PdfPTable encabezado = new PdfPTable(new float[]{58, 42});
         encabezado.setWidthPercentage(100);
 
@@ -108,11 +130,11 @@ public class FacturaPdfService {
         Paragraph vigencia = new Paragraph("Vigencia: " + empresa.timbradoVigencia(), F_CHICA);
         vigencia.setAlignment(Element.ALIGN_CENTER);
         cajaTimbrado.addElement(vigencia);
-        Paragraph titulo = new Paragraph("FACTURA", F_TITULO);
+        Paragraph titulo = new Paragraph(tituloDoc, F_TITULO);
         titulo.setAlignment(Element.ALIGN_CENTER);
         titulo.setSpacingBefore(6);
         cajaTimbrado.addElement(titulo);
-        Paragraph numero = new Paragraph(factura.getNumero(), F_NUMERO);
+        Paragraph numero = new Paragraph(numeroDoc, F_NUMERO);
         numero.setAlignment(Element.ALIGN_CENTER);
         cajaTimbrado.addElement(numero);
         encabezado.addCell(cajaTimbrado);
@@ -120,7 +142,8 @@ public class FacturaPdfService {
         documento.add(encabezado);
     }
 
-    private void agregarCondicionYFecha(Document documento, Factura factura) throws DocumentException {
+    private void agregarCondicionYFecha(Document documento, Factura factura,
+                                        java.time.LocalDateTime fecha) throws DocumentException {
         boolean contado = "CONTADO".equalsIgnoreCase(factura.getTipo());
         PdfPTable fila = new PdfPTable(new float[]{60, 40});
         fila.setWidthPercentage(100);
@@ -130,9 +153,9 @@ public class FacturaPdfService {
                         + "   CRÉDITO [" + (contado ? " " : "X") + "]", F_NORMAL));
         fila.addCell(condicion);
 
-        PdfPCell fecha = celdaBordeada(new Phrase(
-                "Fecha de emisión: " + factura.getFecha().format(FORMATO_FECHA), F_NORMAL));
-        fila.addCell(fecha);
+        PdfPCell celdaFecha = celdaBordeada(new Phrase(
+                "Fecha de emisión: " + fecha.format(FORMATO_FECHA), F_NORMAL));
+        fila.addCell(celdaFecha);
 
         documento.add(fila);
     }
@@ -152,7 +175,7 @@ public class FacturaPdfService {
         documento.add(datos);
     }
 
-    private void agregarItems(Document documento, Factura factura) throws DocumentException {
+    private void agregarItems(Document documento, Factura factura, String etiquetaTotal) throws DocumentException {
         PdfPTable tabla = new PdfPTable(new float[]{9, 33, 14, 14, 14, 16});
         tabla.setWidthPercentage(100);
         tabla.setSpacingBefore(8);
@@ -205,12 +228,12 @@ public class FacturaPdfService {
             tabla.addCell(celda);
         }
 
-        PdfPCell etiquetaTotal = new PdfPCell(new Phrase("TOTAL A PAGAR:", F_TOTAL));
-        etiquetaTotal.setColspan(3);
-        etiquetaTotal.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        etiquetaTotal.setPadding(7);
-        etiquetaTotal.setBorderColor(GRIS_BORDE);
-        tabla.addCell(etiquetaTotal);
+        PdfPCell celdaEtiquetaTotal = new PdfPCell(new Phrase(etiquetaTotal, F_TOTAL));
+        celdaEtiquetaTotal.setColspan(3);
+        celdaEtiquetaTotal.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        celdaEtiquetaTotal.setPadding(7);
+        celdaEtiquetaTotal.setBorderColor(GRIS_BORDE);
+        tabla.addCell(celdaEtiquetaTotal);
         PdfPCell valorTotal = new PdfPCell(new Phrase("Gs. " + numero(factura.getTotal()), F_TOTAL));
         valorTotal.setColspan(3);
         valorTotal.setHorizontalAlignment(Element.ALIGN_RIGHT);
@@ -219,7 +242,7 @@ public class FacturaPdfService {
         tabla.addCell(valorTotal);
 
         PdfPCell enLetras = new PdfPCell(new Phrase(
-                "TOTAL A PAGAR (EN LETRAS): "
+                etiquetaTotal.replace(":", "") + " (EN LETRAS): "
                         + capitalizar(NumeroALetras.enGuaranies(factura.getTotal())) + ".-", F_NORMAL));
         enLetras.setColspan(6);
         enLetras.setPadding(6);

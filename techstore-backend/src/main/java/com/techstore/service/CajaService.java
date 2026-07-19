@@ -48,6 +48,16 @@ public class CajaService {
         return guardar(TipoMovimiento.Ingreso, monto, concepto, referencia, usuario);
     }
 
+    /**
+     * Egreso generado por el sistema (p. ej. al devolver dinero por una
+     * nota de crédito). Debe invocarse dentro de la transacción del llamador.
+     */
+    @Transactional
+    public MovimientoCaja registrarEgresoAutomatico(
+            BigDecimal monto, String concepto, String referencia, Usuario usuario) {
+        return guardar(TipoMovimiento.Egreso, monto, concepto, referencia, usuario);
+    }
+
     private MovimientoCaja guardar(
             TipoMovimiento tipo, BigDecimal monto, String concepto, String referencia, Usuario usuario) {
         MovimientoCaja movimiento = new MovimientoCaja();

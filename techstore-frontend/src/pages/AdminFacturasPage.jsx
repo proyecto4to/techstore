@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { FileText } from 'lucide-react'
-import { facturaService } from '../services/facturaService'
+import { facturaService, notaCreditoService } from '../services/facturaService'
 import { formatPrecio } from '../utils/format'
 import AdminTabs from '../components/admin/AdminTabs'
 
@@ -34,6 +34,20 @@ function AdminFacturasPage() {
     queryFn: () => facturaService.listar({ page }),
     placeholderData: keepPreviousData,
   })
+
+  const { data: notasCredito } = useQuery({
+    queryKey: ['admin-notas-credito'],
+    queryFn: () => notaCreditoService.listar({ size: 20 }),
+  })
+
+  const verNcPdf = async (nc) => {
+    setErrorPdf(null)
+    try {
+      await notaCreditoService.abrirPdf(nc.id)
+    } catch {
+      setErrorPdf(`No se pudo generar el PDF de la nota de crédito ${nc.numero}.`)
+    }
+  }
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -128,6 +142,54 @@ function AdminFacturasPage() {
           </button>
         </div>
       )}
+
+      <div className="card mt-8">
+        <h3 className="mb-4 text-lg font-semibold text-neutral-text">Notas de crédito</h3>
+        {!notasCredito || notasCredito.content.length === 0 ? (
+          <p className="text-neutral-muted">
+            No hay notas de crédito. Se emiten desde la pestaña Pedidos con el botón «Devolver».
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="tabla-admin">
+              <thead>
+                <tr>
+                  <th>N.º NC</th>
+                  <th>Factura afectada</th>
+                  <th>Pedido</th>
+                  <th>Motivo</th>
+                  <th>Fecha</th>
+                  <th className="text-right">Total</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {notasCredito.content.map((nc) => (
+                  <tr key={nc.id}>
+                    <td className="font-mono font-semibold text-neutral-text">{nc.numero}</td>
+                    <td className="font-mono text-neutral-secondary">{nc.facturaNumero}</td>
+                    <td>N.º {nc.pedidoNumero}</td>
+                    <td className="text-neutral-secondary">{nc.motivo}</td>
+                    <td>{new Date(nc.fecha).toLocaleString('es-PY')}</td>
+                    <td className="text-right font-semibold text-orange-400">
+                      − {formatPrecio(nc.total)}
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => verNcPdf(nc)}
+                        className="btn btn-secondary inline-flex items-center gap-2 text-sm"
+                        aria-label={`Ver PDF de la nota de crédito ${nc.numero}`}
+                      >
+                        <FileText size={16} /> PDF
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <p className="mt-6 text-sm text-neutral-muted">
         Los montos muestran el IVA incluido desglosado por tasa de cada producto al momento del cobro.

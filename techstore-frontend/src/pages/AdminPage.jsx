@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { pedidoService } from '../services/pedidoService'
+import { notaCreditoService } from '../services/facturaService'
 import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
 import AdminTabs from '../components/admin/AdminTabs'
@@ -13,6 +14,8 @@ function AdminPage() {
   const [page, setPage] = useState(0)
   const [tipoPagoPorPedido, setTipoPagoPorPedido] = useState({})
   const [detalleAbierto, setDetalleAbierto] = useState(null)
+  const [ncPedidoId, setNcPedidoId] = useState(null)
+  const [ncMotivo, setNcMotivo] = useState('')
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
@@ -65,8 +68,24 @@ function AdminPage() {
     onError,
   })
 
+  const devolverMutation = useMutation({
+    mutationFn: ({ id, motivo }) => notaCreditoService.emitir(id, motivo),
+    onSuccess: (nc) => {
+      setError(null)
+      setMensaje(
+        `Nota de crédito ${nc.numero} emitida por ${formatPrecio(nc.total)}: ` +
+          `factura ${nc.facturaNumero} anulada, stock devuelto y egreso registrado en caja.`,
+      )
+      setNcPedidoId(null)
+      setNcMotivo('')
+      refrescar()
+    },
+    onError,
+  })
+
   const ocupado =
-    confirmarMutation.isPending || cobrarMutation.isPending || anularMutation.isPending
+    confirmarMutation.isPending || cobrarMutation.isPending || anularMutation.isPending ||
+    devolverMutation.isPending
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -181,7 +200,43 @@ function AdminPage() {
                         </div>
                       )}
                       {pedido.estado === 'G' && (
-                        <span className="text-sm text-emerald-400">Facturado ✓</span>
+                        ncPedidoId === pedido.id ? (
+                          <span className="inline-flex flex-wrap items-center gap-2">
+                            <input
+                              placeholder="Motivo de la devolución"
+                              maxLength={255}
+                              value={ncMotivo}
+                              onChange={(e) => setNcMotivo(e.target.value)}
+                              className="input w-56 py-1 text-sm"
+                            />
+                            <button
+                              onClick={() => devolverMutation.mutate({ id: pedido.id, motivo: ncMotivo.trim() })}
+                              disabled={!ncMotivo.trim() || ocupado}
+                              className="btn btn-danger text-sm"
+                            >
+                              Emitir NC
+                            </button>
+                            <button
+                              onClick={() => { setNcPedidoId(null); setNcMotivo('') }}
+                              className="btn btn-secondary text-sm"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-3">
+                            <span className="text-sm text-emerald-400">Facturado ✓</span>
+                            <button
+                              onClick={() => { setNcPedidoId(pedido.id); setNcMotivo('') }}
+                              className="btn btn-secondary text-sm"
+                            >
+                              Devolver
+                            </button>
+                          </span>
+                        )
+                      )}
+                      {pedido.estado === 'R' && (
+                        <span className="text-sm text-orange-400">Devuelto (NC emitida)</span>
                       )}
                     </td>
                   </tr>

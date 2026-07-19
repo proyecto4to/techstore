@@ -11,6 +11,9 @@ Sistema de e-commerce full-stack: **Spring Boot 3.2 (Java 21) + React 18 + Postg
 | Base de datos | PostgreSQL 15 (migraciones versionadas con Flyway) |
 | Infraestructura | Docker Compose (postgres + backend + frontend) |
 
+> 📖 ¿Buscás la guía de uso para el día a día (ventas, caja, devoluciones,
+> compras)? Está en **[MANUAL.md](MANUAL.md)**.
+
 ## Inicio rápido
 
 ### Opción 0 — Doble clic 🖱️

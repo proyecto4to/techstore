@@ -18,3 +18,22 @@ export const facturaService = {
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
   },
 }
+
+export const notaCreditoService = {
+  async listar({ page = 0, size = 10 } = {}) {
+    const { data } = await api.get('/notas-credito', { params: { page, size } })
+    return data
+  },
+
+  async emitir(pedidoId, motivo) {
+    const { data } = await api.post(`/pedidos/${pedidoId}/nota-credito`, { motivo })
+    return data
+  },
+
+  async abrirPdf(id) {
+    const { data } = await api.get(`/notas-credito/${id}/pdf`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  },
+}
