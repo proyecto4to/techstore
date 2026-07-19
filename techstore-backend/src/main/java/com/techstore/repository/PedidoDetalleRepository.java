@@ -3,6 +3,7 @@ package com.techstore.repository;
 import com.techstore.dto.response.TopProductoResponse;
 import com.techstore.entity.EstadoPedido;
 import com.techstore.entity.PedidoDetalle;
+import com.techstore.entity.TipoPedido;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -18,12 +19,13 @@ public interface PedidoDetalleRepository extends JpaRepository<PedidoDetalle, Lo
             select new com.techstore.dto.response.TopProductoResponse(
                 d.producto.id, d.producto.nombre, sum(d.cantidad), sum(d.subtotal))
             from PedidoDetalle d
-            where d.pedido.estado in :estados
+            where d.pedido.tipo = :tipo and d.pedido.estado in :estados
                 and d.pedido.fecha >= :desde and d.pedido.fecha < :hasta
             group by d.producto.id, d.producto.nombre
             order by sum(d.cantidad) desc
             """)
-    List<TopProductoResponse> topProductos(@Param("estados") Collection<EstadoPedido> estados,
+    List<TopProductoResponse> topProductos(@Param("tipo") TipoPedido tipo,
+                                           @Param("estados") Collection<EstadoPedido> estados,
                                            @Param("desde") LocalDateTime desde,
                                            @Param("hasta") LocalDateTime hasta,
                                            Pageable pageable);

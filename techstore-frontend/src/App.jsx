@@ -12,6 +12,9 @@ import AdminProductosPage from './pages/AdminProductosPage'
 import AdminReportesPage from './pages/AdminReportesPage'
 import AdminFacturasPage from './pages/AdminFacturasPage'
 import AdminCajaPage from './pages/AdminCajaPage'
+import AdminUsuariosPage from './pages/AdminUsuariosPage'
+import AdminComprasPage from './pages/AdminComprasPage'
+import CuentaPage from './pages/CuentaPage'
 import RegisterPage from './pages/RegisterPage'
 import './App.css'
 
@@ -71,6 +74,30 @@ function App() {
                 element={
                   <ProtectedRoute rol="Admin">
                     <AdminCajaPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/usuarios"
+                element={
+                  <ProtectedRoute rol="Admin">
+                    <AdminUsuariosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/compras"
+                element={
+                  <ProtectedRoute rol="Admin">
+                    <AdminComprasPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cuenta"
+                element={
+                  <ProtectedRoute>
+                    <CuentaPage />
                   </ProtectedRoute>
                 }
               />

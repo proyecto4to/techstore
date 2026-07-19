@@ -7,6 +7,7 @@ import com.techstore.entity.EstadoFactura;
 import com.techstore.entity.EstadoPedido;
 import com.techstore.entity.Marca;
 import com.techstore.entity.Producto;
+import com.techstore.entity.TipoPedido;
 import com.techstore.repository.FacturaRepository;
 import com.techstore.repository.PedidoDetalleRepository;
 import com.techstore.repository.PedidoRepository;
@@ -65,17 +66,18 @@ class ReporteServiceTest {
                 .thenReturn(new BigDecimal("4700000.00"));
         when(facturaRepository.countByEstadoAndFechaGreaterThanEqualAndFechaLessThan(
                 EstadoFactura.Pagada, inicio, fin)).thenReturn(1L);
-        when(pedidoRepository.contarPorEstadoEntre(inicio, fin)).thenReturn(List.of(
+        when(pedidoRepository.contarPorEstadoEntre(TipoPedido.Venta, inicio, fin)).thenReturn(List.of(
                 new Object[]{EstadoPedido.G, 1L},
                 new Object[]{EstadoPedido.X, 1L}));
         when(facturaRepository.ventasPorDia(EstadoFactura.Pagada, inicio, fin)).thenReturn(List.<Object[]>of(
                 new Object[]{Date.valueOf("2026-07-16"), new BigDecimal("4700000.00"), 1L}));
         List<TopProductoResponse> top = List.of(
                 new TopProductoResponse(3L, "Samsung 1TB SSD", 2L, new BigDecimal("1200000.00")));
-        when(pedidoDetalleRepository.topProductos(anyCollection(), eq(inicio), eq(fin), any()))
+        when(pedidoDetalleRepository.topProductos(eq(TipoPedido.Venta), anyCollection(), eq(inicio), eq(fin), any()))
                 .thenReturn(top);
-        when(pedidoRepository.topClientes(anyCollection(), eq(inicio), eq(fin), any())).thenReturn(List.<Object[]>of(
-                new Object[]{"admin@techstore.py", "Admin Sistema", 2L, new BigDecimal("7200000.00")}));
+        when(pedidoRepository.topClientes(eq(TipoPedido.Venta), anyCollection(), eq(inicio), eq(fin), any()))
+                .thenReturn(List.<Object[]>of(
+                        new Object[]{"admin@techstore.py", "Admin Sistema", 2L, new BigDecimal("7200000.00")}));
 
         ReporteVentasResponse reporte = reporteService.ventas(desde, hasta, 5);
 
@@ -90,6 +92,7 @@ class ReporteServiceTest {
         assertEquals(1, reporte.topClientes().size());
         assertEquals("admin@techstore.py", reporte.topClientes().get(0).email());
         verify(pedidoDetalleRepository).topProductos(
+                eq(TipoPedido.Venta),
                 eq(List.of(EstadoPedido.C, EstadoPedido.G, EstadoPedido.N)),
                 eq(inicio), eq(fin), eq(PageRequest.of(0, 5)));
     }
@@ -100,10 +103,10 @@ class ReporteServiceTest {
                 .thenReturn(BigDecimal.ZERO);
         when(facturaRepository.countByEstadoAndFechaGreaterThanEqualAndFechaLessThan(
                 eq(EstadoFactura.Pagada), any(), any())).thenReturn(0L);
-        when(pedidoRepository.contarPorEstadoEntre(any(), any())).thenReturn(List.of());
+        when(pedidoRepository.contarPorEstadoEntre(any(), any(), any())).thenReturn(List.of());
         when(facturaRepository.ventasPorDia(eq(EstadoFactura.Pagada), any(), any())).thenReturn(List.of());
-        when(pedidoDetalleRepository.topProductos(anyCollection(), any(), any(), any())).thenReturn(List.of());
-        when(pedidoRepository.topClientes(anyCollection(), any(), any(), any())).thenReturn(List.of());
+        when(pedidoDetalleRepository.topProductos(any(), anyCollection(), any(), any(), any())).thenReturn(List.of());
+        when(pedidoRepository.topClientes(any(), anyCollection(), any(), any(), any())).thenReturn(List.of());
 
         ReporteVentasResponse reporte = reporteService.ventas(null, null, 3);
 

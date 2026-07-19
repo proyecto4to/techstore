@@ -68,12 +68,13 @@ function Navbar() {
           <div className="flex items-center gap-4">
             {usuario ? (
               <>
-                <div
-                  title={`${usuario.nombre} ${usuario.apellido} (${usuario.rol})`}
-                  className="hidden h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary-400 to-accent-400 text-sm font-semibold text-white md:flex"
+                <Link
+                  to="/cuenta"
+                  title={`Mi cuenta — ${usuario.nombre} ${usuario.apellido} (${usuario.rol})`}
+                  className="hidden h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary-400 to-accent-400 text-sm font-semibold text-white transition-opacity hover:opacity-80 md:flex"
                 >
                   {iniciales}
-                </div>
+                </Link>
                 <button onClick={handleLogout} className="btn btn-secondary hidden text-sm md:block">
                   Salir
                 </button>
@@ -96,6 +97,11 @@ function Navbar() {
         {abierto && (
           <nav className="mt-4 flex flex-col gap-4 pb-4 md:hidden">
             {enlaces}
+            {usuario && (
+              <NavLink to="/cuenta" className={linkClase} onClick={() => setAbierto(false)}>
+                Mi cuenta
+              </NavLink>
+            )}
             {usuario ? (
               <button onClick={handleLogout} className="btn btn-secondary w-full text-sm">
                 Salir ({usuario.nombre})

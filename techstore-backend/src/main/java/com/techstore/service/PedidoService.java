@@ -144,8 +144,9 @@ public class PedidoService {
 
     @Transactional(readOnly = true)
     public PageResponse<PedidoResumenResponse> listar(String emailSolicitante, boolean esAdmin, Pageable pageable) {
+        // El admin ve todas las ventas; las compras a proveedores tienen su propio módulo.
         var page = esAdmin
-                ? pedidoRepository.findAll(pageable)
+                ? pedidoRepository.findByTipo(TipoPedido.Venta, pageable)
                 : pedidoRepository.findByUsuarioEmail(emailSolicitante, pageable);
         return PageResponse.from(page.map(pedidoMapper::toResumen));
     }

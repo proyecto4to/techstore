@@ -5,6 +5,7 @@ import com.techstore.dto.response.StockBajoResponse;
 import com.techstore.dto.response.TopProductoResponse;
 import com.techstore.entity.EstadoFactura;
 import com.techstore.entity.EstadoPedido;
+import com.techstore.entity.TipoPedido;
 import com.techstore.repository.FacturaRepository;
 import com.techstore.repository.PedidoDetalleRepository;
 import com.techstore.repository.PedidoRepository;
@@ -49,7 +50,7 @@ public class ReporteService {
                 .countByEstadoAndFechaGreaterThanEqualAndFechaLessThan(EstadoFactura.Pagada, inicio, fin);
 
         List<ReporteVentasResponse.EstadoCantidad> porEstado =
-                pedidoRepository.contarPorEstadoEntre(inicio, fin).stream()
+                pedidoRepository.contarPorEstadoEntre(TipoPedido.Venta, inicio, fin).stream()
                         .map(fila -> new ReporteVentasResponse.EstadoCantidad(
                                 ((EstadoPedido) fila[0]).name(), (Long) fila[1]))
                         .toList();
@@ -61,10 +62,10 @@ public class ReporteService {
                         .toList();
 
         List<TopProductoResponse> topProductos = pedidoDetalleRepository
-                .topProductos(ESTADOS_VENDIDOS, inicio, fin, PageRequest.of(0, topN));
+                .topProductos(TipoPedido.Venta, ESTADOS_VENDIDOS, inicio, fin, PageRequest.of(0, topN));
 
         List<ReporteVentasResponse.TopCliente> topClientes =
-                pedidoRepository.topClientes(ESTADOS_VENDIDOS, inicio, fin, PageRequest.of(0, topN)).stream()
+                pedidoRepository.topClientes(TipoPedido.Venta, ESTADOS_VENDIDOS, inicio, fin, PageRequest.of(0, topN)).stream()
                         .map(fila -> new ReporteVentasResponse.TopCliente(
                                 (String) fila[0], (String) fila[1], (Long) fila[2], (BigDecimal) fila[3]))
                         .toList();

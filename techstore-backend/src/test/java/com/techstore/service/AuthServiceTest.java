@@ -1,5 +1,6 @@
 package com.techstore.service;
 
+import com.techstore.dto.request.CambioPasswordRequest;
 import com.techstore.dto.request.LoginRequest;
 import com.techstore.dto.request.RefreshTokenRequest;
 import com.techstore.dto.request.RegistroRequest;
@@ -145,6 +146,26 @@ class AuthServiceTest {
 
         assertThrows(BusinessException.class, () -> authService.registrar(
                 new RegistroRequest("Otro", "Admin", "admin@techstore.py", "clave12345")));
+    }
+
+    @Test
+    void cambiarPasswordConActualCorrecta() {
+        when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        authService.cambiarPassword("admin@techstore.py",
+                new CambioPasswordRequest("admin123", "nuevaClave99"));
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                encoder.matches("nuevaClave99", admin.getPasswordHash()));
+    }
+
+    @Test
+    void cambiarPasswordConActualIncorrectaFalla() {
+        when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
+
+        assertThrows(BadCredentialsException.class, () -> authService.cambiarPassword(
+                "admin@techstore.py", new CambioPasswordRequest("equivocada", "nuevaClave99")));
     }
 
     @Test

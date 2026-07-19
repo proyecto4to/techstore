@@ -48,8 +48,9 @@ public class Pedido {
     @Column(name = "cliente_id")
     private Long clienteId;
 
-    @Column(name = "proveedor_id")
-    private Long proveedorId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "proveedor_id")
+    private Proveedor proveedor;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)

@@ -1,5 +1,6 @@
 package com.techstore.service;
 
+import com.techstore.dto.request.CambioPasswordRequest;
 import com.techstore.dto.request.LoginRequest;
 import com.techstore.dto.request.RefreshTokenRequest;
 import com.techstore.dto.request.RegistroRequest;
@@ -93,6 +94,17 @@ public class AuthService {
                 .orElseThrow(() -> new BadCredentialsException("Usuario inexistente o inactivo"));
 
         return buildAuthResponse(usuario);
+    }
+
+    @Transactional
+    public void cambiarPassword(String email, CambioPasswordRequest request) {
+        Usuario usuario = usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
+        if (!passwordEncoder.matches(request.passwordActual(), usuario.getPasswordHash())) {
+            throw new BadCredentialsException("La contraseña actual es incorrecta");
+        }
+        usuario.setPasswordHash(passwordEncoder.encode(request.passwordNueva()));
+        usuarioRepository.save(usuario);
     }
 
     @Transactional(readOnly = true)

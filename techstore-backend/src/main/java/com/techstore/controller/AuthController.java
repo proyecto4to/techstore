@@ -1,5 +1,6 @@
 package com.techstore.controller;
 
+import com.techstore.dto.request.CambioPasswordRequest;
 import com.techstore.dto.request.LoginRequest;
 import com.techstore.dto.request.RefreshTokenRequest;
 import com.techstore.dto.request.RegistroRequest;
@@ -15,6 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,6 +28,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+
+    @PutMapping("/password")
+    @Operation(summary = "Cambiar mi contraseña",
+            description = "Requiere la contraseña actual; disponible para cualquier usuario autenticado")
+    public void cambiarPassword(@Valid @RequestBody CambioPasswordRequest request, Authentication auth) {
+        authService.cambiarPassword(auth.getName(), request);
+    }
 
     @PostMapping("/registro")
     @ResponseStatus(HttpStatus.CREATED)
