@@ -19,8 +19,21 @@ function Test-Url($url) {
 & $pgCtl -D $pgData status *> $null
 if ($LASTEXITCODE -ne 0) {
     Write-Host '  [1/3] Iniciando PostgreSQL...' -NoNewline
-    & $pgCtl -D $pgData -l $pgLog -w -t 60 start *> $null
-    Write-Host ' listo' -ForegroundColor Green
+    # Start-Process sin -Wait a proposito: en PowerShell 5.1, "&" con
+    # redireccion queda esperando la tuberia que hereda postgres, y -Wait
+    # espera al arbol completo de procesos (postgres incluido). El sondeo
+    # de estado de abajo es el que espera a que el servidor este listo.
+    Start-Process -FilePath $pgCtl `
+        -ArgumentList "-D `"$pgData`" -l `"$pgLog`" start" `
+        -WindowStyle Hidden
+    $intentosPg = 0
+    do {
+        & $pgCtl -D $pgData status *> $null
+        if ($LASTEXITCODE -eq 0) { break }
+        Start-Sleep -Seconds 2; $intentosPg++
+    } while ($intentosPg -lt 15)
+    if ($intentosPg -ge 15) { Write-Host ' NO ARRANCO (ver pg.log)' -ForegroundColor Red }
+    else { Write-Host ' listo' -ForegroundColor Green }
 } else {
     Write-Host '  [1/3] PostgreSQL ya estaba corriendo' -ForegroundColor Green
 }
