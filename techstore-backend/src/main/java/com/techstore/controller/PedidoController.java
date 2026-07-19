@@ -4,6 +4,7 @@ import com.techstore.dto.request.CheckoutRequest;
 import com.techstore.dto.response.PageResponse;
 import com.techstore.dto.response.PedidoResponse;
 import com.techstore.dto.response.PedidoResumenResponse;
+import com.techstore.service.PagoService;
 import com.techstore.service.PedidoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,7 +14,10 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PedidoController {
 
     private final PedidoService pedidoService;
+    private final PagoService pagoService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -52,6 +57,19 @@ public class PedidoController {
     @Operation(summary = "Detalle de un pedido")
     public PedidoResponse obtener(@PathVariable Long id, Authentication auth) {
         return pedidoService.obtener(id, auth.getName(), esAdmin(auth));
+    }
+
+    @GetMapping(value = "/{id}/factura/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Factura del pedido en PDF",
+            description = "El dueño del pedido descarga su factura; Admin/Cajero pueden descargar cualquiera")
+    public ResponseEntity<byte[]> facturaPdf(@PathVariable Long id, Authentication auth) {
+        boolean esAdminOCajero = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_Admin".equals(a.getAuthority()) || "ROLE_Cajero".equals(a.getAuthority()));
+        PagoService.FacturaPdf pdf = pagoService.generarPdfPorPedido(id, auth.getName(), esAdminOCajero);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=\"factura-" + pdf.numero() + ".pdf\"")
+                .body(pdf.contenido());
     }
 
     @PutMapping("/{id}/confirmar")

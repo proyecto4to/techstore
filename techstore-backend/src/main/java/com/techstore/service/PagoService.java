@@ -19,6 +19,7 @@ import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,7 @@ public class PagoService {
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
     private final FacturaPdfService facturaPdfService;
+    private final CajaService cajaService;
 
     /**
      * Registra el cobro total de un pedido confirmado y emite su factura
@@ -89,6 +91,12 @@ public class PagoService {
         pedido.setEstado(EstadoPedido.G);
         pedidoRepository.save(pedido);
 
+        cajaService.registrarIngresoAutomatico(
+                pedido.getTotal(),
+                "Cobro pedido N.º " + pedido.getNumero(),
+                factura.getNumero(),
+                cajero);
+
         return PagoResponse.from(pago, factura);
     }
 
@@ -112,6 +120,19 @@ public class PagoService {
     public FacturaPdf generarPdf(Long id) {
         Factura factura = facturaRepository.findParaPdfById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Factura", id));
+        return new FacturaPdf(factura.getNumero(), facturaPdfService.generar(factura));
+    }
+
+    /**
+     * Factura de un pedido para su dueño (o para Admin/Cajero).
+     */
+    @Transactional(readOnly = true)
+    public FacturaPdf generarPdfPorPedido(Long pedidoId, String emailSolicitante, boolean esAdminOCajero) {
+        Factura factura = facturaRepository.findParaPdfByPedidoId(pedidoId)
+                .orElseThrow(() -> new BusinessException("El pedido aún no tiene factura emitida"));
+        if (!esAdminOCajero && !factura.getPedido().getUsuario().getEmail().equals(emailSolicitante)) {
+            throw new AccessDeniedException("No puede descargar facturas de otro usuario");
+        }
         return new FacturaPdf(factura.getNumero(), facturaPdfService.generar(factura));
     }
 

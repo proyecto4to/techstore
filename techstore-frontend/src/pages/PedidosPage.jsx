@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { FileText } from 'lucide-react'
 import { pedidoService } from '../services/pedidoService'
 import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
@@ -68,6 +69,14 @@ function PedidosPage() {
                           className="btn btn-danger text-sm"
                         >
                           Anular
+                        </button>
+                      )}
+                      {pedido.estado === 'G' && (
+                        <button
+                          onClick={() => pedidoService.abrirFacturaPdf(pedido.id)}
+                          className="btn btn-secondary inline-flex items-center gap-2 text-sm"
+                        >
+                          <FileText size={16} /> Factura
                         </button>
                       )}
                     </td>

@@ -11,6 +11,7 @@ import PedidosPage from './pages/PedidosPage'
 import AdminProductosPage from './pages/AdminProductosPage'
 import AdminReportesPage from './pages/AdminReportesPage'
 import AdminFacturasPage from './pages/AdminFacturasPage'
+import AdminCajaPage from './pages/AdminCajaPage'
 import RegisterPage from './pages/RegisterPage'
 import './App.css'
 
@@ -62,6 +63,14 @@ function App() {
                 element={
                   <ProtectedRoute rol="Admin">
                     <AdminFacturasPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/caja"
+                element={
+                  <ProtectedRoute rol="Admin">
+                    <AdminCajaPage />
                   </ProtectedRoute>
                 }
               />

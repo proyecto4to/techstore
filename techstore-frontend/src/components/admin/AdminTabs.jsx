@@ -4,6 +4,7 @@ const tabs = [
   { to: '/admin', label: 'Pedidos', end: true },
   { to: '/admin/productos', label: 'Productos' },
   { to: '/admin/facturas', label: 'Facturas' },
+  { to: '/admin/caja', label: 'Caja' },
   { to: '/admin/reportes', label: 'Reportes' },
 ]
 

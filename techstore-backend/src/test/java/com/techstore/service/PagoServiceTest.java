@@ -53,6 +53,9 @@ class PagoServiceTest {
     @Mock
     private AutonumeradorService autonumeradorService;
 
+    @Mock
+    private CajaService cajaService;
+
     private final FacturaPdfService facturaPdfService = new FacturaPdfService(
             new com.techstore.config.EmpresaProperties(
                     "TechStore Paraguay", "80012345-6", "Avda. España 1234 c/ Brasil",
@@ -67,7 +70,7 @@ class PagoServiceTest {
     void setUp() {
         pagoService = new PagoService(
                 pagoRepository, facturaRepository, pedidoRepository, usuarioRepository,
-                autonumeradorService, facturaPdfService);
+                autonumeradorService, facturaPdfService, cajaService);
 
         Rol rol = new Rol();
         rol.setId(2L);
@@ -132,6 +135,8 @@ class PagoServiceTest {
         assertEquals(new BigDecimal("2500000.00"), response.factura().total());
         assertEquals(EstadoFactura.Pagada.name(), response.factura().estado());
         assertEquals(EstadoPedido.G, pedido.getEstado());
+        verify(cajaService).registrarIngresoAutomatico(
+                new BigDecimal("2500000.00"), "Cobro pedido N.º 7", "001-001-0000001", cajero);
     }
 
     @Test

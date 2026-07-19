@@ -36,4 +36,11 @@ export const pedidoService = {
     })
     return data
   },
+
+  async abrirFacturaPdf(id) {
+    const { data } = await api.get(`/pedidos/${id}/factura/pdf`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  },
 }

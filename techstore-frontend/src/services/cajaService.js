@@ -1,0 +1,24 @@
+import api from './api'
+
+export const cajaService = {
+  async registrar(movimiento) {
+    const { data } = await api.post('/caja/movimientos', movimiento)
+    return data
+  },
+
+  async listar({ desde = null, hasta = null, page = 0, size = 10 } = {}) {
+    const params = { page, size }
+    if (desde) params.desde = desde
+    if (hasta) params.hasta = hasta
+    const { data } = await api.get('/caja/movimientos', { params })
+    return data
+  },
+
+  async resumen({ desde = null, hasta = null } = {}) {
+    const params = {}
+    if (desde) params.desde = desde
+    if (hasta) params.hasta = hasta
+    const { data } = await api.get('/caja/resumen', { params })
+    return data
+  },
+}
