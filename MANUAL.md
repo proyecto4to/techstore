@@ -107,10 +107,27 @@ empresa.direccion=...             (usar ñ para ñ, á para á, ó para ó)
 > ⚠️ Los valores de fábrica son de demostración. Antes de facturar de
 > verdad, reemplazalos por los datos del contribuyente.
 
-## 11. Preguntas frecuentes
+## 11. Respaldos de la base (copias de seguridad)
+
+Tus datos se respaldan **solos**: cada vez que iniciás o detenés el sistema
+con los íconos del escritorio se guarda una copia de la base. Se conservan
+los últimos 20 respaldos en `%LOCALAPPDATA%\TechStore\backups` (fuera de
+OneDrive, a propósito).
+
+- **Respaldar ahora**: ícono **TechStore - Respaldar** (útil antes de una
+  carga grande de datos o cualquier cambio importante).
+- **Restaurar**: ícono **TechStore - Restaurar** → te muestra la lista de
+  copias con su fecha, elegís una y confirmás escribiendo `SI`. Reemplaza el
+  contenido actual por el de esa copia. Después volvé a iniciar TechStore.
+
+> Si borraste algo por error o la base se dañó, restaurá el respaldo más
+> reciente y perdés, como mucho, lo hecho desde ese momento.
+
+## 12. Preguntas frecuentes
 
 **Se apagó la PC de golpe, ¿perdí datos?**
-No. La base de datos se recupera sola en el próximo inicio.
+No. La base de datos se recupera sola en el próximo inicio, y además hay
+respaldos automáticos (ver sección 11) por si alguna vez hiciera falta.
 
 **Me olvidé la contraseña de admin.**
 Otro Admin puede resetearla desde Usuarios. Si no hay otro, contactá soporte técnico.

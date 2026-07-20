@@ -52,6 +52,10 @@ do {
 if ($intentosListo -ge 30) { Write-Host ' SIN RESPUESTA' -ForegroundColor Red }
 else { Write-Host ' lista' -ForegroundColor Green }
 
+# Respaldo automatico al arrancar: la base ya se recupero y acepta
+# conexiones, asi que este dump es de un estado sano.
+& (Join-Path $root 'backup-techstore.ps1')
+
 # 2) Backend
 if (-not (Test-Url 'http://localhost:8080/actuator/health')) {
     Write-Host '  [2/3] Iniciando backend (Spring Boot)...' -NoNewline

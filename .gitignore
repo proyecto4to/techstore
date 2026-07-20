@@ -2,6 +2,7 @@ techstore-backend/target/
 techstore-frontend/node_modules/
 techstore-frontend/dist/
 tools/
+*.dump
 .DS_Store
 *.log
 .vscode/
