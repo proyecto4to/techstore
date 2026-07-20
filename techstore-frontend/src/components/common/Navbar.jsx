@@ -45,7 +45,7 @@ function Navbar() {
         </NavLink>
       )}
       {(usuario?.rol === 'Admin' || usuario?.rol === 'Cajero') && (
-        <NavLink to="/admin" className={linkClase} onClick={() => setAbierto(false)}>
+        <NavLink to="/admin/inicio" className={linkClase} onClick={() => setAbierto(false)}>
           Panel
         </NavLink>
       )}

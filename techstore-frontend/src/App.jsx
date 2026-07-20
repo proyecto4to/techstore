@@ -12,6 +12,7 @@ import AdminProductosPage from './pages/AdminProductosPage'
 import AdminReportesPage from './pages/AdminReportesPage'
 import AdminFacturasPage from './pages/AdminFacturasPage'
 import AdminCajaPage from './pages/AdminCajaPage'
+import DashboardPage from './pages/DashboardPage'
 import AdminUsuariosPage from './pages/AdminUsuariosPage'
 import AdminComprasPage from './pages/AdminComprasPage'
 import CuentaPage from './pages/CuentaPage'
@@ -42,6 +43,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <PedidosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/inicio"
+                element={
+                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                    <DashboardPage />
                   </ProtectedRoute>
                 }
               />

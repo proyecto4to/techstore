@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 
 const tabs = [
+  { to: '/admin/inicio', label: 'Inicio' },
   { to: '/admin', label: 'Pedidos', end: true },
   { to: '/admin/compras', label: 'Compras' },
   { to: '/admin/productos', label: 'Productos', soloAdmin: true },
