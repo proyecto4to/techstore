@@ -64,7 +64,7 @@ class CajaServiceTest {
 
         MovimientoCajaResponse respuesta = cajaService.registrar(
                 new RegistroMovimientoRequest(
-                        TipoMovimiento.Egreso, new BigDecimal("150000"), "Compra de insumos", "REC-33"),
+                        TipoMovimiento.Egreso, new BigDecimal("150000"), "Compra de insumos", "REC-33", null),
                 "cajero@techstore.py");
 
         assertEquals(7, respuesta.numero());
@@ -79,9 +79,11 @@ class CajaServiceTest {
         when(movimientoCajaRepository.save(any(MovimientoCaja.class))).thenAnswer(inv -> inv.getArgument(0));
 
         MovimientoCaja movimiento = cajaService.registrarIngresoAutomatico(
-                new BigDecimal("4700000.00"), "Cobro pedido N.º 1", "001-001-0000001", cajero);
+                new BigDecimal("4700000.00"), "Cobro pedido N.º 1", "001-001-0000001", cajero,
+                com.techstore.entity.TipoPago.Transferencia);
 
         assertEquals(TipoMovimiento.Ingreso, movimiento.getTipo());
+        assertEquals(com.techstore.entity.TipoPago.Transferencia, movimiento.getMedio());
         assertEquals("001-001-0000001", movimiento.getReferencia());
         assertEquals(cajero, movimiento.getUsuario());
     }

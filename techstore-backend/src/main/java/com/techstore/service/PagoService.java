@@ -115,7 +115,8 @@ public class PagoService {
                     pago.getMonto(),
                     "Cobro pedido N.º " + pedido.getNumero() + " (" + pago.getTipoPago() + ")",
                     factura.getNumero(),
-                    cajero);
+                    cajero,
+                    pago.getTipoPago());
         }
 
         return PagoResponse.from(pagos, factura);

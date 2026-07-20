@@ -6,6 +6,7 @@ import com.techstore.dto.response.PageResponse;
 import com.techstore.dto.response.ResumenCajaResponse;
 import com.techstore.entity.MovimientoCaja;
 import com.techstore.entity.TipoMovimiento;
+import com.techstore.entity.TipoPago;
 import com.techstore.entity.Usuario;
 import com.techstore.repository.MovimientoCajaRepository;
 import com.techstore.repository.UsuarioRepository;
@@ -38,35 +39,39 @@ public class CajaService {
     public MovimientoCajaResponse registrar(RegistroMovimientoRequest request, String emailUsuario) {
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
+        TipoPago medio = request.medio() != null ? request.medio() : TipoPago.Efectivo;
         return MovimientoCajaResponse.from(guardar(
-                request.tipo(), request.monto(), request.concepto(), request.referencia(), usuario));
+                request.tipo(), medio, request.monto(), request.concepto(), request.referencia(), usuario));
     }
 
     /**
-     * Ingreso generado por el sistema (p. ej. al cobrar un pedido).
+     * Ingreso generado por el sistema (p. ej. al cobrar un pedido), con el
+     * medio de pago para que el cierre de caja concilie el efectivo.
      * Debe invocarse dentro de la transacción del llamador.
      */
     @Transactional
     public MovimientoCaja registrarIngresoAutomatico(
-            BigDecimal monto, String concepto, String referencia, Usuario usuario) {
-        return guardar(TipoMovimiento.Ingreso, monto, concepto, referencia, usuario);
+            BigDecimal monto, String concepto, String referencia, Usuario usuario, TipoPago medio) {
+        return guardar(TipoMovimiento.Ingreso, medio, monto, concepto, referencia, usuario);
     }
 
     /**
      * Egreso generado por el sistema (p. ej. al devolver dinero por una
-     * nota de crédito). Debe invocarse dentro de la transacción del llamador.
+     * nota de crédito). Sale de la caja física, por eso se registra en efectivo.
+     * Debe invocarse dentro de la transacción del llamador.
      */
     @Transactional
     public MovimientoCaja registrarEgresoAutomatico(
             BigDecimal monto, String concepto, String referencia, Usuario usuario) {
-        return guardar(TipoMovimiento.Egreso, monto, concepto, referencia, usuario);
+        return guardar(TipoMovimiento.Egreso, TipoPago.Efectivo, monto, concepto, referencia, usuario);
     }
 
-    private MovimientoCaja guardar(
-            TipoMovimiento tipo, BigDecimal monto, String concepto, String referencia, Usuario usuario) {
+    private MovimientoCaja guardar(TipoMovimiento tipo, TipoPago medio, BigDecimal monto,
+                                   String concepto, String referencia, Usuario usuario) {
         MovimientoCaja movimiento = new MovimientoCaja();
         movimiento.setNumero(autonumeradorService.siguiente(ENTIDAD_CAJA));
         movimiento.setTipo(tipo);
+        movimiento.setMedio(medio);
         movimiento.setMonto(monto);
         movimiento.setConcepto(concepto);
         movimiento.setReferencia(referencia);

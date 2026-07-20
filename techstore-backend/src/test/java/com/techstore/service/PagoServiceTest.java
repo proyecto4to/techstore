@@ -144,7 +144,7 @@ class PagoServiceTest {
         assertEquals(EstadoPedido.G, pedido.getEstado());
         verify(cajaService).registrarIngresoAutomatico(
                 eq(new BigDecimal("2500000.00")), eq("Cobro pedido N.º 7 (Efectivo)"),
-                eq("001-001-0000001"), eq(cajero));
+                eq("001-001-0000001"), eq(cajero), eq(TipoPago.Efectivo));
     }
 
     @Test
@@ -168,9 +168,11 @@ class PagoServiceTest {
         assertEquals(new BigDecimal("2500000.00"), response.total());
         verify(pagoRepository, times(2)).save(any(Pago.class));
         verify(cajaService).registrarIngresoAutomatico(
-                eq(new BigDecimal("1000000.00")), eq("Cobro pedido N.º 7 (Efectivo)"), any(), eq(cajero));
+                eq(new BigDecimal("1000000.00")), eq("Cobro pedido N.º 7 (Efectivo)"), any(), eq(cajero),
+                eq(TipoPago.Efectivo));
         verify(cajaService).registrarIngresoAutomatico(
-                eq(new BigDecimal("1500000.00")), eq("Cobro pedido N.º 7 (Transferencia)"), any(), eq(cajero));
+                eq(new BigDecimal("1500000.00")), eq("Cobro pedido N.º 7 (Transferencia)"), any(), eq(cajero),
+                eq(TipoPago.Transferencia));
     }
 
     @Test

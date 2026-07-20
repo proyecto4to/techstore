@@ -40,6 +40,11 @@ public class MovimientoCaja {
     @Column(nullable = false, columnDefinition = "tipo_movimiento")
     private TipoMovimiento tipo;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(nullable = false, columnDefinition = "tipo_pago")
+    private TipoPago medio = TipoPago.Efectivo;
+
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal monto;
 

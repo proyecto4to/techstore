@@ -1,10 +1,14 @@
 package com.techstore.controller;
 
+import com.techstore.dto.request.CerrarCajaRequest;
 import com.techstore.dto.request.RegistroMovimientoRequest;
+import com.techstore.dto.response.CierreCajaResponse;
 import com.techstore.dto.response.MovimientoCajaResponse;
 import com.techstore.dto.response.PageResponse;
+import com.techstore.dto.response.PreviewCierreResponse;
 import com.techstore.dto.response.ResumenCajaResponse;
 import com.techstore.service.CajaService;
+import com.techstore.service.CierreCajaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -31,10 +35,11 @@ import java.time.LocalDate;
 @RequestMapping("/api/v1/caja")
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyRole('Admin','Cajero')")
-@Tag(name = "Caja", description = "Movimientos de efectivo: ingresos, egresos y arqueo")
+@Tag(name = "Caja", description = "Movimientos de efectivo: ingresos, egresos, arqueo y cierre")
 public class CajaController {
 
     private final CajaService cajaService;
+    private final CierreCajaService cierreCajaService;
 
     @PostMapping("/movimientos")
     @ResponseStatus(HttpStatus.CREATED)
@@ -70,5 +75,27 @@ public class CajaController {
         return org.springframework.http.ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"arqueo-caja.pdf\"")
                 .body(cajaService.resumenPdf(desde, hasta));
+    }
+
+    @GetMapping("/cierres/preview")
+    @Operation(summary = "Vista previa del cierre",
+            description = "Efectivo teórico del turno abierto (desde el último cierre) antes de contar el físico")
+    public PreviewCierreResponse previewCierre() {
+        return cierreCajaService.preview();
+    }
+
+    @PostMapping("/cierres")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Cerrar caja",
+            description = "Registra el arqueo del turno con el efectivo contado y la diferencia respecto al teórico")
+    public CierreCajaResponse cerrar(@Valid @RequestBody CerrarCajaRequest request, Authentication auth) {
+        return cierreCajaService.cerrar(request, auth.getName());
+    }
+
+    @GetMapping("/cierres")
+    @Operation(summary = "Listar cierres de caja")
+    public PageResponse<CierreCajaResponse> listarCierres(
+            @ParameterObject @PageableDefault(size = 10, sort = "fechaCierre", direction = Sort.Direction.DESC) Pageable pageable) {
+        return cierreCajaService.listar(pageable);
     }
 }

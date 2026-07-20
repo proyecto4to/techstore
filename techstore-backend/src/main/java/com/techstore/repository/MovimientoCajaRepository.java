@@ -23,4 +23,11 @@ public interface MovimientoCajaRepository extends JpaRepository<MovimientoCaja, 
     BigDecimal totalPorTipoEntre(@Param("tipo") TipoMovimiento tipo,
                                  @Param("desde") LocalDateTime desde,
                                  @Param("hasta") LocalDateTime hasta);
+
+    @Query("select coalesce(sum(m.monto), 0) from MovimientoCaja m "
+            + "where m.tipo = :tipo and m.medio = :medio and m.fecha >= :desde and m.fecha < :hasta")
+    BigDecimal totalPorTipoYMedioEntre(@Param("tipo") TipoMovimiento tipo,
+                                       @Param("medio") com.techstore.entity.TipoPago medio,
+                                       @Param("desde") LocalDateTime desde,
+                                       @Param("hasta") LocalDateTime hasta);
 }

@@ -5,6 +5,7 @@ import { cajaService } from '../services/cajaService'
 import { formatPrecio } from '../utils/format'
 import AdminTabs from '../components/admin/AdminTabs'
 import StatCard from '../components/common/StatCard'
+import CierreCajaPanel from '../components/admin/CierreCajaPanel'
 
 const FORM_VACIO = { tipo: 'Ingreso', monto: '', concepto: '', referencia: '' }
 
@@ -267,6 +268,8 @@ function AdminCajaPage() {
       <p className="mt-6 text-sm text-neutral-muted">
         Al cobrar un pedido, el ingreso se registra automáticamente con la factura como referencia.
       </p>
+
+      <CierreCajaPanel />
     </div>
   )
 }

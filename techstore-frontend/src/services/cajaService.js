@@ -31,4 +31,19 @@ export const cajaService = {
     window.open(url, '_blank', 'noopener')
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
   },
+
+  async previewCierre() {
+    const { data } = await api.get('/caja/cierres/preview')
+    return data
+  },
+
+  async cerrar(efectivoContado, notas) {
+    const { data } = await api.post('/caja/cierres', { efectivoContado, notas: notas || null })
+    return data
+  },
+
+  async listarCierres({ page = 0, size = 5 } = {}) {
+    const { data } = await api.get('/caja/cierres', { params: { page, size } })
+    return data
+  },
 }
