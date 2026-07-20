@@ -9,6 +9,9 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,5 +51,30 @@ public class ReporteController {
             @RequestParam(required = false, defaultValue = "5") @Min(0) @Max(1000) int umbral,
             @RequestParam(required = false, defaultValue = "20") @Min(1) @Max(100) int limite) {
         return reporteService.stockBajo(umbral, limite);
+    }
+
+    @GetMapping(value = "/ventas/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('Admin','Cajero')")
+    @Operation(summary = "Reporte de ventas en PDF")
+    public ResponseEntity<byte[]> ventasPdf(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(required = false, defaultValue = "5") @Min(1) @Max(50) int top) {
+        return pdf("reporte-ventas.pdf", reporteService.ventasPdf(desde, hasta, top));
+    }
+
+    @GetMapping(value = "/stock-bajo/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('Admin','Cajero')")
+    @Operation(summary = "Reporte de stock bajo en PDF")
+    public ResponseEntity<byte[]> stockBajoPdf(
+            @RequestParam(required = false, defaultValue = "5") @Min(0) @Max(1000) int umbral,
+            @RequestParam(required = false, defaultValue = "20") @Min(1) @Max(100) int limite) {
+        return pdf("stock-bajo.pdf", reporteService.stockBajoPdf(umbral, limite));
+    }
+
+    private ResponseEntity<byte[]> pdf(String nombre, byte[] contenido) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + nombre + "\"")
+                .body(contenido);
     }
 }

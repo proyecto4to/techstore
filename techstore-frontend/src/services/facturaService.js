@@ -25,8 +25,8 @@ export const notaCreditoService = {
     return data
   },
 
-  async emitir(pedidoId, motivo) {
-    const { data } = await api.post(`/pedidos/${pedidoId}/nota-credito`, { motivo })
+  async emitir(pedidoId, motivo, items) {
+    const { data } = await api.post(`/pedidos/${pedidoId}/nota-credito`, { motivo, items })
     return data
   },
 

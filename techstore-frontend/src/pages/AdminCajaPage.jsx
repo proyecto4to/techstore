@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { Wallet } from 'lucide-react'
+import { Wallet, FileText } from 'lucide-react'
 import { cajaService } from '../services/cajaService'
 import { formatPrecio } from '../utils/format'
 import AdminTabs from '../components/admin/AdminTabs'
@@ -78,6 +78,12 @@ function AdminCajaPage() {
         </div>
         <button onClick={() => { setDesde(''); setHasta(''); setPage(0) }} className="btn btn-secondary text-sm">
           Todo el historial
+        </button>
+        <button
+          onClick={() => cajaService.resumenPdf({ desde: desde || null, hasta: hasta || null })}
+          className="btn btn-primary ml-auto inline-flex items-center gap-2 text-sm"
+        >
+          <FileText size={16} /> Exportar arqueo PDF
         </button>
       </div>
 

@@ -8,13 +8,13 @@ import { estadoPedido } from '../utils/pedidoEstados'
 import AdminTabs from '../components/admin/AdminTabs'
 import PedidoDetallePanel from '../components/admin/PedidoDetallePanel'
 import CobroPanel from '../components/admin/CobroPanel'
+import DevolucionPanel from '../components/admin/DevolucionPanel'
 
 function AdminPage() {
   const [page, setPage] = useState(0)
   const [cobroPedidoId, setCobroPedidoId] = useState(null)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
   const [ncPedidoId, setNcPedidoId] = useState(null)
-  const [ncMotivo, setNcMotivo] = useState('')
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
@@ -72,7 +72,7 @@ function AdminPage() {
   })
 
   const devolverMutation = useMutation({
-    mutationFn: ({ id, motivo }) => notaCreditoService.emitir(id, motivo),
+    mutationFn: ({ id, motivo, items }) => notaCreditoService.emitir(id, motivo, items),
     onSuccess: (nc) => {
       setError(null)
       setMensaje(
@@ -182,40 +182,18 @@ function AdminPage() {
                         </button>
                       )}
                       {pedido.estado === 'G' && (
-                        ncPedidoId === pedido.id ? (
-                          <span className="inline-flex flex-wrap items-center gap-2">
-                            <input
-                              placeholder="Motivo de la devolución"
-                              maxLength={255}
-                              value={ncMotivo}
-                              onChange={(e) => setNcMotivo(e.target.value)}
-                              className="input w-56 py-1 text-sm"
-                            />
-                            <button
-                              onClick={() => devolverMutation.mutate({ id: pedido.id, motivo: ncMotivo.trim() })}
-                              disabled={!ncMotivo.trim() || ocupado}
-                              className="btn btn-danger text-sm"
-                            >
-                              Emitir NC
-                            </button>
-                            <button
-                              onClick={() => { setNcPedidoId(null); setNcMotivo('') }}
-                              className="btn btn-secondary text-sm"
-                            >
-                              ✕
-                            </button>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-3">
-                            <span className="text-sm text-emerald-400">Facturado ✓</span>
-                            <button
-                              onClick={() => { setNcPedidoId(pedido.id); setNcMotivo('') }}
-                              className="btn btn-secondary text-sm"
-                            >
-                              Devolver
-                            </button>
-                          </span>
-                        )
+                        <span className="inline-flex items-center gap-3">
+                          <span className="text-sm text-emerald-400">Facturado ✓</span>
+                          <button
+                            onClick={() =>
+                              setNcPedidoId(ncPedidoId === pedido.id ? null : pedido.id)
+                            }
+                            disabled={ocupado}
+                            className="btn btn-secondary text-sm"
+                          >
+                            {ncPedidoId === pedido.id ? 'Cerrar' : 'Devolver'}
+                          </button>
+                        </span>
                       )}
                       {pedido.estado === 'R' && (
                         <span className="text-sm text-orange-400">Devuelto (NC emitida)</span>
@@ -237,6 +215,20 @@ function AdminPage() {
                           ocupado={ocupado}
                           onCobrar={(lineas) => cobrarMutation.mutate({ id: pedido.id, lineas })}
                           onCancelar={() => setCobroPedidoId(null)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  {ncPedidoId === pedido.id && pedido.estado === 'G' && (
+                    <tr>
+                      <td colSpan={6} className="bg-dark-bg/30 p-3">
+                        <DevolucionPanel
+                          pedidoId={pedido.id}
+                          ocupado={ocupado}
+                          onEmitir={({ motivo, items }) =>
+                            devolverMutation.mutate({ id: pedido.id, motivo, items })
+                          }
+                          onCancelar={() => setNcPedidoId(null)}
                         />
                       </td>
                     </tr>

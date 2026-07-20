@@ -1,11 +1,13 @@
 package com.techstore.service;
 
+import com.techstore.dto.request.EmitirNotaCreditoRequest;
 import com.techstore.dto.response.NotaCreditoResponse;
 import com.techstore.dto.response.PageResponse;
 import com.techstore.entity.EstadoFactura;
 import com.techstore.entity.EstadoPedido;
 import com.techstore.entity.Factura;
 import com.techstore.entity.NotaCredito;
+import com.techstore.entity.NotaCreditoDetalle;
 import com.techstore.entity.Pedido;
 import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Producto;
@@ -13,6 +15,7 @@ import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
 import com.techstore.exception.ResourceNotFoundException;
 import com.techstore.repository.FacturaRepository;
+import com.techstore.repository.NotaCreditoDetalleRepository;
 import com.techstore.repository.NotaCreditoRepository;
 import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.ProductoRepository;
@@ -23,20 +26,29 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Devolución total de un pedido facturado: emite la nota de crédito,
- * anula la factura, devuelve el stock y registra el egreso en caja —
- * todo en una sola transacción.
+ * Devolución de un pedido facturado mediante nota de crédito. Puede ser
+ * total o parcial (algunos productos o algunas unidades). En una sola
+ * transacción: emite la NC con su detalle, devuelve el stock de lo
+ * devuelto, registra el egreso en caja por el monto acreditado y, si se
+ * devolvió todo el pedido, lo marca Devuelto y anula la factura.
  */
 @Service
 @RequiredArgsConstructor
 public class NotaCreditoService {
 
     private static final String ENTIDAD_NC = "NOTACREDITO";
+    private static final BigDecimal CIEN = BigDecimal.valueOf(100);
 
     private final NotaCreditoRepository notaCreditoRepository;
+    private final NotaCreditoDetalleRepository notaCreditoDetalleRepository;
     private final PedidoRepository pedidoRepository;
     private final FacturaRepository facturaRepository;
     private final ProductoRepository productoRepository;
@@ -46,7 +58,7 @@ public class NotaCreditoService {
     private final FacturaPdfService facturaPdfService;
 
     @Transactional
-    public NotaCreditoResponse emitir(Long pedidoId, String motivo, String emailUsuario) {
+    public NotaCreditoResponse emitir(Long pedidoId, EmitirNotaCreditoRequest request, String emailUsuario) {
         Usuario emisor = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
         Pedido pedido = pedidoRepository.findWithDetallesById(pedidoId)
@@ -58,39 +70,84 @@ public class NotaCreditoService {
         }
         Factura factura = facturaRepository.findByPedidoId(pedidoId)
                 .orElseThrow(() -> new BusinessException("El pedido no tiene factura emitida"));
-        if (notaCreditoRepository.existsByFacturaId(factura.getId())) {
-            throw new BusinessException(
-                    "La factura %s ya tiene una nota de crédito".formatted(factura.getNumero()));
+
+        // Detalles del pedido indexados por producto, y lo ya devuelto en NCs previas.
+        Map<Long, PedidoDetalle> detallesPedido = pedido.getDetalles().stream()
+                .collect(Collectors.toMap(d -> d.getProducto().getId(), d -> d));
+        Map<Long, Integer> yaDevuelto = cargarYaDevuelto(pedidoId);
+
+        // Consolidar items del request (un producto no puede repetirse).
+        Map<Long, Integer> aDevolver = new LinkedHashMap<>();
+        for (EmitirNotaCreditoRequest.ItemDevolucion item : request.items()) {
+            if (aDevolver.put(item.productoId(), item.cantidad()) != null) {
+                throw new BusinessException(
+                        "El producto %d aparece más de una vez en la devolución".formatted(item.productoId()));
+            }
         }
 
-        // La mercadería vuelve al inventario.
-        productoRepository.findAllForUpdate(pedido.getDetalles().stream()
-                .map(detalle -> detalle.getProducto().getId())
-                .collect(Collectors.toSet()));
-        for (PedidoDetalle detalle : pedido.getDetalles()) {
-            Producto producto = detalle.getProducto();
-            int stockActual = producto.getStockReal() == null ? 0 : producto.getStockReal();
-            producto.setStockReal(stockActual + detalle.getCantidad());
-        }
-
-        factura.setEstado(EstadoFactura.Anulada);
-        facturaRepository.save(factura);
-        pedido.setEstado(EstadoPedido.R);
-        pedidoRepository.save(pedido);
+        productoRepository.findAllForUpdate(aDevolver.keySet());
 
         NotaCredito nc = new NotaCredito();
         nc.setNumero("001-001-%07d".formatted(autonumeradorService.siguiente(ENTIDAD_NC)));
         nc.setFactura(factura);
         nc.setPedido(pedido);
-        nc.setMotivo(motivo.trim());
-        nc.setSubtotal(factura.getSubtotal());
-        nc.setIva(factura.getIva());
-        nc.setTotal(factura.getTotal());
+        nc.setMotivo(request.motivo().trim());
         nc.setUsuario(emisor);
+
+        BigDecimal totalNc = BigDecimal.ZERO;
+        BigDecimal ivaNc = BigDecimal.ZERO;
+        for (Map.Entry<Long, Integer> entrada : aDevolver.entrySet()) {
+            Long productoId = entrada.getKey();
+            int cantidad = entrada.getValue();
+
+            PedidoDetalle detallePedido = detallesPedido.get(productoId);
+            if (detallePedido == null) {
+                throw new BusinessException(
+                        "El producto %d no pertenece al pedido N.º %d".formatted(productoId, pedido.getNumero()));
+            }
+            int disponible = detallePedido.getCantidad() - yaDevuelto.getOrDefault(productoId, 0);
+            if (cantidad > disponible) {
+                throw new BusinessException(
+                        "No se puede devolver %d de '%s': quedan %d por devolver"
+                                .formatted(cantidad, detallePedido.getProducto().getNombre(), disponible));
+            }
+
+            Producto producto = detallePedido.getProducto();
+            producto.setStockReal((producto.getStockReal() == null ? 0 : producto.getStockReal()) + cantidad);
+
+            BigDecimal subtotal = detallePedido.getPrecioUnitario().multiply(BigDecimal.valueOf(cantidad));
+            NotaCreditoDetalle detalleNc = new NotaCreditoDetalle();
+            detalleNc.setProducto(producto);
+            detalleNc.setCantidad(cantidad);
+            detalleNc.setPrecioUnitario(detallePedido.getPrecioUnitario());
+            detalleNc.setSubtotal(subtotal);
+            detalleNc.setIvaAplicado(detallePedido.getIvaAplicado());
+            nc.agregarDetalle(detalleNc);
+
+            totalNc = totalNc.add(subtotal);
+            ivaNc = ivaNc.add(ivaIncluido(subtotal, detallePedido.getIvaAplicado()));
+        }
+
+        nc.setTotal(totalNc);
+        nc.setIva(ivaNc);
+        nc.setSubtotal(totalNc.subtract(ivaNc));
         nc = notaCreditoRepository.save(nc);
 
+        // ¿El pedido quedó completamente devuelto tras esta NC?
+        boolean devueltoTotal = pedido.getDetalles().stream().allMatch(dp -> {
+            int devueltoAcumulado = yaDevuelto.getOrDefault(dp.getProducto().getId(), 0)
+                    + aDevolver.getOrDefault(dp.getProducto().getId(), 0);
+            return devueltoAcumulado >= dp.getCantidad();
+        });
+        if (devueltoTotal) {
+            pedido.setEstado(EstadoPedido.R);
+            pedidoRepository.save(pedido);
+            factura.setEstado(EstadoFactura.Anulada);
+            facturaRepository.save(factura);
+        }
+
         cajaService.registrarEgresoAutomatico(
-                factura.getTotal(),
+                totalNc,
                 "Devolución pedido N.º " + pedido.getNumero(),
                 nc.getNumero(),
                 emisor);
@@ -112,5 +169,20 @@ public class NotaCreditoService {
         NotaCredito nc = notaCreditoRepository.findParaPdfById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Nota de crédito", id));
         return new NotaCreditoPdf(nc.getNumero(), facturaPdfService.generarNotaCredito(nc));
+    }
+
+    private Map<Long, Integer> cargarYaDevuelto(Long pedidoId) {
+        Map<Long, Integer> mapa = new HashMap<>();
+        for (Object[] fila : notaCreditoDetalleRepository.cantidadesDevueltasPorProducto(pedidoId)) {
+            mapa.put((Long) fila[0], ((Number) fila[1]).intValue());
+        }
+        return mapa;
+    }
+
+    private static BigDecimal ivaIncluido(BigDecimal monto, BigDecimal tasa) {
+        if (tasa == null || tasa.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return monto.multiply(tasa).divide(CIEN.add(tasa), 2, RoundingMode.HALF_UP);
     }
 }

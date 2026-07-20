@@ -13,7 +13,6 @@ import com.lowagie.text.pdf.PdfWriter;
 import com.techstore.config.EmpresaProperties;
 import com.techstore.entity.Factura;
 import com.techstore.entity.NotaCredito;
-import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
 import com.techstore.util.NumeroALetras;
@@ -25,6 +24,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -63,21 +63,35 @@ public class FacturaPdfService {
         this.formatoNumero.setMinimumFractionDigits(0);
     }
 
-    public byte[] generar(Factura factura) {
-        return render(factura, "FACTURA", factura.getNumero(), factura.getFecha(),
-                null, "TOTAL A PAGAR:");
+    /** Una línea imprimible de la factura o nota de crédito. */
+    private record ItemPdf(int cantidad, String nombre, BigDecimal precioUnitario,
+                           BigDecimal subtotal, int tasaIva) {
     }
 
-    public byte[] generarNotaCredito(NotaCredito notaCredito) {
-        return render(notaCredito.getFactura(), "NOTA DE CRÉDITO", notaCredito.getNumero(),
-                notaCredito.getFecha(),
-                "Factura afectada: " + notaCredito.getFactura().getNumero()
-                        + "   —   Motivo: " + notaCredito.getMotivo(),
-                "TOTAL ACREDITADO:");
+    public byte[] generar(Factura factura) {
+        List<ItemPdf> items = factura.getPedido().getDetalles().stream()
+                .map(d -> new ItemPdf(d.getCantidad(), d.getProducto().getNombre(),
+                        d.getPrecioUnitario(), d.getSubtotal(),
+                        d.getIvaAplicado() == null ? 0 : d.getIvaAplicado().intValue()))
+                .toList();
+        return render(factura, "FACTURA", factura.getNumero(), factura.getFecha(),
+                null, "TOTAL A PAGAR:", items, factura.getTotal());
+    }
+
+    public byte[] generarNotaCredito(NotaCredito nc) {
+        List<ItemPdf> items = nc.getDetalles().stream()
+                .map(d -> new ItemPdf(d.getCantidad(), d.getProducto().getNombre(),
+                        d.getPrecioUnitario(), d.getSubtotal(),
+                        d.getIvaAplicado() == null ? 0 : d.getIvaAplicado().intValue()))
+                .toList();
+        return render(nc.getFactura(), "NOTA DE CRÉDITO", nc.getNumero(), nc.getFecha(),
+                "Factura afectada: " + nc.getFactura().getNumero() + "   —   Motivo: " + nc.getMotivo(),
+                "TOTAL ACREDITADO:", items, nc.getTotal());
     }
 
     private byte[] render(Factura factura, String tituloDoc, String numeroDoc,
-                          java.time.LocalDateTime fecha, String referencia, String etiquetaTotal) {
+                          java.time.LocalDateTime fecha, String referencia, String etiquetaTotal,
+                          List<ItemPdf> items, BigDecimal total) {
         try (ByteArrayOutputStream salida = new ByteArrayOutputStream()) {
             Document documento = new Document(PageSize.A4, 36, 36, 36, 36);
             PdfWriter.getInstance(documento, salida);
@@ -92,7 +106,7 @@ public class FacturaPdfService {
                 fila.addCell(celdaBordeada(new Phrase(referencia, F_NORMAL)));
                 documento.add(fila);
             }
-            agregarItems(documento, factura, etiquetaTotal);
+            agregarItems(documento, items, total, etiquetaTotal);
             agregarPie(documento);
 
             documento.close();
@@ -175,7 +189,8 @@ public class FacturaPdfService {
         documento.add(datos);
     }
 
-    private void agregarItems(Document documento, Factura factura, String etiquetaTotal) throws DocumentException {
+    private void agregarItems(Document documento, List<ItemPdf> items, BigDecimal total,
+                              String etiquetaTotal) throws DocumentException {
         PdfPTable tabla = new PdfPTable(new float[]{9, 33, 14, 14, 14, 16});
         tabla.setWidthPercentage(100);
         tabla.setSpacingBefore(8);
@@ -194,13 +209,13 @@ public class FacturaPdfService {
         BigDecimal gravadas5 = BigDecimal.ZERO;
         BigDecimal gravadas10 = BigDecimal.ZERO;
 
-        for (PedidoDetalle detalle : factura.getPedido().getDetalles()) {
-            int tasa = detalle.getIvaAplicado() == null ? 0 : detalle.getIvaAplicado().intValue();
-            BigDecimal monto = detalle.getSubtotal();
+        for (ItemPdf item : items) {
+            int tasa = item.tasaIva();
+            BigDecimal monto = item.subtotal();
 
-            tabla.addCell(celdaItem(String.valueOf(detalle.getCantidad()), Element.ALIGN_CENTER));
-            tabla.addCell(celdaItem(detalle.getProducto().getNombre(), Element.ALIGN_LEFT));
-            tabla.addCell(celdaItem(numero(detalle.getPrecioUnitario()), Element.ALIGN_RIGHT));
+            tabla.addCell(celdaItem(String.valueOf(item.cantidad()), Element.ALIGN_CENTER));
+            tabla.addCell(celdaItem(item.nombre(), Element.ALIGN_LEFT));
+            tabla.addCell(celdaItem(numero(item.precioUnitario()), Element.ALIGN_RIGHT));
             tabla.addCell(celdaItem(tasa == 0 ? numero(monto) : "", Element.ALIGN_RIGHT));
             tabla.addCell(celdaItem(tasa == 5 ? numero(monto) : "", Element.ALIGN_RIGHT));
             tabla.addCell(celdaItem(tasa == 10 ? numero(monto) : "", Element.ALIGN_RIGHT));
@@ -234,7 +249,7 @@ public class FacturaPdfService {
         celdaEtiquetaTotal.setPadding(7);
         celdaEtiquetaTotal.setBorderColor(GRIS_BORDE);
         tabla.addCell(celdaEtiquetaTotal);
-        PdfPCell valorTotal = new PdfPCell(new Phrase("Gs. " + numero(factura.getTotal()), F_TOTAL));
+        PdfPCell valorTotal = new PdfPCell(new Phrase("Gs. " + numero(total), F_TOTAL));
         valorTotal.setColspan(3);
         valorTotal.setHorizontalAlignment(Element.ALIGN_RIGHT);
         valorTotal.setPadding(7);
@@ -243,7 +258,7 @@ public class FacturaPdfService {
 
         PdfPCell enLetras = new PdfPCell(new Phrase(
                 etiquetaTotal.replace(":", "") + " (EN LETRAS): "
-                        + capitalizar(NumeroALetras.enGuaranies(factura.getTotal())) + ".-", F_NORMAL));
+                        + capitalizar(NumeroALetras.enGuaranies(total)) + ".-", F_NORMAL));
         enLetras.setColspan(6);
         enLetras.setPadding(6);
         enLetras.setBorderColor(GRIS_BORDE);

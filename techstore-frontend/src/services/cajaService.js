@@ -21,4 +21,14 @@ export const cajaService = {
     const { data } = await api.get('/caja/resumen', { params })
     return data
   },
+
+  async resumenPdf({ desde = null, hasta = null } = {}) {
+    const params = {}
+    if (desde) params.desde = desde
+    if (hasta) params.hasta = hasta
+    const { data } = await api.get('/caja/resumen/pdf', { params, responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  },
 }

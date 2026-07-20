@@ -1,5 +1,6 @@
 package com.techstore.entity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -8,7 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,6 +18,8 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "notas_credito")
@@ -32,13 +35,16 @@ public class NotaCredito {
     @Column(nullable = false, unique = true, length = 20)
     private String numero;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "factura_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "factura_id", nullable = false)
     private Factura factura;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "pedido_id", nullable = false)
     private Pedido pedido;
+
+    @OneToMany(mappedBy = "notaCredito", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<NotaCreditoDetalle> detalles = new ArrayList<>();
 
     @Column(nullable = false, length = 255)
     private String motivo;
@@ -61,4 +67,9 @@ public class NotaCredito {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    public void agregarDetalle(NotaCreditoDetalle detalle) {
+        detalle.setNotaCredito(this);
+        detalles.add(detalle);
+    }
 }

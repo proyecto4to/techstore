@@ -61,4 +61,14 @@ public class CajaController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
         return cajaService.resumen(desde, hasta);
     }
+
+    @GetMapping(value = "/resumen/pdf", produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Arqueo de caja en PDF", description = "Resumen y detalle de movimientos del período")
+    public org.springframework.http.ResponseEntity<byte[]> resumenPdf(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"arqueo-caja.pdf\"")
+                .body(cajaService.resumenPdf(desde, hasta));
+    }
 }

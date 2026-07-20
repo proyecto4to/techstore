@@ -37,13 +37,14 @@ public class NotaCreditoController {
 
     @PostMapping("/pedidos/{pedidoId}/nota-credito")
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Emitir nota de crédito (devolución total)",
-            description = "Anula la factura, devuelve el stock y registra el egreso en caja, todo en una transacción")
+    @Operation(summary = "Emitir nota de crédito (devolución total o parcial)",
+            description = "Devuelve el stock de los productos indicados, registra el egreso en caja "
+                    + "y, si se devolvió todo el pedido, lo marca Devuelto y anula la factura")
     public NotaCreditoResponse emitir(
             @PathVariable Long pedidoId,
             @Valid @RequestBody EmitirNotaCreditoRequest request,
             Authentication auth) {
-        return notaCreditoService.emitir(pedidoId, request.motivo(), auth.getName());
+        return notaCreditoService.emitir(pedidoId, request, auth.getName());
     }
 
     @GetMapping("/notas-credito")

@@ -36,6 +36,7 @@ public class ReporteService {
     private final PedidoRepository pedidoRepository;
     private final PedidoDetalleRepository pedidoDetalleRepository;
     private final ProductoRepository productoRepository;
+    private final ReportePdfService reportePdfService;
 
     @Transactional(readOnly = true)
     public ReporteVentasResponse ventas(LocalDate desde, LocalDate hasta, int topN) {
@@ -79,6 +80,16 @@ public class ReporteService {
         return productoRepository.conStockBajo(umbral, PageRequest.of(0, limite)).stream()
                 .map(StockBajoResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] ventasPdf(LocalDate desde, LocalDate hasta, int topN) {
+        return reportePdfService.ventas(ventas(desde, hasta, topN));
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] stockBajoPdf(int umbral, int limite) {
+        return reportePdfService.stockBajo(stockBajo(umbral, limite), umbral);
     }
 
     private static LocalDate aLocalDate(Object valor) {

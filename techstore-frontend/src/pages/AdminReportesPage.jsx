@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, FileText } from 'lucide-react'
 import { reporteService } from '../services/reporteService'
 import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
@@ -82,6 +82,12 @@ function AdminReportesPage() {
           <button onClick={() => rapido(30)} className="btn btn-secondary text-sm">30 días</button>
           <button onClick={() => rapido(null)} className="btn btn-secondary text-sm">Todo</button>
         </div>
+        <button
+          onClick={() => reporteService.ventasPdf({ desde: desde || null, hasta: hasta || null })}
+          className="btn btn-primary inline-flex items-center gap-2 text-sm"
+        >
+          <FileText size={16} /> Exportar PDF
+        </button>
         {data && (
           <p className="ml-auto text-sm text-neutral-muted">
             Mostrando {data.desde === '2000-01-01' ? 'todo el historial' : `${data.desde} → ${data.hasta}`}
@@ -246,17 +252,25 @@ function AdminReportesPage() {
           <h3 className="inline-flex items-center gap-2 text-lg font-semibold text-neutral-text">
             <AlertTriangle size={18} className="text-yellow-400" /> Stock bajo
           </h3>
-          <label className="inline-flex items-center gap-2 text-sm text-neutral-secondary">
-            Umbral:
-            <input
-              type="number"
-              min="0"
-              max="1000"
-              value={umbral}
-              onChange={(e) => setUmbral(Math.max(0, Number(e.target.value)))}
-              className="input w-24 py-1"
-            />
-          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-neutral-secondary">
+              Umbral:
+              <input
+                type="number"
+                min="0"
+                max="1000"
+                value={umbral}
+                onChange={(e) => setUmbral(Math.max(0, Number(e.target.value)))}
+                className="input w-24 py-1"
+              />
+            </label>
+            <button
+              onClick={() => reporteService.stockBajoPdf(umbral)}
+              className="btn btn-secondary inline-flex items-center gap-2 text-sm"
+            >
+              <FileText size={16} /> PDF
+            </button>
+          </div>
         </div>
         {!stockBajo || stockBajo.length === 0 ? (
           <p className="text-neutral-muted">

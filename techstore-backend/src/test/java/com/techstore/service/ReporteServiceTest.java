@@ -47,12 +47,15 @@ class ReporteServiceTest {
     @Mock
     private ProductoRepository productoRepository;
 
+    @Mock
+    private ReportePdfService reportePdfService;
+
     private ReporteService reporteService;
 
     @BeforeEach
     void setUp() {
         reporteService = new ReporteService(
-                facturaRepository, pedidoRepository, pedidoDetalleRepository, productoRepository);
+                facturaRepository, pedidoRepository, pedidoDetalleRepository, productoRepository, reportePdfService);
     }
 
     @Test

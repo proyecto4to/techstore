@@ -10,7 +10,9 @@ import com.techstore.entity.Usuario;
 import com.techstore.repository.MovimientoCajaRepository;
 import com.techstore.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +32,7 @@ public class CajaService {
     private final MovimientoCajaRepository movimientoCajaRepository;
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
+    private final ReportePdfService reportePdfService;
 
     @Transactional
     public MovimientoCajaResponse registrar(RegistroMovimientoRequest request, String emailUsuario) {
@@ -91,6 +95,17 @@ public class CajaService {
 
         return new ResumenCajaResponse(
                 desdeEfectivo, hastaEfectivo, ingresos, egresos, ingresos.subtract(egresos));
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] resumenPdf(LocalDate desde, LocalDate hasta) {
+        LocalDateTime[] rango = rango(desde, hasta);
+        List<MovimientoCajaResponse> movimientos = movimientoCajaRepository
+                .findByFechaGreaterThanEqualAndFechaLessThan(
+                        rango[0], rango[1], PageRequest.of(0, 1000, Sort.by("fecha").descending()))
+                .map(MovimientoCajaResponse::from)
+                .getContent();
+        return reportePdfService.caja(resumen(desde, hasta), movimientos);
     }
 
     private static LocalDateTime[] rango(LocalDate desde, LocalDate hasta) {
