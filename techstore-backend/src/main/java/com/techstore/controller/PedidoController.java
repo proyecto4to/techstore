@@ -46,17 +46,17 @@ public class PedidoController {
     }
 
     @GetMapping
-    @Operation(summary = "Listar pedidos", description = "Un Admin ve todos los pedidos; los demás usuarios solo los propios")
+    @Operation(summary = "Listar pedidos", description = "Admin y Cajero ven todas las ventas; los demás usuarios solo las propias")
     public PageResponse<PedidoResumenResponse> listar(
             Authentication auth,
             @ParameterObject @PageableDefault(size = 10, sort = "fecha", direction = Sort.Direction.DESC) Pageable pageable) {
-        return pedidoService.listar(auth.getName(), esAdmin(auth), pageable);
+        return pedidoService.listar(auth.getName(), esStaff(auth), pageable);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Detalle de un pedido")
     public PedidoResponse obtener(@PathVariable Long id, Authentication auth) {
-        return pedidoService.obtener(id, auth.getName(), esAdmin(auth));
+        return pedidoService.obtener(id, auth.getName(), esStaff(auth));
     }
 
     @GetMapping(value = "/{id}/factura/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
@@ -80,13 +80,13 @@ public class PedidoController {
     }
 
     @PutMapping("/{id}/cancelar")
-    @Operation(summary = "Anular pedido", description = "El dueño anula su pedido pendiente; un Admin puede anular cualquiera")
+    @Operation(summary = "Anular pedido", description = "El dueño anula su pedido pendiente; Admin y Cajero pueden anular cualquiera")
     public PedidoResponse cancelar(@PathVariable Long id, Authentication auth) {
-        return pedidoService.cancelar(id, auth.getName(), esAdmin(auth));
+        return pedidoService.cancelar(id, auth.getName(), esStaff(auth));
     }
 
-    private boolean esAdmin(Authentication auth) {
+    private boolean esStaff(Authentication auth) {
         return auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_Admin".equals(a.getAuthority()));
+                .anyMatch(a -> "ROLE_Admin".equals(a.getAuthority()) || "ROLE_Cajero".equals(a.getAuthority()));
     }
 }

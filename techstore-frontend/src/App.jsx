@@ -48,7 +48,7 @@ function App() {
               <Route
                 path="/admin"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute roles={['Admin', 'Cajero']}>
                     <AdminPage />
                   </ProtectedRoute>
                 }
@@ -64,7 +64,7 @@ function App() {
               <Route
                 path="/admin/facturas"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute roles={['Admin', 'Cajero']}>
                     <AdminFacturasPage />
                   </ProtectedRoute>
                 }
@@ -72,7 +72,7 @@ function App() {
               <Route
                 path="/admin/caja"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute roles={['Admin', 'Cajero']}>
                     <AdminCajaPage />
                   </ProtectedRoute>
                 }
@@ -88,7 +88,7 @@ function App() {
               <Route
                 path="/admin/compras"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute roles={['Admin', 'Cajero']}>
                     <AdminComprasPage />
                   </ProtectedRoute>
                 }
@@ -104,7 +104,7 @@ function App() {
               <Route
                 path="/admin/reportes"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute roles={['Admin', 'Cajero']}>
                     <AdminReportesPage />
                   </ProtectedRoute>
                 }

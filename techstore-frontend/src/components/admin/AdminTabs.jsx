@@ -1,19 +1,22 @@
 import { NavLink } from 'react-router-dom'
+import { useAuthStore } from '../../store/authStore'
 
 const tabs = [
   { to: '/admin', label: 'Pedidos', end: true },
   { to: '/admin/compras', label: 'Compras' },
-  { to: '/admin/productos', label: 'Productos' },
+  { to: '/admin/productos', label: 'Productos', soloAdmin: true },
   { to: '/admin/facturas', label: 'Facturas' },
   { to: '/admin/caja', label: 'Caja' },
-  { to: '/admin/usuarios', label: 'Usuarios' },
+  { to: '/admin/usuarios', label: 'Usuarios', soloAdmin: true },
   { to: '/admin/reportes', label: 'Reportes' },
 ]
 
 function AdminTabs() {
+  const { usuario } = useAuthStore()
+  const visibles = tabs.filter((tab) => !tab.soloAdmin || usuario?.rol === 'Admin')
   return (
-    <div className="mb-6 flex gap-2 border-b border-dark-border pb-2">
-      {tabs.map((tab) => (
+    <div className="mb-6 flex flex-wrap gap-2 border-b border-dark-border pb-2">
+      {visibles.map((tab) => (
         <NavLink
           key={tab.to}
           to={tab.to}

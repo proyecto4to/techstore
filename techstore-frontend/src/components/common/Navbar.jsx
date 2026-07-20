@@ -44,9 +44,9 @@ function Navbar() {
           Mis pedidos
         </NavLink>
       )}
-      {usuario?.rol === 'Admin' && (
+      {(usuario?.rol === 'Admin' || usuario?.rol === 'Cajero') && (
         <NavLink to="/admin" className={linkClase} onClick={() => setAbierto(false)}>
-          Admin
+          Panel
         </NavLink>
       )}
     </>
