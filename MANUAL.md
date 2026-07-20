@@ -107,7 +107,27 @@ empresa.direccion=...             (usar ñ para ñ, á para á, ó para ó)
 > ⚠️ Los valores de fábrica son de demostración. Antes de facturar de
 > verdad, reemplazalos por los datos del contribuyente.
 
-## 11. Respaldos de la base (copias de seguridad)
+## 11. Factura electrónica (SIFEN) — demostrativo
+
+En la pestaña **Facturas**, cada factura tiene además de su PDF dos botones:
+
+- **KuDE**: la representación gráfica del Documento Electrónico con el **CDC**
+  (Código de Control de 44 dígitos) y el **código QR** de consulta del SIFEN.
+- **XML**: descarga el Documento Electrónico **firmado digitalmente**, en el
+  formato del Manual Técnico del SIFEN v150.
+
+> ⚠️ **Es una demostración del estándar.** El documento se firma con un
+> certificado de **prueba** y **no se transmite a la SET/DNIT**. Para facturar
+> electrónicamente de verdad hacen falta dos trámites externos: un **certificado
+> digital** emitido por un prestador habilitado y la **habilitación como
+> facturador electrónico** ante la DNIT (con timbrado electrónico). Recién con
+> eso se puede firmar con validez legal y enviar a los web services del SIFEN.
+
+Los datos fiscales del emisor (RUC, timbrado, establecimiento, punto de
+expedición, actividad económica, ubicación) se configuran en
+`application.properties` bajo `empresa.*`.
+
+## 12. Respaldos de la base (copias de seguridad)
 
 Tus datos se respaldan **solos**: cada vez que iniciás o detenés el sistema
 con los íconos del escritorio se guarda una copia de la base. Se conservan
@@ -123,7 +143,7 @@ OneDrive, a propósito).
 > Si borraste algo por error o la base se dañó, restaurá el respaldo más
 > reciente y perdés, como mucho, lo hecho desde ese momento.
 
-## 12. Preguntas frecuentes
+## 13. Preguntas frecuentes
 
 **Se apagó la PC de golpe, ¿perdí datos?**
 No. La base de datos se recupera sola en el próximo inicio, y además hay

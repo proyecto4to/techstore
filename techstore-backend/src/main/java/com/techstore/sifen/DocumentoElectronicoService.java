@@ -1,0 +1,256 @@
+package com.techstore.sifen;
+
+import com.techstore.config.EmpresaProperties;
+import com.techstore.entity.Factura;
+import com.techstore.entity.PedidoDetalle;
+import com.techstore.entity.Usuario;
+import com.techstore.exception.BusinessException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import java.io.StringWriter;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.format.DateTimeFormatter;
+
+/**
+ * Genera el XML del Documento Electrónico (DE) de una factura según el
+ * Manual Técnico del SIFEN v150 (implementación demostrativa del estándar:
+ * grupos principales de una Factura Electrónica de venta al contado).
+ */
+@Service
+@RequiredArgsConstructor
+public class DocumentoElectronicoService {
+
+    private static final String NS = "http://ekuatia.set.gov.py/sifen/xsd";
+    private static final String VERSION = "150";
+    private static final String TIPO_DOC_FE = "01"; // Factura electrónica
+    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    private static final DateTimeFormatter D = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final BigDecimal CIEN = BigDecimal.valueOf(100);
+
+    private final EmpresaProperties empresa;
+
+    /** Resultado: el CDC calculado y el XML del documento electrónico. */
+    public record DocumentoElectronico(String cdc, String xml) {
+    }
+
+    public DocumentoElectronico generar(Factura factura) {
+        try {
+            return construir(factura);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BusinessException("No se pudo generar el documento electrónico: " + ex.getMessage());
+        }
+    }
+
+    private DocumentoElectronico construir(Factura factura) throws Exception {
+        String establecimiento = empresa.establecimiento();
+        String puntoExpedicion = empresa.puntoExpedicion();
+        // El número del CDC/timbrado usa 7 dígitos; tomamos el correlativo de la factura.
+        String numeroDoc = String.format("%07d", numeroCorrelativo(factura));
+        String codigoSeguridad = CodigoControl.generarCodigoSeguridad();
+
+        String cdc = CodigoControl.generar(
+                TIPO_DOC_FE, empresa.rucNumero(), empresa.rucDv(), establecimiento, puntoExpedicion,
+                numeroDoc, empresa.tipoContribuyente(), factura.getFecha().toLocalDate(), 1, codigoSeguridad);
+
+        Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+        Element rDE = doc.createElementNS(NS, "rDE");
+        doc.appendChild(rDE);
+        hijo(doc, rDE, "dVerFor", VERSION);
+
+        Element de = hijo(doc, rDE, "DE", null);
+        de.setAttribute("Id", cdc);
+        hijo(doc, de, "dDVId", String.valueOf(cdc.charAt(43)));
+        hijo(doc, de, "dFecFirma", factura.getFecha().format(DT));
+        hijo(doc, de, "dSisFact", "1");
+
+        // gOpeDE — operación del DE
+        Element gOpeDE = hijo(doc, de, "gOpeDE", null);
+        hijo(doc, gOpeDE, "iTipEmi", "1");
+        hijo(doc, gOpeDE, "dDesTipEmi", "Normal");
+        hijo(doc, gOpeDE, "dCodSeg", codigoSeguridad);
+
+        // gTimb — timbrado
+        Element gTimb = hijo(doc, de, "gTimb", null);
+        hijo(doc, gTimb, "iTiDE", "1");
+        hijo(doc, gTimb, "dDesTiDE", "Factura electrónica");
+        hijo(doc, gTimb, "dNumTim", empresa.timbrado());
+        hijo(doc, gTimb, "dEst", establecimiento);
+        hijo(doc, gTimb, "dPunExp", puntoExpedicion);
+        hijo(doc, gTimb, "dNumDoc", numeroDoc);
+        hijo(doc, gTimb, "dFeIniT", empresa.timbradoInicioVigencia());
+
+        // gDatGralOpe — datos generales
+        Element gDat = hijo(doc, de, "gDatGralOpe", null);
+        hijo(doc, gDat, "dFeEmiDE", factura.getFecha().format(DT));
+
+        Element gOpeCom = hijo(doc, gDat, "gOpeCom", null);
+        hijo(doc, gOpeCom, "iTipTra", "1");
+        hijo(doc, gOpeCom, "dDesTipTra", "Venta de mercadería");
+        hijo(doc, gOpeCom, "iTImp", "1");
+        hijo(doc, gOpeCom, "dDesTImp", "IVA");
+        hijo(doc, gOpeCom, "cMoneOpe", "PYG");
+        hijo(doc, gOpeCom, "dDesMoneOpe", "Guaraní");
+
+        agregarEmisor(doc, gDat);
+        agregarReceptor(doc, gDat, factura.getPedido().getUsuario());
+
+        // gDtipDE — específico por tipo (factura) + condición + items
+        Element gDtip = hijo(doc, de, "gDtipDE", null);
+        Element gCamFE = hijo(doc, gDtip, "gCamFE", null);
+        hijo(doc, gCamFE, "iIndPres", "1");
+        hijo(doc, gCamFE, "dDesIndPres", "Operación presencial");
+
+        Element gCamCond = hijo(doc, gDtip, "gCamCond", null);
+        hijo(doc, gCamCond, "iCondOpe", "1");
+        hijo(doc, gCamCond, "dDCondOpe", "Contado");
+        Element gPaConEIni = hijo(doc, gCamCond, "gPaConEIni", null);
+        hijo(doc, gPaConEIni, "iTiPago", "1");
+        hijo(doc, gPaConEIni, "dDesTiPag", "Efectivo");
+        hijo(doc, gPaConEIni, "dMonTiPag", plano(factura.getTotal()));
+        hijo(doc, gPaConEIni, "cMoneTiPag", "PYG");
+        hijo(doc, gPaConEIni, "dDMoneTiPag", "Guaraní");
+
+        for (PedidoDetalle detalle : factura.getPedido().getDetalles()) {
+            agregarItem(doc, gDtip, detalle);
+        }
+
+        agregarTotales(doc, de, factura);
+
+        return new DocumentoElectronico(cdc, serializar(doc));
+    }
+
+    private void agregarEmisor(Document doc, Element gDat) {
+        Element g = hijo(doc, gDat, "gEmis", null);
+        hijo(doc, g, "dRucEm", empresa.rucNumero());
+        hijo(doc, g, "dDVEmi", String.valueOf(empresa.rucDv()));
+        hijo(doc, g, "iTipCont", String.valueOf(empresa.tipoContribuyente()));
+        hijo(doc, g, "dNomEmi", empresa.nombre());
+        hijo(doc, g, "dDirEmi", empresa.direccion());
+        hijo(doc, g, "dNumCas", "0");
+        hijo(doc, g, "cDepEmi", empresa.departamentoCodigo());
+        hijo(doc, g, "dDesDepEmi", empresa.departamentoNombre());
+        hijo(doc, g, "cDisEmi", empresa.distritoCodigo());
+        hijo(doc, g, "dDesDisEmi", empresa.distritoNombre());
+        hijo(doc, g, "cCiuEmi", empresa.ciudadCodigo());
+        hijo(doc, g, "dDesCiuEmi", empresa.ciudadNombre());
+        hijo(doc, g, "dTelEmi", empresa.telefono());
+        Element gAct = hijo(doc, g, "gActEco", null);
+        hijo(doc, gAct, "cActEco", empresa.actividadCodigo());
+        hijo(doc, gAct, "dDesActEco", empresa.actividad());
+    }
+
+    private void agregarReceptor(Document doc, Element gDat, Usuario cliente) {
+        // Cliente sin RUC registrado -> receptor no contribuyente (B2C), innominado.
+        Element g = hijo(doc, gDat, "gDatRec", null);
+        hijo(doc, g, "iNatRec", "2");
+        hijo(doc, g, "iTiOpe", "2");
+        hijo(doc, g, "cPaisRec", "PRY");
+        hijo(doc, g, "dDesPaisRe", "Paraguay");
+        hijo(doc, g, "iTipIDRec", "5");
+        hijo(doc, g, "dDTipIDRec", "Innominado");
+        hijo(doc, g, "dNumIDRec", "0");
+        hijo(doc, g, "dNomRec", cliente.getNombre() + " " + cliente.getApellido());
+        hijo(doc, g, "dEmailRec", cliente.getEmail());
+    }
+
+    private void agregarItem(Document doc, Element gDtip, PedidoDetalle detalle) {
+        BigDecimal tasa = detalle.getIvaAplicado() == null ? BigDecimal.ZERO : detalle.getIvaAplicado();
+        BigDecimal subtotal = detalle.getSubtotal();
+        BigDecimal iva = tasa.signum() > 0
+                ? subtotal.multiply(tasa).divide(CIEN.add(tasa), 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        BigDecimal baseGravada = subtotal.subtract(iva);
+
+        Element g = hijo(doc, gDtip, "gCamItem", null);
+        hijo(doc, g, "dCodInt", String.valueOf(detalle.getProducto().getId()));
+        hijo(doc, g, "dDesProSer", detalle.getProducto().getNombre());
+        hijo(doc, g, "cUniMed", "77");
+        hijo(doc, g, "dDesUniMed", "UNI");
+        hijo(doc, g, "dCantProSer", String.valueOf(detalle.getCantidad()));
+
+        Element gVal = hijo(doc, g, "gValorItem", null);
+        hijo(doc, gVal, "dPUniProSer", plano(detalle.getPrecioUnitario()));
+        hijo(doc, gVal, "dTotBruOpeItem", plano(subtotal));
+        Element gResta = hijo(doc, gVal, "gValorRestaItem", null);
+        hijo(doc, gResta, "dTotOpeItem", plano(subtotal));
+
+        Element gIVA = hijo(doc, g, "gCamIVA", null);
+        hijo(doc, gIVA, "iAfectIVA", tasa.signum() > 0 ? "1" : "3");
+        hijo(doc, gIVA, "dDesAfecIVA", tasa.signum() > 0 ? "Gravado IVA" : "Exento");
+        hijo(doc, gIVA, "dPropIVA", "100");
+        hijo(doc, gIVA, "dTasaIVA", tasa.stripTrailingZeros().toPlainString());
+        hijo(doc, gIVA, "dBasGravIVA", plano(baseGravada));
+        hijo(doc, gIVA, "dLiqIVAItem", plano(iva));
+    }
+
+    private void agregarTotales(Document doc, Element de, Factura factura) {
+        BigDecimal iva10 = BigDecimal.ZERO;
+        BigDecimal iva5 = BigDecimal.ZERO;
+        BigDecimal grav10 = BigDecimal.ZERO;
+        BigDecimal grav5 = BigDecimal.ZERO;
+        BigDecimal exentas = BigDecimal.ZERO;
+        for (PedidoDetalle d : factura.getPedido().getDetalles()) {
+            int tasa = d.getIvaAplicado() == null ? 0 : d.getIvaAplicado().intValue();
+            BigDecimal monto = d.getSubtotal();
+            switch (tasa) {
+                case 10 -> grav10 = grav10.add(monto);
+                case 5 -> grav5 = grav5.add(monto);
+                default -> exentas = exentas.add(monto);
+            }
+        }
+        iva10 = grav10.multiply(BigDecimal.TEN).divide(BigDecimal.valueOf(110), 2, RoundingMode.HALF_UP);
+        iva5 = grav5.multiply(BigDecimal.valueOf(5)).divide(BigDecimal.valueOf(105), 2, RoundingMode.HALF_UP);
+
+        Element g = hijo(doc, de, "gTotSub", null);
+        hijo(doc, g, "dSubExe", plano(exentas));
+        hijo(doc, g, "dSub5", plano(grav5));
+        hijo(doc, g, "dSub10", plano(grav10));
+        hijo(doc, g, "dTotOpe", plano(factura.getTotal()));
+        hijo(doc, g, "dTotGralOpe", plano(factura.getTotal()));
+        hijo(doc, g, "dIVA5", plano(iva5));
+        hijo(doc, g, "dIVA10", plano(iva10));
+        hijo(doc, g, "dTotIVA", plano(iva5.add(iva10)));
+    }
+
+    private static int numeroCorrelativo(Factura factura) {
+        // El número de factura tiene formato 001-001-XXXXXXX; tomamos el correlativo.
+        String numero = factura.getNumero();
+        String ultimo = numero.contains("-") ? numero.substring(numero.lastIndexOf('-') + 1) : numero;
+        return Integer.parseInt(ultimo.replaceAll("\\D", ""));
+    }
+
+    private static Element hijo(Document doc, Element padre, String nombre, String texto) {
+        Element e = doc.createElementNS(NS, nombre);
+        if (texto != null) {
+            e.setTextContent(texto);
+        }
+        padre.appendChild(e);
+        return e;
+    }
+
+    private static String plano(BigDecimal valor) {
+        return valor.stripTrailingZeros().toPlainString();
+    }
+
+    private static String serializar(Document doc) throws Exception {
+        Transformer t = TransformerFactory.newInstance().newTransformer();
+        t.setOutputProperty(OutputKeys.INDENT, "yes");
+        t.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+        t.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+        StringWriter sw = new StringWriter();
+        t.transform(new DOMSource(doc), new StreamResult(sw));
+        return sw.toString();
+    }
+}
