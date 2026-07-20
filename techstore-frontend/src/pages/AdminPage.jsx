@@ -7,12 +7,11 @@ import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
 import AdminTabs from '../components/admin/AdminTabs'
 import PedidoDetallePanel from '../components/admin/PedidoDetallePanel'
-
-const TIPOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'Cheque']
+import CobroPanel from '../components/admin/CobroPanel'
 
 function AdminPage() {
   const [page, setPage] = useState(0)
-  const [tipoPagoPorPedido, setTipoPagoPorPedido] = useState({})
+  const [cobroPedidoId, setCobroPedidoId] = useState(null)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
   const [ncPedidoId, setNcPedidoId] = useState(null)
   const [ncMotivo, setNcMotivo] = useState('')
@@ -45,14 +44,18 @@ function AdminPage() {
   })
 
   const cobrarMutation = useMutation({
-    mutationFn: ({ id, tipoPago }) => pedidoService.registrarPago(id, tipoPago),
+    mutationFn: ({ id, lineas }) => pedidoService.registrarPago(id, lineas),
     onSuccess: (pago) => {
       setError(null)
+      const metodos = pago.lineas
+        .map((l) => `${l.tipoPago} ${formatPrecio(l.monto)}`)
+        .join(' + ')
       setMensaje(
-        `Pago N.º ${pago.numero} registrado (${pago.tipoPago}). ` +
+        `Cobro registrado (${metodos}). ` +
           `Factura ${pago.factura.numero} emitida: total ${formatPrecio(pago.factura.total)} ` +
           `(IVA ${formatPrecio(pago.factura.iva)}).`,
       )
+      setCobroPedidoId(null)
       refrescar()
     },
     onError,
@@ -168,36 +171,15 @@ function AdminPage() {
                         </div>
                       )}
                       {pedido.estado === 'C' && (
-                        <div className="flex gap-2">
-                          <select
-                            value={tipoPagoPorPedido[pedido.id] ?? 'Efectivo'}
-                            onChange={(e) =>
-                              setTipoPagoPorPedido((prev) => ({
-                                ...prev,
-                                [pedido.id]: e.target.value,
-                              }))
-                            }
-                            className="input w-auto py-1 text-sm"
-                          >
-                            {TIPOS_PAGO.map((tipo) => (
-                              <option key={tipo} value={tipo}>
-                                {tipo}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() =>
-                              cobrarMutation.mutate({
-                                id: pedido.id,
-                                tipoPago: tipoPagoPorPedido[pedido.id] ?? 'Efectivo',
-                              })
-                            }
-                            disabled={ocupado}
-                            className="btn btn-primary text-sm"
-                          >
-                            💵 Cobrar
-                          </button>
-                        </div>
+                        <button
+                          onClick={() =>
+                            setCobroPedidoId(cobroPedidoId === pedido.id ? null : pedido.id)
+                          }
+                          disabled={ocupado}
+                          className="btn btn-primary text-sm"
+                        >
+                          {cobroPedidoId === pedido.id ? 'Cerrar cobro' : '💵 Cobrar'}
+                        </button>
                       )}
                       {pedido.estado === 'G' && (
                         ncPedidoId === pedido.id ? (
@@ -244,6 +226,18 @@ function AdminPage() {
                     <tr>
                       <td colSpan={6} className="bg-dark-bg/30 p-3">
                         <PedidoDetallePanel pedidoId={pedido.id} />
+                      </td>
+                    </tr>
+                  )}
+                  {cobroPedidoId === pedido.id && pedido.estado === 'C' && (
+                    <tr>
+                      <td colSpan={6} className="bg-dark-bg/30 p-3">
+                        <CobroPanel
+                          total={pedido.total}
+                          ocupado={ocupado}
+                          onCobrar={(lineas) => cobrarMutation.mutate({ id: pedido.id, lineas })}
+                          onCancelar={() => setCobroPedidoId(null)}
+                        />
                       </td>
                     </tr>
                   )}

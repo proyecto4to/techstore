@@ -29,11 +29,8 @@ export const pedidoService = {
     return data
   },
 
-  async registrarPago(id, tipoPago, numeroComprobante) {
-    const { data } = await api.post(`/pedidos/${id}/pago`, {
-      tipoPago,
-      numeroComprobante: numeroComprobante || null,
-    })
+  async registrarPago(id, lineas) {
+    const { data } = await api.post(`/pedidos/${id}/pago`, { lineas })
     return data
   },
 

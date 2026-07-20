@@ -10,6 +10,7 @@ import com.techstore.entity.Factura;
 import com.techstore.entity.Pago;
 import com.techstore.entity.Pedido;
 import com.techstore.entity.PedidoDetalle;
+import com.techstore.entity.TipoPago;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
 import com.techstore.exception.ResourceNotFoundException;
@@ -26,6 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +42,10 @@ public class PagoService {
     private static final String TIPO_FACTURA_CONTADO = "CONTADO";
     private static final BigDecimal CIEN = BigDecimal.valueOf(100);
 
+    /** Métodos de pago habilitados; Tarjeta y Cheque quedan fuera de uso. */
+    private static final Set<TipoPago> METODOS_HABILITADOS =
+            EnumSet.of(TipoPago.Efectivo, TipoPago.Transferencia);
+
     private final PagoRepository pagoRepository;
     private final FacturaRepository facturaRepository;
     private final PedidoRepository pedidoRepository;
@@ -45,8 +55,10 @@ public class PagoService {
     private final CajaService cajaService;
 
     /**
-     * Registra el cobro total de un pedido confirmado y emite su factura
-     * en la misma transacción: si algo falla, no queda ni pago ni factura.
+     * Registra el cobro de un pedido confirmado y emite su factura en la
+     * misma transacción: si algo falla, no queda ni pago ni factura. El
+     * cobro puede repartirse entre efectivo y transferencia (pago mixto);
+     * la suma de las líneas debe igualar el total del pedido.
      * Los precios ya incluyen IVA, por lo que el impuesto se desglosa
      * por detalle según su tasa (iva = subtotal * tasa / (100 + tasa)).
      */
@@ -63,17 +75,22 @@ public class PagoService {
             throw new BusinessException("El pedido N.º %d ya tiene un pago registrado".formatted(pedido.getNumero()));
         }
 
+        validarLineas(request.lineas(), pedido.getTotal());
+
         Usuario cajero = usuarioRepository.findByEmail(emailCajero)
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
 
-        Pago pago = new Pago();
-        pago.setNumero(autonumeradorService.siguiente(ENTIDAD_PAGO));
-        pago.setPedido(pedido);
-        pago.setMonto(pedido.getTotal());
-        pago.setTipoPago(request.tipoPago());
-        pago.setNumeroComprobante(request.numeroComprobante());
-        pago.setUsuario(cajero);
-        pago = pagoRepository.save(pago);
+        List<Pago> pagos = new ArrayList<>();
+        for (RegistroPagoRequest.LineaPago linea : request.lineas()) {
+            Pago pago = new Pago();
+            pago.setNumero(autonumeradorService.siguiente(ENTIDAD_PAGO));
+            pago.setPedido(pedido);
+            pago.setMonto(linea.monto());
+            pago.setTipoPago(linea.tipoPago());
+            pago.setNumeroComprobante(linea.numeroComprobante());
+            pago.setUsuario(cajero);
+            pagos.add(pagoRepository.save(pago));
+        }
 
         BigDecimal iva = calcularIvaIncluido(pedido);
 
@@ -91,13 +108,40 @@ public class PagoService {
         pedido.setEstado(EstadoPedido.G);
         pedidoRepository.save(pedido);
 
-        cajaService.registrarIngresoAutomatico(
-                pedido.getTotal(),
-                "Cobro pedido N.º " + pedido.getNumero(),
-                factura.getNumero(),
-                cajero);
+        // Un movimiento de caja por método, para que el arqueo distinga
+        // el efectivo recibido de las transferencias.
+        for (Pago pago : pagos) {
+            cajaService.registrarIngresoAutomatico(
+                    pago.getMonto(),
+                    "Cobro pedido N.º " + pedido.getNumero() + " (" + pago.getTipoPago() + ")",
+                    factura.getNumero(),
+                    cajero);
+        }
 
-        return PagoResponse.from(pago, factura);
+        return PagoResponse.from(pagos, factura);
+    }
+
+    private void validarLineas(List<RegistroPagoRequest.LineaPago> lineas, BigDecimal total) {
+        Set<TipoPago> metodosVistos = new HashSet<>();
+        BigDecimal suma = BigDecimal.ZERO;
+        for (RegistroPagoRequest.LineaPago linea : lineas) {
+            if (!METODOS_HABILITADOS.contains(linea.tipoPago())) {
+                throw new BusinessException(
+                        "Método de pago no permitido: %s. Solo se aceptan Efectivo y Transferencia."
+                                .formatted(linea.tipoPago()));
+            }
+            if (!metodosVistos.add(linea.tipoPago())) {
+                throw new BusinessException(
+                        "El método %s aparece más de una vez; combiná los montos en una sola línea."
+                                .formatted(linea.tipoPago()));
+            }
+            suma = suma.add(linea.monto());
+        }
+        if (suma.compareTo(total) != 0) {
+            throw new BusinessException(
+                    "La suma de los pagos (%s) no coincide con el total del pedido (%s)."
+                            .formatted(suma.toPlainString(), total.toPlainString()));
+        }
     }
 
     @Transactional(readOnly = true)

@@ -1,6 +1,7 @@
 package com.techstore.service;
 
 import com.techstore.dto.request.RegistroPagoRequest;
+import com.techstore.dto.request.RegistroPagoRequest.LineaPago;
 import com.techstore.dto.response.PagoResponse;
 import com.techstore.entity.EstadoFactura;
 import com.techstore.entity.EstadoPedido;
@@ -25,13 +26,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -117,26 +121,95 @@ class PagoServiceTest {
         lenient().when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
+    private RegistroPagoRequest todoEfectivo() {
+        return new RegistroPagoRequest(List.of(
+                new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)));
+    }
+
     @Test
-    void registrarPagoEmiteFacturaConIvaDesglosado() {
+    void cobroEnEfectivoEmiteFacturaConIvaDesglosado() {
         prepararPagoFeliz();
 
-        PagoResponse response = pagoService.registrarPago(10L,
-                new RegistroPagoRequest(TipoPago.Efectivo, null), "cajero@techstore.py");
+        PagoResponse response = pagoService.registrarPago(10L, todoEfectivo(), "cajero@techstore.py");
 
-        assertEquals(1, response.numero());
         assertEquals(7, response.pedidoNumero());
-        assertEquals(new BigDecimal("2500000.00"), response.monto());
-        assertEquals("Efectivo", response.tipoPago());
+        assertEquals(new BigDecimal("2500000.00"), response.total());
+        assertEquals(1, response.lineas().size());
+        assertEquals("Efectivo", response.lineas().get(0).tipoPago());
         // IVA 10% incluido: 2.500.000 * 10/110 = 227.272,73
         assertEquals("001-001-0000001", response.factura().numero());
         assertEquals(new BigDecimal("227272.73"), response.factura().iva());
         assertEquals(new BigDecimal("2272727.27"), response.factura().subtotal());
-        assertEquals(new BigDecimal("2500000.00"), response.factura().total());
         assertEquals(EstadoFactura.Pagada.name(), response.factura().estado());
         assertEquals(EstadoPedido.G, pedido.getEstado());
         verify(cajaService).registrarIngresoAutomatico(
-                new BigDecimal("2500000.00"), "Cobro pedido N.º 7", "001-001-0000001", cajero);
+                eq(new BigDecimal("2500000.00")), eq("Cobro pedido N.º 7 (Efectivo)"),
+                eq("001-001-0000001"), eq(cajero));
+    }
+
+    @Test
+    void cobroMixtoRegistraDosPagosYDosMovimientos() {
+        when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
+        when(pagoRepository.existsByPedidoId(10L)).thenReturn(false);
+        when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
+        when(autonumeradorService.siguiente("PAGO")).thenReturn(1, 2);
+        when(autonumeradorService.siguiente("FACTURA")).thenReturn(1);
+        when(pagoRepository.save(any(Pago.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(facturaRepository.save(any(Factura.class))).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PagoResponse response = pagoService.registrarPago(10L,
+                new RegistroPagoRequest(List.of(
+                        new LineaPago(TipoPago.Efectivo, new BigDecimal("1000000.00"), null),
+                        new LineaPago(TipoPago.Transferencia, new BigDecimal("1500000.00"), "TX-42"))),
+                "cajero@techstore.py");
+
+        assertEquals(2, response.lineas().size());
+        assertEquals(new BigDecimal("2500000.00"), response.total());
+        verify(pagoRepository, times(2)).save(any(Pago.class));
+        verify(cajaService).registrarIngresoAutomatico(
+                eq(new BigDecimal("1000000.00")), eq("Cobro pedido N.º 7 (Efectivo)"), any(), eq(cajero));
+        verify(cajaService).registrarIngresoAutomatico(
+                eq(new BigDecimal("1500000.00")), eq("Cobro pedido N.º 7 (Transferencia)"), any(), eq(cajero));
+    }
+
+    @Test
+    void cobroConSumaDistintaAlTotalFalla() {
+        when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
+        when(pagoRepository.existsByPedidoId(10L)).thenReturn(false);
+
+        assertThrows(BusinessException.class, () -> pagoService.registrarPago(10L,
+                new RegistroPagoRequest(List.of(
+                        new LineaPago(TipoPago.Efectivo, new BigDecimal("1000000.00"), null),
+                        new LineaPago(TipoPago.Transferencia, new BigDecimal("1000000.00"), null))),
+                "cajero@techstore.py"));
+        verify(pagoRepository, never()).save(any());
+        verify(facturaRepository, never()).save(any());
+    }
+
+    @Test
+    void metodoTarjetaRechazado() {
+        when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
+        when(pagoRepository.existsByPedidoId(10L)).thenReturn(false);
+
+        assertThrows(BusinessException.class, () -> pagoService.registrarPago(10L,
+                new RegistroPagoRequest(List.of(
+                        new LineaPago(TipoPago.Tarjeta, new BigDecimal("2500000.00"), "VISA-1"))),
+                "cajero@techstore.py"));
+        verify(facturaRepository, never()).save(any());
+    }
+
+    @Test
+    void metodoRepetidoFalla() {
+        when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
+        when(pagoRepository.existsByPedidoId(10L)).thenReturn(false);
+
+        assertThrows(BusinessException.class, () -> pagoService.registrarPago(10L,
+                new RegistroPagoRequest(List.of(
+                        new LineaPago(TipoPago.Efectivo, new BigDecimal("1250000.00"), null),
+                        new LineaPago(TipoPago.Efectivo, new BigDecimal("1250000.00"), null))),
+                "cajero@techstore.py"));
+        verify(facturaRepository, never()).save(any());
     }
 
     @Test
@@ -144,8 +217,8 @@ class PagoServiceTest {
         pedido.setEstado(EstadoPedido.P);
         when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
 
-        assertThrows(BusinessException.class, () -> pagoService.registrarPago(10L,
-                new RegistroPagoRequest(TipoPago.Efectivo, null), "cajero@techstore.py"));
+        assertThrows(BusinessException.class,
+                () -> pagoService.registrarPago(10L, todoEfectivo(), "cajero@techstore.py"));
         verify(pagoRepository, never()).save(any());
         verify(facturaRepository, never()).save(any());
     }
@@ -155,8 +228,8 @@ class PagoServiceTest {
         when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
         when(pagoRepository.existsByPedidoId(10L)).thenReturn(true);
 
-        assertThrows(BusinessException.class, () -> pagoService.registrarPago(10L,
-                new RegistroPagoRequest(TipoPago.Tarjeta, "VISA-1234"), "cajero@techstore.py"));
+        assertThrows(BusinessException.class,
+                () -> pagoService.registrarPago(10L, todoEfectivo(), "cajero@techstore.py"));
         verify(facturaRepository, never()).save(any());
     }
 
@@ -166,7 +239,9 @@ class PagoServiceTest {
         prepararPagoFeliz();
 
         PagoResponse response = pagoService.registrarPago(10L,
-                new RegistroPagoRequest(TipoPago.Transferencia, "TX-99"), "cajero@techstore.py");
+                new RegistroPagoRequest(List.of(
+                        new LineaPago(TipoPago.Transferencia, new BigDecimal("2500000.00"), "TX-99"))),
+                "cajero@techstore.py");
 
         assertEquals(BigDecimal.ZERO, response.factura().iva());
         assertEquals(new BigDecimal("2500000.00"), response.factura().subtotal());
