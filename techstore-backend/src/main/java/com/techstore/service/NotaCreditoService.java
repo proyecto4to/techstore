@@ -1,6 +1,7 @@
 package com.techstore.service;
 
 import com.techstore.dto.request.EmitirNotaCreditoRequest;
+import com.techstore.dto.response.DevolucionItemResponse;
 import com.techstore.dto.response.NotaCreditoResponse;
 import com.techstore.dto.response.PageResponse;
 import com.techstore.entity.EstadoFactura;
@@ -30,6 +31,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -158,6 +160,31 @@ public class NotaCreditoService {
     @Transactional(readOnly = true)
     public PageResponse<NotaCreditoResponse> listar(Pageable pageable) {
         return PageResponse.from(notaCreditoRepository.findAll(pageable).map(NotaCreditoResponse::from));
+    }
+
+    /**
+     * Por cada producto del pedido, cuánto se compró, cuánto ya se devolvió en
+     * NCs previas y cuánto queda disponible por devolver. El panel de devolución
+     * usa esto para ofrecer y limitar solo lo que realmente falta devolver.
+     */
+    @Transactional(readOnly = true)
+    public List<DevolucionItemResponse> disponibleParaDevolver(Long pedidoId) {
+        Pedido pedido = pedidoRepository.findWithDetallesById(pedidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Pedido", pedidoId));
+        Map<Long, Integer> yaDevuelto = cargarYaDevuelto(pedidoId);
+        return pedido.getDetalles().stream()
+                .map(detalle -> {
+                    int comprado = detalle.getCantidad();
+                    int devuelto = yaDevuelto.getOrDefault(detalle.getProducto().getId(), 0);
+                    return new DevolucionItemResponse(
+                            detalle.getProducto().getId(),
+                            detalle.getProducto().getNombre(),
+                            comprado,
+                            devuelto,
+                            comprado - devuelto,
+                            detalle.getPrecioUnitario());
+                })
+                .toList();
     }
 
     /** Número de NC + contenido PDF listos para descargar. */

@@ -10,6 +10,7 @@ import com.techstore.entity.Factura;
 import com.techstore.entity.Pago;
 import com.techstore.entity.Pedido;
 import com.techstore.entity.PedidoDetalle;
+import com.techstore.entity.TipoCorreo;
 import com.techstore.entity.TipoPago;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
@@ -53,6 +54,7 @@ public class PagoService {
     private final AutonumeradorService autonumeradorService;
     private final FacturaPdfService facturaPdfService;
     private final CajaService cajaService;
+    private final CorreoService correoService;
 
     /**
      * Registra el cobro de un pedido confirmado y emite su factura en la
@@ -119,6 +121,8 @@ public class PagoService {
                     pago.getTipoPago());
         }
 
+        enviarFacturaPorCorreo(pedido, factura);
+
         return PagoResponse.from(pagos, factura);
     }
 
@@ -179,6 +183,26 @@ public class PagoService {
             throw new AccessDeniedException("No puede descargar facturas de otro usuario");
         }
         return new FacturaPdf(factura.getNumero(), facturaPdfService.generar(factura));
+    }
+
+    /** Envía la factura recién emitida al cliente con el PDF adjunto (bandeja de salida). */
+    private void enviarFacturaPorCorreo(Pedido pedido, Factura factura) {
+        Usuario cliente = pedido.getUsuario();
+        byte[] pdf = facturaPdfService.generar(factura);
+        String cuerpo = "Hola " + cliente.getNombre() + ",\n\n"
+                + "Adjuntamos la factura " + factura.getNumero() + " correspondiente a tu compra "
+                + "(pedido N.º " + pedido.getNumero() + ") por un total de Gs. "
+                + factura.getTotal().toPlainString() + ".\n\n"
+                + "¡Gracias por tu compra!\nTechStore";
+        correoService.enviar(
+                TipoCorreo.FACTURA,
+                cliente.getEmail(),
+                cliente.getNombre() + " " + cliente.getApellido(),
+                "Tu factura " + factura.getNumero() + " — TechStore",
+                cuerpo,
+                factura.getNumero(),
+                pdf,
+                "factura-" + factura.getNumero() + ".pdf");
     }
 
     private BigDecimal calcularIvaIncluido(Pedido pedido) {

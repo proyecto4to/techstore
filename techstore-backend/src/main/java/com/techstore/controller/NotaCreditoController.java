@@ -1,6 +1,7 @@
 package com.techstore.controller;
 
 import com.techstore.dto.request.EmitirNotaCreditoRequest;
+import com.techstore.dto.response.DevolucionItemResponse;
 import com.techstore.dto.response.NotaCreditoResponse;
 import com.techstore.dto.response.PageResponse;
 import com.techstore.service.NotaCreditoService;
@@ -45,6 +46,13 @@ public class NotaCreditoController {
             @Valid @RequestBody EmitirNotaCreditoRequest request,
             Authentication auth) {
         return notaCreditoService.emitir(pedidoId, request, auth.getName());
+    }
+
+    @GetMapping("/pedidos/{pedidoId}/devoluciones/disponible")
+    @Operation(summary = "Cantidades disponibles por devolver",
+            description = "Por producto: comprado, ya devuelto y disponible por devolver (para NC parcial)")
+    public java.util.List<DevolucionItemResponse> disponibleParaDevolver(@PathVariable Long pedidoId) {
+        return notaCreditoService.disponibleParaDevolver(pedidoId);
     }
 
     @GetMapping("/notas-credito")

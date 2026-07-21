@@ -30,7 +30,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,6 +53,9 @@ class CompraServiceTest {
     @Mock
     private AutonumeradorService autonumeradorService;
 
+    @Mock
+    private CajaService cajaService;
+
     private CompraService compraService;
     private Usuario admin;
     private Proveedor proveedor;
@@ -59,7 +64,8 @@ class CompraServiceTest {
     @BeforeEach
     void setUp() {
         compraService = new CompraService(
-                pedidoRepository, productoRepository, proveedorRepository, usuarioRepository, autonumeradorService);
+                pedidoRepository, productoRepository, proveedorRepository, usuarioRepository,
+                autonumeradorService, cajaService);
 
         Rol rol = new Rol();
         rol.setNombre("Admin");
@@ -134,16 +140,20 @@ class CompraServiceTest {
     }
 
     @Test
-    void recibirSumaStockYConfirma() {
+    void recibirSumaStockYConfirmaYRegistraEgreso() {
         Pedido pedido = compraPendiente();
         when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
+        when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
         lenient().when(productoRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(gpu));
         when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        CompraResumenResponse compra = compraService.recibir(20L);
+        CompraResumenResponse compra = compraService.recibir(20L, "admin@techstore.py");
 
         assertEquals("C", compra.estado());
         assertEquals(6, gpu.getStockReal()); // 1 + 5 recibidas
+        // La plata pagada al proveedor sale como egreso de caja.
+        verify(cajaService).registrarEgresoAutomatico(
+                eq(new BigDecimal("14000000")), any(), eq("COMPRA-10"), eq(admin));
     }
 
     @Test
@@ -152,7 +162,7 @@ class CompraServiceTest {
         pedido.setEstado(EstadoPedido.C);
         when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
 
-        assertThrows(BusinessException.class, () -> compraService.recibir(20L));
+        assertThrows(BusinessException.class, () -> compraService.recibir(20L, "admin@techstore.py"));
     }
 
     @Test
@@ -161,6 +171,6 @@ class CompraServiceTest {
         pedido.setTipo(TipoPedido.Venta);
         when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
 
-        assertThrows(BusinessException.class, () -> compraService.recibir(20L));
+        assertThrows(BusinessException.class, () -> compraService.recibir(20L, "admin@techstore.py"));
     }
 }

@@ -15,6 +15,7 @@ import AdminCajaPage from './pages/AdminCajaPage'
 import DashboardPage from './pages/DashboardPage'
 import AdminUsuariosPage from './pages/AdminUsuariosPage'
 import AdminComprasPage from './pages/AdminComprasPage'
+import AdminCorreosPage from './pages/AdminCorreosPage'
 import CuentaPage from './pages/CuentaPage'
 import RegisterPage from './pages/RegisterPage'
 import './App.css'
@@ -115,6 +116,14 @@ function App() {
                 element={
                   <ProtectedRoute roles={['Admin', 'Cajero']}>
                     <AdminReportesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/correos"
+                element={
+                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                    <AdminCorreosPage />
                   </ProtectedRoute>
                 }
               />

@@ -7,8 +7,10 @@ import com.techstore.dto.request.RegistroRequest;
 import com.techstore.dto.response.AuthResponse;
 import com.techstore.dto.response.UsuarioResponse;
 import com.techstore.entity.Rol;
+import com.techstore.entity.TipoCorreo;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
+import com.techstore.exception.CuentaInactivaException;
 import com.techstore.repository.RolRepository;
 import com.techstore.repository.UsuarioRepository;
 import com.techstore.security.JwtService;
@@ -34,6 +36,7 @@ public class AuthService {
     private final RolRepository rolRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final CorreoService correoService;
 
     /**
      * Alta pública de clientes: crea el usuario con rol Cliente y devuelve
@@ -57,6 +60,16 @@ public class AuthService {
         usuario.setLastLogin(LocalDateTime.now());
         usuario = usuarioRepository.save(usuario);
 
+        correoService.enviar(
+                TipoCorreo.BIENVENIDA,
+                usuario.getEmail(),
+                usuario.getNombre() + " " + usuario.getApellido(),
+                "¡Bienvenido a TechStore!",
+                "Hola " + usuario.getNombre() + ",\n\n"
+                        + "Tu cuenta fue creada correctamente. Ya podés iniciar sesión y comprar en TechStore.\n\n"
+                        + "TechStore",
+                usuario.getEmail());
+
         return buildAuthResponse(usuario);
     }
 
@@ -65,9 +78,14 @@ public class AuthService {
         Usuario usuario = usuarioRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BadCredentialsException(CREDENCIALES_INVALIDAS));
 
-        if (!Boolean.TRUE.equals(usuario.getActivo())
-                || !passwordEncoder.matches(request.password(), usuario.getPasswordHash())) {
+        // La contraseña se valida primero: así solo el dueño de la cuenta (que la
+        // conoce) llega a enterarse de que fue bloqueada, sin filtrar ese dato a extraños.
+        if (!passwordEncoder.matches(request.password(), usuario.getPasswordHash())) {
             throw new BadCredentialsException(CREDENCIALES_INVALIDAS);
+        }
+        if (!Boolean.TRUE.equals(usuario.getActivo())) {
+            throw new CuentaInactivaException(
+                    "Tu cuenta está bloqueada o inactiva. Contactá al administrador para reactivarla.");
         }
 
         usuario.setLastLogin(LocalDateTime.now());
@@ -105,6 +123,17 @@ public class AuthService {
         }
         usuario.setPasswordHash(passwordEncoder.encode(request.passwordNueva()));
         usuarioRepository.save(usuario);
+
+        correoService.enviar(
+                TipoCorreo.CAMBIO_PASSWORD,
+                usuario.getEmail(),
+                usuario.getNombre() + " " + usuario.getApellido(),
+                "Tu contraseña de TechStore fue cambiada",
+                "Hola " + usuario.getNombre() + ",\n\n"
+                        + "Te avisamos que tu contraseña se cambió correctamente. "
+                        + "Si no fuiste vos, contactá al administrador de inmediato.\n\n"
+                        + "TechStore",
+                usuario.getEmail());
     }
 
     @Transactional(readOnly = true)

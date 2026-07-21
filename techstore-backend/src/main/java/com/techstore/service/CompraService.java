@@ -41,6 +41,7 @@ public class CompraService {
     private final ProveedorRepository proveedorRepository;
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
+    private final CajaService cajaService;
 
     @Transactional
     public CompraResumenResponse crear(CompraRequest request, String emailUsuario) {
@@ -92,15 +93,19 @@ public class CompraService {
     }
 
     /**
-     * Recepción de la mercadería: suma el stock real de cada producto.
+     * Recepción de la mercadería: suma el stock real de cada producto y
+     * registra el pago al proveedor como egreso de caja (sale la plata que
+     * se le paga por los productos).
      */
     @Transactional
-    public CompraResumenResponse recibir(Long id) {
+    public CompraResumenResponse recibir(Long id, String emailUsuario) {
         Pedido pedido = buscarCompra(id);
         if (pedido.getEstado() != EstadoPedido.P) {
             throw new BusinessException("Solo se puede recibir una compra Pendiente (actual: %s)"
                     .formatted(pedido.getEstado()));
         }
+        Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
+                .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
 
         productoRepository.findAllForUpdate(pedido.getDetalles().stream()
                 .map(detalle -> detalle.getProducto().getId())
@@ -112,7 +117,16 @@ public class CompraService {
         }
 
         pedido.setEstado(EstadoPedido.C);
-        return CompraResumenResponse.from(pedidoRepository.save(pedido));
+        CompraResumenResponse respuesta = CompraResumenResponse.from(pedidoRepository.save(pedido));
+
+        String proveedor = pedido.getProveedor() != null ? pedido.getProveedor().getRazonSocial() : "proveedor";
+        cajaService.registrarEgresoAutomatico(
+                pedido.getTotal(),
+                "Pago a proveedor %s — Compra N.º %d".formatted(proveedor, pedido.getNumero()),
+                "COMPRA-" + pedido.getNumero(),
+                usuario);
+
+        return respuesta;
     }
 
     @Transactional

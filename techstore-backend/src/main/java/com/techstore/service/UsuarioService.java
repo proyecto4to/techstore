@@ -4,6 +4,7 @@ import com.techstore.dto.request.CrearUsuarioRequest;
 import com.techstore.dto.response.PageResponse;
 import com.techstore.dto.response.UsuarioAdminResponse;
 import com.techstore.entity.Rol;
+import com.techstore.entity.TipoCorreo;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
 import com.techstore.exception.ResourceNotFoundException;
@@ -22,6 +23,7 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final RolRepository rolRepository;
     private final PasswordEncoder passwordEncoder;
+    private final CorreoService correoService;
 
     @Transactional(readOnly = true)
     public PageResponse<UsuarioAdminResponse> listar(Pageable pageable) {
@@ -54,7 +56,21 @@ public class UsuarioService {
             throw new BusinessException("No podés desactivar tu propia cuenta");
         }
         usuario.setActivo(activo);
-        return UsuarioAdminResponse.from(usuarioRepository.save(usuario));
+        UsuarioAdminResponse respuesta = UsuarioAdminResponse.from(usuarioRepository.save(usuario));
+
+        if (!activo) {
+            correoService.enviar(
+                    TipoCorreo.CUENTA_DESACTIVADA,
+                    usuario.getEmail(),
+                    usuario.getNombre() + " " + usuario.getApellido(),
+                    "Tu cuenta de TechStore fue desactivada",
+                    "Hola " + usuario.getNombre() + ",\n\n"
+                            + "Te informamos que tu cuenta fue desactivada. No podrás iniciar sesión hasta "
+                            + "que un administrador la reactive.\n\n"
+                            + "TechStore",
+                    usuario.getEmail());
+        }
+        return respuesta;
     }
 
     @Transactional
@@ -62,6 +78,18 @@ public class UsuarioService {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario", id));
         usuario.setPasswordHash(passwordEncoder.encode(passwordNueva));
-        return UsuarioAdminResponse.from(usuarioRepository.save(usuario));
+        UsuarioAdminResponse respuesta = UsuarioAdminResponse.from(usuarioRepository.save(usuario));
+
+        correoService.enviar(
+                TipoCorreo.RESETEO_PASSWORD,
+                usuario.getEmail(),
+                usuario.getNombre() + " " + usuario.getApellido(),
+                "Un administrador restableció tu contraseña",
+                "Hola " + usuario.getNombre() + ",\n\n"
+                        + "Un administrador restableció tu contraseña de TechStore. "
+                        + "Iniciá sesión con la nueva contraseña y cambiala cuanto antes desde Mi cuenta.\n\n"
+                        + "TechStore",
+                usuario.getEmail());
+        return respuesta;
     }
 }

@@ -28,6 +28,7 @@ function AdminPage() {
   const refrescar = () => {
     queryClient.invalidateQueries({ queryKey: ['admin-pedidos'] })
     queryClient.invalidateQueries({ queryKey: ['productos'] })
+    queryClient.invalidateQueries({ queryKey: ['devolucion-disponible'] })
   }
 
   const onError = (err) =>
@@ -80,7 +81,6 @@ function AdminPage() {
           `factura ${nc.facturaNumero} anulada, stock devuelto y egreso registrado en caja.`,
       )
       setNcPedidoId(null)
-      setNcMotivo('')
       refrescar()
     },
     onError,

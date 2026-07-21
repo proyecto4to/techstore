@@ -49,9 +49,10 @@ public class CompraController {
     }
 
     @PutMapping("/{id}/recibir")
-    @Operation(summary = "Recibir la compra", description = "Suma la cantidad de cada item al stock real")
-    public CompraResumenResponse recibir(@PathVariable Long id) {
-        return compraService.recibir(id);
+    @Operation(summary = "Recibir la compra",
+            description = "Suma la cantidad de cada item al stock real y registra el pago al proveedor en caja")
+    public CompraResumenResponse recibir(@PathVariable Long id, Authentication auth) {
+        return compraService.recibir(id, auth.getName());
     }
 
     @PutMapping("/{id}/anular")

@@ -59,6 +59,13 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(CuentaInactivaException.class)
+    public ProblemDetail handleCuentaInactiva(CuentaInactivaException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        problem.setTitle("Cuenta bloqueada");
+        return problem;
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ProblemDetail handleAccessDenied(AccessDeniedException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(

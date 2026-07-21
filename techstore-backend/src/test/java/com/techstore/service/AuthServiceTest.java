@@ -8,6 +8,7 @@ import com.techstore.dto.response.AuthResponse;
 import com.techstore.entity.Rol;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
+import com.techstore.exception.CuentaInactivaException;
 import com.techstore.repository.RolRepository;
 import com.techstore.repository.UsuarioRepository;
 import com.techstore.security.JwtService;
@@ -36,6 +37,9 @@ class AuthServiceTest {
     @Mock
     private RolRepository rolRepository;
 
+    @Mock
+    private CorreoService correoService;
+
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     private final JwtService jwtService =
             new JwtService("clave-de-prueba-suficientemente-larga-para-hmac-sha!!", 900_000, 604_800_000);
@@ -45,7 +49,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(usuarioRepository, rolRepository, encoder, jwtService);
+        authService = new AuthService(usuarioRepository, rolRepository, encoder, jwtService, correoService);
 
         Rol rol = new Rol();
         rol.setId(1L);
@@ -88,8 +92,19 @@ class AuthServiceTest {
         admin.setActivo(false);
         when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
 
-        assertThrows(BadCredentialsException.class,
+        // Con la contraseña correcta pero cuenta inactiva se informa el bloqueo (no "credenciales").
+        assertThrows(CuentaInactivaException.class,
                 () -> authService.login(new LoginRequest("admin@techstore.py", "admin123")));
+    }
+
+    @Test
+    void loginDeUsuarioInactivoConPasswordIncorrectaSigueSiendoCredenciales() {
+        admin.setActivo(false);
+        when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
+
+        // Si además la contraseña es incorrecta, no se revela el estado de la cuenta.
+        assertThrows(BadCredentialsException.class,
+                () -> authService.login(new LoginRequest("admin@techstore.py", "incorrecta")));
     }
 
     @Test

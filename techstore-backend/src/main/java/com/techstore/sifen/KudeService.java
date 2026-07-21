@@ -17,7 +17,9 @@ import com.lowagie.text.pdf.PdfWriter;
 import com.techstore.config.EmpresaProperties;
 import com.techstore.entity.Factura;
 import com.techstore.entity.PedidoDetalle;
+import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
+import com.techstore.util.NumeroALetras;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -28,33 +30,43 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.text.NumberFormat;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
  * Genera el KuDE (representación gráfica del Documento Electrónico) en PDF,
- * con el CDC en grupos de cuatro y el código QR de consulta del SIFEN
- * (Manual Técnico v150, sección 13). Demostrativo: usa un CSC de prueba.
+ * imitando el formato oficial de e-kuatia (Manual Técnico v150, sección 13):
+ * datos del emisor y timbrado, datos del receptor, condición de venta y
+ * moneda, tabla de ítems con columnas Exentas / Gravadas 5% / Gravadas 10%,
+ * liquidación del IVA, CDC en grupos de cuatro y código QR de consulta.
+ * Demostrativo: usa un CSC de prueba y no se transmite al SIFEN.
  */
 @Service
 public class KudeService {
 
     // URL de consulta del ambiente de TEST del SIFEN.
     private static final String URL_QR = "https://ekuatia.set.gov.py/consultas-test/qr?";
+    private static final String URL_CONSULTA = "https://ekuatia.set.gov.py/consultas/";
     // Código de Seguridad del Contribuyente (secreto entregado por la SET). De PRUEBA.
     private static final String CSC = "ABCD0000000000000000000000000000";
     private static final String ID_CSC = "0001";
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    private static final DateTimeFormatter FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+    private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final BigDecimal CIEN = BigDecimal.valueOf(100);
+    private static final BigDecimal ONCE = BigDecimal.valueOf(11);
+    private static final BigDecimal VEINTIUNO = BigDecimal.valueOf(21);
 
     private static final Color NEGRO = new Color(20, 20, 20);
     private static final Color GRIS = new Color(120, 120, 120);
+    private static final Color GRIS_FONDO = new Color(235, 235, 235);
     private static final Font F_EMPRESA = new Font(Font.HELVETICA, 12, Font.BOLD, NEGRO);
     private static final Font F_TITULO = new Font(Font.HELVETICA, 12, Font.BOLD, NEGRO);
     private static final Font F_NORMAL = new Font(Font.HELVETICA, 9, Font.NORMAL, NEGRO);
     private static final Font F_NEGRITA = new Font(Font.HELVETICA, 9, Font.BOLD, NEGRO);
+    private static final Font F_MINI = new Font(Font.HELVETICA, 7, Font.NORMAL, NEGRO);
     private static final Font F_CHICA = new Font(Font.HELVETICA, 8, Font.NORMAL, GRIS);
 
     private final EmpresaProperties empresa;
@@ -110,77 +122,208 @@ public class KudeService {
 
     private byte[] construirPdf(Factura factura, String cdc, byte[] qrPng) throws Exception {
         try (ByteArrayOutputStream salida = new ByteArrayOutputStream()) {
-            Document doc = new Document(PageSize.A4, 40, 40, 40, 40);
+            Document doc = new Document(PageSize.A4, 36, 36, 36, 36);
             PdfWriter.getInstance(doc, salida);
             doc.open();
 
-            doc.add(new Paragraph(empresa.nombre(), F_EMPRESA));
-            doc.add(new Paragraph("RUC: " + empresa.ruc() + "   —   Timbrado N.º " + empresa.timbrado(), F_NORMAL));
-            doc.add(new Paragraph(empresa.direccion() + " · " + empresa.ciudad(), F_CHICA));
-
-            Paragraph titulo = new Paragraph("KuDE — FACTURA ELECTRÓNICA", F_TITULO);
-            titulo.setAlignment(Element.ALIGN_CENTER);
-            titulo.setSpacingBefore(8);
-            doc.add(titulo);
-            Paragraph num = new Paragraph(factura.getNumero() + "   ·   " + factura.getFecha().format(DT), F_NORMAL);
-            num.setAlignment(Element.ALIGN_CENTER);
-            doc.add(num);
-
-            Paragraph cdcP = new Paragraph("CDC: " + CodigoControl.enGruposDeCuatro(cdc), F_NEGRITA);
-            cdcP.setAlignment(Element.ALIGN_CENTER);
-            cdcP.setSpacingBefore(6);
-            cdcP.setSpacingAfter(8);
-            doc.add(cdcP);
-
-            doc.add(new Paragraph(
-                    "Cliente: " + factura.getPedido().getUsuario().getNombre() + " "
-                            + factura.getPedido().getUsuario().getApellido(), F_NORMAL));
-
-            // Tabla de ítems.
-            PdfPTable tabla = new PdfPTable(new float[]{12, 46, 20, 22});
-            tabla.setWidthPercentage(100);
-            tabla.setSpacingBefore(8);
-            for (String t : new String[]{"Cant.", "Descripción", "Precio unit.", "Total"}) {
-                PdfPCell c = new PdfPCell(new Phrase(t, F_NEGRITA));
-                c.setBackgroundColor(new Color(235, 235, 235));
-                c.setPadding(5);
-                c.setBorderColor(GRIS);
-                tabla.addCell(c);
-            }
-            for (PedidoDetalle d : factura.getPedido().getDetalles()) {
-                tabla.addCell(celda(String.valueOf(d.getCantidad()), Element.ALIGN_CENTER));
-                tabla.addCell(celda(d.getProducto().getNombre(), Element.ALIGN_LEFT));
-                tabla.addCell(celda(gs(d.getPrecioUnitario()), Element.ALIGN_RIGHT));
-                tabla.addCell(celda(gs(d.getSubtotal()), Element.ALIGN_RIGHT));
-            }
-            doc.add(tabla);
-
-            Paragraph tot = new Paragraph(
-                    "TOTAL: Gs. " + gs(factura.getTotal()) + "   ·   IVA: Gs. " + gs(ivaTotal(factura)), F_NEGRITA);
-            tot.setAlignment(Element.ALIGN_RIGHT);
-            tot.setSpacingBefore(6);
-            doc.add(tot);
-
-            // QR + leyenda.
-            Image qr = Image.getInstance(qrPng);
-            qr.setAlignment(Element.ALIGN_CENTER);
-            qr.scaleToFit(140, 140);
-            qr.setSpacingBefore(14);
-            doc.add(qr);
-            Paragraph leyenda = new Paragraph(
-                    "Consulte la validez de esta Factura Electrónica con el CDC en ekuatia.set.gov.py",
-                    F_CHICA);
-            leyenda.setAlignment(Element.ALIGN_CENTER);
-            doc.add(leyenda);
-            Paragraph aviso = new Paragraph(
-                    "Documento demostrativo — firmado con certificado de PRUEBA, no transmitido al SIFEN.", F_CHICA);
-            aviso.setAlignment(Element.ALIGN_CENTER);
-            doc.add(aviso);
+            doc.add(encabezado(factura));
+            doc.add(emisionYReceptor(factura));
+            doc.add(tablaItems(factura));
+            doc.add(totales(factura));
+            agregarPie(doc, cdc, qrPng);
 
             doc.close();
             return salida.toByteArray();
         }
     }
+
+    /** Cabecera: datos del emisor a la izquierda, timbrado y número a la derecha. */
+    private PdfPTable encabezado(Factura factura) {
+        PdfPTable tabla = new PdfPTable(new float[]{58, 42});
+        tabla.setWidthPercentage(100);
+
+        PdfPCell emisor = new PdfPCell();
+        emisor.setPadding(8);
+        emisor.setBorderColor(GRIS);
+        emisor.addElement(new Paragraph(empresa.nombre(), F_EMPRESA));
+        emisor.addElement(new Paragraph("Sistema de Facturación Electrónica", F_CHICA));
+        emisor.addElement(new Paragraph(empresa.direccion(), F_NORMAL));
+        emisor.addElement(new Paragraph("Ciudad: " + empresa.ciudad(), F_NORMAL));
+        emisor.addElement(new Paragraph("Teléfono: " + empresa.telefono(), F_NORMAL));
+        emisor.addElement(new Paragraph("Actividad económica: " + empresa.actividad(), F_NORMAL));
+        tabla.addCell(emisor);
+
+        PdfPCell timbrado = new PdfPCell();
+        timbrado.setPadding(8);
+        timbrado.setBorderColor(GRIS);
+        timbrado.addElement(parrafo("RUC: " + empresa.ruc(), F_NEGRITA, Element.ALIGN_LEFT));
+        timbrado.addElement(parrafo("Timbrado N.º: " + empresa.timbrado(), F_NORMAL, Element.ALIGN_LEFT));
+        timbrado.addElement(parrafo("Fecha de Inicio de Vigencia: " + fechaVigencia(), F_NORMAL, Element.ALIGN_LEFT));
+        timbrado.addElement(parrafo(" ", F_MINI, Element.ALIGN_LEFT));
+        timbrado.addElement(parrafo("FACTURA ELECTRÓNICA", F_TITULO, Element.ALIGN_CENTER));
+        timbrado.addElement(parrafo(factura.getNumero(), F_NEGRITA, Element.ALIGN_CENTER));
+        tabla.addCell(timbrado);
+
+        return tabla;
+    }
+
+    /** Datos de emisión/condición a la izquierda y datos del receptor a la derecha. */
+    private PdfPTable emisionYReceptor(Factura factura) {
+        Usuario cliente = factura.getPedido().getUsuario();
+        boolean contado = !"CREDITO".equalsIgnoreCase(factura.getTipo());
+
+        PdfPTable tabla = new PdfPTable(new float[]{50, 50});
+        tabla.setWidthPercentage(100);
+        tabla.setSpacingBefore(6);
+
+        PdfPCell izq = new PdfPCell();
+        izq.setPadding(7);
+        izq.setBorderColor(GRIS);
+        izq.addElement(new Paragraph("Fecha y hora de emisión: " + factura.getFecha().format(FECHA_HORA), F_NORMAL));
+        izq.addElement(new Paragraph(
+                "Condición de venta:   Contado [" + (contado ? "X" : " ") + "]   Crédito [" + (contado ? " " : "X") + "]",
+                F_NORMAL));
+        izq.addElement(new Paragraph("Moneda: PYG (Guaraní)", F_NORMAL));
+        izq.addElement(new Paragraph("Tipo de cambio: —", F_NORMAL));
+        izq.addElement(new Paragraph("Tipo de transacción: Venta de mercadería", F_NORMAL));
+        tabla.addCell(izq);
+
+        PdfPCell der = new PdfPCell();
+        der.setPadding(7);
+        der.setBorderColor(GRIS);
+        der.addElement(new Paragraph("RUC / Documento de Identidad: Sin identificar (Consumidor final)", F_NORMAL));
+        der.addElement(new Paragraph(
+                "Nombre o Razón Social: " + cliente.getNombre() + " " + cliente.getApellido(), F_NORMAL));
+        der.addElement(new Paragraph("Dirección: —", F_NORMAL));
+        der.addElement(new Paragraph("Teléfono: —", F_NORMAL));
+        der.addElement(new Paragraph("Correo Electrónico: " + cliente.getEmail(), F_NORMAL));
+        tabla.addCell(der);
+
+        return tabla;
+    }
+
+    /** Tabla de ítems con las columnas del formato oficial (valor de venta por tasa). */
+    private PdfPTable tablaItems(Factura factura) {
+        PdfPTable tabla = new PdfPTable(new float[]{7, 25, 9, 8, 12, 9, 9, 9, 12});
+        tabla.setWidthPercentage(100);
+        tabla.setSpacingBefore(6);
+
+        String[] titulos = {"Cód.", "Descripción", "Unidad", "Cant.", "Precio Unit.",
+                "Descuento", "Exentas", "Grav. 5%", "Grav. 10%"};
+        for (String t : titulos) {
+            PdfPCell c = new PdfPCell(new Phrase(t, F_NEGRITA));
+            c.setBackgroundColor(GRIS_FONDO);
+            c.setHorizontalAlignment(Element.ALIGN_CENTER);
+            c.setPadding(4);
+            c.setBorderColor(GRIS);
+            tabla.addCell(c);
+        }
+
+        BigDecimal exentas = BigDecimal.ZERO;
+        BigDecimal grav5 = BigDecimal.ZERO;
+        BigDecimal grav10 = BigDecimal.ZERO;
+        for (PedidoDetalle d : factura.getPedido().getDetalles()) {
+            int tasa = d.getIvaAplicado() == null ? 0 : d.getIvaAplicado().intValue();
+            BigDecimal monto = d.getSubtotal();
+
+            tabla.addCell(celda(String.format("%04d", d.getProducto().getId()), Element.ALIGN_CENTER));
+            tabla.addCell(celda(d.getProducto().getNombre(), Element.ALIGN_LEFT));
+            tabla.addCell(celda("UNI", Element.ALIGN_CENTER));
+            tabla.addCell(celda(String.valueOf(d.getCantidad()), Element.ALIGN_CENTER));
+            tabla.addCell(celda(gs(d.getPrecioUnitario()), Element.ALIGN_RIGHT));
+            tabla.addCell(celda("0", Element.ALIGN_RIGHT));
+            tabla.addCell(celda(tasa == 0 ? gs(monto) : "", Element.ALIGN_RIGHT));
+            tabla.addCell(celda(tasa == 5 ? gs(monto) : "", Element.ALIGN_RIGHT));
+            tabla.addCell(celda(tasa == 10 ? gs(monto) : "", Element.ALIGN_RIGHT));
+
+            switch (tasa) {
+                case 5 -> grav5 = grav5.add(monto);
+                case 10 -> grav10 = grav10.add(monto);
+                default -> exentas = exentas.add(monto);
+            }
+        }
+
+        PdfPCell etiqueta = new PdfPCell(new Phrase("SUBTOTAL", F_NEGRITA));
+        etiqueta.setColspan(6);
+        etiqueta.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        etiqueta.setPadding(4);
+        etiqueta.setBorderColor(GRIS);
+        etiqueta.setBackgroundColor(GRIS_FONDO);
+        tabla.addCell(etiqueta);
+        for (BigDecimal col : new BigDecimal[]{exentas, grav5, grav10}) {
+            PdfPCell c = new PdfPCell(new Phrase(gs(col), F_NEGRITA));
+            c.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            c.setPadding(4);
+            c.setBorderColor(GRIS);
+            c.setBackgroundColor(GRIS_FONDO);
+            tabla.addCell(c);
+        }
+
+        return tabla;
+    }
+
+    /** Totales de la operación, importe en letras y liquidación del IVA. */
+    private PdfPTable totales(Factura factura) {
+        BigDecimal grav5 = BigDecimal.ZERO;
+        BigDecimal grav10 = BigDecimal.ZERO;
+        for (PedidoDetalle d : factura.getPedido().getDetalles()) {
+            int tasa = d.getIvaAplicado() == null ? 0 : d.getIvaAplicado().intValue();
+            switch (tasa) {
+                case 5 -> grav5 = grav5.add(d.getSubtotal());
+                case 10 -> grav10 = grav10.add(d.getSubtotal());
+                default -> { }
+            }
+        }
+        BigDecimal iva5 = grav5.signum() == 0 ? BigDecimal.ZERO : grav5.divide(VEINTIUNO, 0, RoundingMode.HALF_UP);
+        BigDecimal iva10 = grav10.signum() == 0 ? BigDecimal.ZERO : grav10.divide(ONCE, 0, RoundingMode.HALF_UP);
+
+        PdfPTable tabla = new PdfPTable(1);
+        tabla.setWidthPercentage(100);
+
+        tabla.addCell(lineaTotal("TOTAL DE LA OPERACIÓN:   Gs. " + gs(factura.getTotal()), F_NEGRITA));
+        tabla.addCell(lineaTotal(
+                "TOTAL EN GUARANÍES (EN LETRAS): " + capitalizar(NumeroALetras.enGuaranies(factura.getTotal())) + ".-",
+                F_NORMAL));
+        tabla.addCell(lineaTotal(
+                "LIQUIDACIÓN DEL IVA:   (5%) " + gs(iva5) + "     (10%) " + gs(iva10)
+                        + "     TOTAL IVA: " + gs(iva5.add(iva10)), F_NORMAL));
+        return tabla;
+    }
+
+    /** QR de consulta, CDC en grupos de cuatro y leyendas legales. */
+    private void agregarPie(Document doc, String cdc, byte[] qrPng) throws Exception {
+        Image qr = Image.getInstance(qrPng);
+        qr.setAlignment(Element.ALIGN_CENTER);
+        qr.scaleToFit(130, 130);
+        qr.setSpacingBefore(12);
+        doc.add(qr);
+
+        doc.add(parrafo(
+                "Consulte la validez de esta Factura Electrónica con el número de CDC impreso abajo en:",
+                F_CHICA, Element.ALIGN_CENTER));
+        doc.add(parrafo(URL_CONSULTA, F_CHICA, Element.ALIGN_CENTER));
+
+        Paragraph cdcP = parrafo("CDC: " + CodigoControl.enGruposDeCuatro(cdc), F_NEGRITA, Element.ALIGN_CENTER);
+        cdcP.setSpacingBefore(4);
+        cdcP.setSpacingAfter(6);
+        doc.add(cdcP);
+
+        doc.add(parrafo(
+                "ESTE DOCUMENTO ES UNA REPRESENTACIÓN GRÁFICA DE UN DOCUMENTO ELECTRÓNICO (XML)",
+                F_MINI, Element.ALIGN_CENTER));
+        doc.add(parrafo(
+                "Información de interés del facturador electrónico emisor: si su documento electrónico presenta "
+                        + "algún error, podrá solicitar la modificación dentro de las 72 horas siguientes de la "
+                        + "emisión de este comprobante.", F_MINI, Element.ALIGN_CENTER));
+
+        Paragraph aviso = parrafo(
+                "Documento demostrativo — firmado con certificado de PRUEBA, no transmitido al SIFEN.",
+                F_CHICA, Element.ALIGN_CENTER);
+        aviso.setSpacingBefore(6);
+        doc.add(aviso);
+    }
+
+    // ---- utilitarios ----
 
     private BigDecimal ivaTotal(Factura factura) {
         BigDecimal iva = BigDecimal.ZERO;
@@ -191,6 +334,14 @@ public class KudeService {
             }
         }
         return iva;
+    }
+
+    private String fechaVigencia() {
+        try {
+            return LocalDate.parse(empresa.timbradoInicioVigencia()).format(FECHA);
+        } catch (Exception ex) {
+            return empresa.timbradoInicioVigencia();
+        }
     }
 
     private String extraerDigestValue(String xmlFirmado) throws Exception {
@@ -208,9 +359,23 @@ public class KudeService {
     private PdfPCell celda(String texto, int alineacion) {
         PdfPCell c = new PdfPCell(new Phrase(texto, F_NORMAL));
         c.setHorizontalAlignment(alineacion);
+        c.setPadding(4);
+        c.setBorderColor(GRIS);
+        return c;
+    }
+
+    private PdfPCell lineaTotal(String texto, Font fuente) {
+        PdfPCell c = new PdfPCell(new Phrase(texto, fuente));
+        c.setHorizontalAlignment(Element.ALIGN_RIGHT);
         c.setPadding(5);
         c.setBorderColor(GRIS);
         return c;
+    }
+
+    private static Paragraph parrafo(String texto, Font fuente, int alineacion) {
+        Paragraph p = new Paragraph(texto, fuente);
+        p.setAlignment(alineacion);
+        return p;
     }
 
     private static String hex(String texto) {
@@ -222,7 +387,7 @@ public class KudeService {
     }
 
     private static String sha256Hex(String texto) throws Exception {
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
         byte[] hash = md.digest(texto.getBytes(StandardCharsets.UTF_8));
         StringBuilder sb = new StringBuilder();
         for (byte b : hash) {
@@ -237,5 +402,9 @@ public class KudeService {
 
     private String gs(BigDecimal valor) {
         return formato.format(valor);
+    }
+
+    private static String capitalizar(String texto) {
+        return texto.isEmpty() ? texto : Character.toUpperCase(texto.charAt(0)) + texto.substring(1);
     }
 }

@@ -32,6 +32,9 @@ class UsuarioServiceTest {
     @Mock
     private RolRepository rolRepository;
 
+    @Mock
+    private CorreoService correoService;
+
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
     private UsuarioService usuarioService;
@@ -39,7 +42,7 @@ class UsuarioServiceTest {
 
     @BeforeEach
     void setUp() {
-        usuarioService = new UsuarioService(usuarioRepository, rolRepository, encoder);
+        usuarioService = new UsuarioService(usuarioRepository, rolRepository, encoder, correoService);
         rolCajero = new Rol();
         rolCajero.setId(2L);
         rolCajero.setNombre("Cajero");

@@ -58,7 +58,8 @@ En Admin → Compras:
 1. Elegí el proveedor (o creálo ahí mismo con *+ Nuevo proveedor*).
 2. Agregá los productos con la **cantidad** y el **costo unitario** que te cobra el proveedor.
 3. *Registrar compra* — queda **Pendiente**, el stock todavía no cambia.
-4. Cuando llega la mercadería: botón **Recibir** → el stock real sube solo.
+4. Cuando llega la mercadería: botón **Recibir** → el stock real sube solo y, en el
+   mismo paso, el pago al proveedor se anota como **egreso en la caja**.
 
 ## 6. Caja
 
@@ -127,7 +128,24 @@ Los datos fiscales del emisor (RUC, timbrado, establecimiento, punto de
 expedición, actividad económica, ubicación) se configuran en
 `application.properties` bajo `empresa.*`.
 
-## 12. Respaldos de la base (copias de seguridad)
+## 12. Notificaciones por correo (bandeja de salida)
+
+El sistema **registra un correo** en cada evento importante: emisión de una
+**factura** (con el PDF adjunto), **alta** de un cliente, **cambio** de la
+propia contraseña, **reseteo** de contraseña por un admin y **desactivación**
+de una cuenta. Todos se ven en **Admin → Correos**.
+
+Por defecto los correos quedan en estado **Simulado**: se registran localmente
+pero **no se envían** de verdad (modo demostrativo, sin costo ni configuración).
+Para enviar por correo real, configurá un servidor SMTP con las variables de
+entorno `SPRING_MAIL_HOST`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` y
+poné `NOTIFICACIONES_EMAIL_HABILITADO=true`. Recién ahí el estado pasa a
+**Enviado** (o **Error** si el SMTP falla).
+
+> Un usuario **desactivado** que intente entrar verá el mensaje *"Tu cuenta
+> está bloqueada o inactiva. Contactá al administrador"* en la pantalla de acceso.
+
+## 13. Respaldos de la base (copias de seguridad)
 
 Tus datos se respaldan **solos**: cada vez que iniciás o detenés el sistema
 con los íconos del escritorio se guarda una copia de la base. Se conservan
@@ -143,11 +161,11 @@ OneDrive, a propósito).
 > Si borraste algo por error o la base se dañó, restaurá el respaldo más
 > reciente y perdés, como mucho, lo hecho desde ese momento.
 
-## 13. Preguntas frecuentes
+## 14. Preguntas frecuentes
 
 **Se apagó la PC de golpe, ¿perdí datos?**
 No. La base de datos se recupera sola en el próximo inicio, y además hay
-respaldos automáticos (ver sección 11) por si alguna vez hiciera falta.
+respaldos automáticos (ver sección 13) por si alguna vez hiciera falta.
 
 **Me olvidé la contraseña de admin.**
 Otro Admin puede resetearla desde Usuarios. Si no hay otro, contactá soporte técnico.
