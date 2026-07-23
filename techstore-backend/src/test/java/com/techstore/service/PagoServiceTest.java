@@ -63,6 +63,9 @@ class PagoServiceTest {
     @Mock
     private CorreoService correoService;
 
+    @Mock
+    private com.techstore.sifen.FacturaElectronicaService facturaElectronicaService;
+
     private final FacturaPdfService facturaPdfService = new FacturaPdfService(
             new com.techstore.config.EmpresaProperties(
                     "TechStore Paraguay", "80012345-6", "Avda. España 1234 c/ Brasil",
@@ -78,7 +81,7 @@ class PagoServiceTest {
     void setUp() {
         pagoService = new PagoService(
                 pagoRepository, facturaRepository, pedidoRepository, usuarioRepository,
-                autonumeradorService, facturaPdfService, cajaService, correoService);
+                autonumeradorService, facturaPdfService, cajaService, correoService, facturaElectronicaService);
 
         Rol rol = new Rol();
         rol.setId(2L);

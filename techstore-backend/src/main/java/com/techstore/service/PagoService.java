@@ -19,6 +19,7 @@ import com.techstore.repository.FacturaRepository;
 import com.techstore.repository.PagoRepository;
 import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.sifen.FacturaElectronicaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -55,6 +56,7 @@ public class PagoService {
     private final FacturaPdfService facturaPdfService;
     private final CajaService cajaService;
     private final CorreoService correoService;
+    private final FacturaElectronicaService facturaElectronicaService;
 
     /**
      * Registra el cobro de un pedido confirmado y emite su factura en la
@@ -167,13 +169,14 @@ public class PagoService {
 
     @Transactional(readOnly = true)
     public FacturaPdf generarPdf(Long id) {
-        Factura factura = facturaRepository.findParaPdfById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Factura", id));
-        return new FacturaPdf(factura.getNumero(), facturaPdfService.generar(factura));
+        // La factura que se descarga es la representación gráfica e-kuatia (KuDE):
+        // encabezado del emisor, datos del receptor, columnas por tasa de IVA, QR y CDC.
+        FacturaElectronicaService.Kude kude = facturaElectronicaService.generarKude(id);
+        return new FacturaPdf(kude.numero(), kude.pdf());
     }
 
     /**
-     * Factura de un pedido para su dueño (o para Admin/Cajero).
+     * Factura de un pedido para su dueño (o para Admin/Cajero), en formato e-kuatia (KuDE).
      */
     @Transactional(readOnly = true)
     public FacturaPdf generarPdfPorPedido(Long pedidoId, String emailSolicitante, boolean esAdminOCajero) {
@@ -182,7 +185,8 @@ public class PagoService {
         if (!esAdminOCajero && !factura.getPedido().getUsuario().getEmail().equals(emailSolicitante)) {
             throw new AccessDeniedException("No puede descargar facturas de otro usuario");
         }
-        return new FacturaPdf(factura.getNumero(), facturaPdfService.generar(factura));
+        FacturaElectronicaService.Kude kude = facturaElectronicaService.generarKude(factura.getId());
+        return new FacturaPdf(kude.numero(), kude.pdf());
     }
 
     /** Envía la factura recién emitida al cliente con el PDF adjunto (bandeja de salida). */

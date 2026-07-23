@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { FileText, QrCode, FileCode } from 'lucide-react'
+import { FileText, FileCode } from 'lucide-react'
 import { facturaService, notaCreditoService } from '../services/facturaService'
 import { formatPrecio } from '../utils/format'
 import AdminTabs from '../components/admin/AdminTabs'
@@ -26,15 +26,6 @@ function AdminFacturasPage() {
       setErrorPdf(`No se pudo generar el PDF de la factura ${factura.numero}.`)
     } finally {
       setAbriendo(null)
-    }
-  }
-
-  const verKude = async (factura) => {
-    setErrorPdf(null)
-    try {
-      await facturaService.abrirKude(factura.id)
-    } catch {
-      setErrorPdf(`No se pudo generar el KuDE de la factura ${factura.numero}.`)
     }
   }
 
@@ -118,17 +109,10 @@ function AdminFacturasPage() {
                         onClick={() => verPdf(factura)}
                         disabled={abriendo === factura.id}
                         className="btn btn-secondary inline-flex items-center gap-2 text-sm"
-                        aria-label={`Ver PDF de la factura ${factura.numero}`}
+                        aria-label={`Ver factura electrónica ${factura.numero}`}
                       >
                         <FileText size={16} />
-                        {abriendo === factura.id ? 'Generando…' : 'PDF'}
-                      </button>
-                      <button
-                        onClick={() => verKude(factura)}
-                        className="btn btn-secondary inline-flex items-center gap-2 text-sm"
-                        aria-label={`KuDE electrónico de la factura ${factura.numero}`}
-                      >
-                        <QrCode size={16} /> KuDE
+                        {abriendo === factura.id ? 'Generando…' : 'Factura'}
                       </button>
                       <button
                         onClick={() => facturaService.descargarXml(factura.id, factura.numero)}
