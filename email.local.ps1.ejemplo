@@ -1,0 +1,16 @@
+# === Credenciales SMTP para el envio REAL de correos ===
+# 1) Copia este archivo como  email.local.ps1  (queda ignorado por git; no se sube).
+# 2) Completa tu casilla y una "Contraseña de aplicacion" de Google (NO tu clave normal).
+#    Requiere tener la Verificacion en 2 pasos activada en tu cuenta de Google:
+#       https://myaccount.google.com/apppasswords
+# 3) Volve a iniciar TechStore. Los correos pasaran de "Simulado" a "Enviado".
+#
+# Si no completas esto, todo sigue funcionando: los correos quedan como "Simulado"
+# en Admin -> Correos (se registran pero no se envian).
+
+$env:SPRING_MAIL_USERNAME = 'tucorreo@gmail.com'
+$env:SPRING_MAIL_PASSWORD = 'xxxxxxxxxxxxxxxx'   # contraseña de aplicacion (16 caracteres, sin espacios)
+
+# Opcional: para usar otro proveedor SMTP en vez de Gmail.
+# $env:SPRING_MAIL_HOST = 'smtp.tu-proveedor.com'
+# $env:SPRING_MAIL_PORT = '587'

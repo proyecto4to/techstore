@@ -63,7 +63,19 @@ public class CajaService {
     @Transactional
     public MovimientoCaja registrarEgresoAutomatico(
             BigDecimal monto, String concepto, String referencia, Usuario usuario) {
-        return guardar(TipoMovimiento.Egreso, TipoPago.Efectivo, monto, concepto, referencia, usuario);
+        return registrarEgresoAutomatico(monto, concepto, referencia, usuario, TipoPago.Efectivo);
+    }
+
+    /**
+     * Egreso generado por el sistema con el medio de pago indicado (p. ej. el
+     * pago a un proveedor por transferencia), para que el cierre de caja concilie
+     * el efectivo por separado. Debe invocarse dentro de la transacción del llamador.
+     */
+    @Transactional
+    public MovimientoCaja registrarEgresoAutomatico(
+            BigDecimal monto, String concepto, String referencia, Usuario usuario, TipoPago medio) {
+        return guardar(TipoMovimiento.Egreso, medio != null ? medio : TipoPago.Efectivo,
+                monto, concepto, referencia, usuario);
     }
 
     private MovimientoCaja guardar(TipoMovimiento tipo, TipoPago medio, BigDecimal monto,

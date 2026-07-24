@@ -62,6 +62,10 @@ public class Pedido {
     @Column(precision = 15, scale = 2)
     private BigDecimal total = BigDecimal.ZERO;
 
+    // Solo aplica a compras a proveedores: marca si el pago ya se registró en caja.
+    @Column(nullable = false)
+    private Boolean pagada = false;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;

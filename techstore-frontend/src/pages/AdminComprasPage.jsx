@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { ChevronDown, ChevronUp, PackagePlus, Truck } from 'lucide-react'
+import { ChevronDown, ChevronUp, PackagePlus, Truck, Wallet } from 'lucide-react'
 import { proveedorService, compraService } from '../services/compraService'
 import { productoService } from '../services/productoService'
 import { formatPrecio } from '../utils/format'
@@ -27,6 +27,7 @@ function AdminComprasPage() {
   const [mostrarNuevoProveedor, setMostrarNuevoProveedor] = useState(false)
   const [nuevoProveedor, setNuevoProveedor] = useState(PROVEEDOR_VACIO)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
+  const [medioPago, setMedioPago] = useState({})
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
@@ -51,6 +52,8 @@ function AdminComprasPage() {
     queryClient.invalidateQueries({ queryKey: ['admin-compras'] })
     queryClient.invalidateQueries({ queryKey: ['productos'] })
     queryClient.invalidateQueries({ queryKey: ['admin-productos'] })
+    queryClient.invalidateQueries({ queryKey: ['caja-resumen'] })
+    queryClient.invalidateQueries({ queryKey: ['caja-movimientos'] })
   }
 
   const onError = (err) => {
@@ -101,6 +104,16 @@ function AdminComprasPage() {
     onSuccess: (compra) => {
       setError(null)
       setMensaje(`Compra N.º ${compra.numero} recibida: stock actualizado.`)
+      refrescar()
+    },
+    onError,
+  })
+
+  const pagarMutation = useMutation({
+    mutationFn: ({ id, medio }) => compraService.pagar(id, medio),
+    onSuccess: (compra) => {
+      setError(null)
+      setMensaje(`Compra N.º ${compra.numero} pagada (${formatPrecio(compra.total)}): egreso registrado en caja.`)
       refrescar()
     },
     onError,
@@ -294,8 +307,8 @@ function AdminComprasPage() {
                       </td>
                       <td className="font-semibold text-primary-300">{formatPrecio(compra.total)}</td>
                       <td>
-                        {compra.estado === 'P' && (
-                          <div className="flex gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {compra.estado === 'P' && (
                             <button
                               onClick={() => recibirMutation.mutate(compra.id)}
                               disabled={recibirMutation.isPending}
@@ -303,6 +316,39 @@ function AdminComprasPage() {
                             >
                               <Truck size={14} /> Recibir
                             </button>
+                          )}
+                          {compra.estado === 'C' && (
+                            <span className="text-sm text-emerald-400">Stock ✓</span>
+                          )}
+
+                          {compra.pagada ? (
+                            <span className="inline-flex items-center gap-1 text-sm text-emerald-400">
+                              <Wallet size={14} /> Pagada ✓
+                            </span>
+                          ) : compra.estado !== 'X' ? (
+                            <span className="inline-flex items-center gap-1">
+                              <select
+                                value={medioPago[compra.id] ?? 'Efectivo'}
+                                onChange={(e) => setMedioPago({ ...medioPago, [compra.id]: e.target.value })}
+                                className="input py-1 text-sm"
+                                aria-label="Medio de pago de la compra"
+                              >
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Transferencia">Transferencia</option>
+                              </select>
+                              <button
+                                onClick={() =>
+                                  pagarMutation.mutate({ id: compra.id, medio: medioPago[compra.id] ?? 'Efectivo' })
+                                }
+                                disabled={pagarMutation.isPending}
+                                className="btn btn-secondary inline-flex items-center gap-1 text-sm"
+                              >
+                                <Wallet size={14} /> Pagar
+                              </button>
+                            </span>
+                          ) : null}
+
+                          {compra.estado === 'P' && !compra.pagada && (
                             <button
                               onClick={() => anularMutation.mutate(compra.id)}
                               disabled={anularMutation.isPending}
@@ -310,9 +356,8 @@ function AdminComprasPage() {
                             >
                               Anular
                             </button>
-                          </div>
-                        )}
-                        {compra.estado === 'C' && <span className="text-sm text-emerald-400">Stock sumado ✓</span>}
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {abierto && (
@@ -343,7 +388,10 @@ function AdminComprasPage() {
       )}
 
       <p className="mt-6 text-sm text-neutral-muted">
-        Flujo: registrás la compra (queda Pendiente, sin tocar stock) → cuando llega la mercadería, <strong className="text-neutral-secondary">Recibir</strong> suma las cantidades al stock real.
+        Flujo: registrás la compra (queda Pendiente, sin tocar stock) →{' '}
+        <strong className="text-neutral-secondary">Recibir</strong> suma las cantidades al stock real →{' '}
+        <strong className="text-neutral-secondary">Pagar</strong> registra el egreso al proveedor en la caja
+        (elegí Efectivo o Transferencia). Recibir y Pagar son independientes.
       </p>
     </div>
   )

@@ -136,11 +136,15 @@ propia contraseña, **reseteo** de contraseña por un admin y **desactivación**
 de una cuenta. Todos se ven en **Admin → Correos**.
 
 Por defecto los correos quedan en estado **Simulado**: se registran localmente
-pero **no se envían** de verdad (modo demostrativo, sin costo ni configuración).
-Para enviar por correo real, configurá un servidor SMTP con las variables de
-entorno `SPRING_MAIL_HOST`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` y
-poné `NOTIFICACIONES_EMAIL_HABILITADO=true`. Recién ahí el estado pasa a
-**Enviado** (o **Error** si el SMTP falla).
+pero **no se envían** de verdad (sin costo ni configuración). Para enviar por
+correo real:
+
+1. Copiá el archivo `email.local.ps1.ejemplo` como **`email.local.ps1`** (ese
+   queda fuera de git, no se sube).
+2. Poné tu casilla de Gmail y una **Contraseña de aplicación** de Google (con la
+   Verificación en 2 pasos activada: https://myaccount.google.com/apppasswords).
+3. Volvé a iniciar TechStore. Los correos pasan a **Enviado** (o **Error** si el
+   SMTP falla, con el detalle a la vista en Admin → Correos).
 
 > Un usuario **desactivado** que intente entrar verá el mensaje *"Tu cuenta
 > está bloqueada o inactiva. Contactá al administrador"* en la pantalla de acceso.

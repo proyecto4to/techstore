@@ -8,6 +8,7 @@ import com.techstore.entity.Pedido;
 import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Producto;
 import com.techstore.entity.Proveedor;
+import com.techstore.entity.TipoPago;
 import com.techstore.entity.TipoPedido;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
@@ -93,19 +94,16 @@ public class CompraService {
     }
 
     /**
-     * Recepción de la mercadería: suma el stock real de cada producto y
-     * registra el pago al proveedor como egreso de caja (sale la plata que
-     * se le paga por los productos).
+     * Recepción de la mercadería: suma el stock real de cada producto. El pago
+     * al proveedor es un paso aparte (ver {@link #pagar}).
      */
     @Transactional
-    public CompraResumenResponse recibir(Long id, String emailUsuario) {
+    public CompraResumenResponse recibir(Long id) {
         Pedido pedido = buscarCompra(id);
         if (pedido.getEstado() != EstadoPedido.P) {
             throw new BusinessException("Solo se puede recibir una compra Pendiente (actual: %s)"
                     .formatted(pedido.getEstado()));
         }
-        Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
-                .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
 
         productoRepository.findAllForUpdate(pedido.getDetalles().stream()
                 .map(detalle -> detalle.getProducto().getId())
@@ -117,14 +115,40 @@ public class CompraService {
         }
 
         pedido.setEstado(EstadoPedido.C);
+        return CompraResumenResponse.from(pedidoRepository.save(pedido));
+    }
+
+    /**
+     * Pago de la compra al proveedor: registra el egreso en caja con el medio
+     * indicado (efectivo o transferencia) y marca la compra como pagada. Es
+     * independiente de la recepción: se puede pagar antes o después de recibir.
+     */
+    @Transactional
+    public CompraResumenResponse pagar(Long id, TipoPago medio, String emailUsuario) {
+        Pedido pedido = buscarCompra(id);
+        if (pedido.getEstado() == EstadoPedido.X) {
+            throw new BusinessException("No se puede pagar una compra anulada");
+        }
+        if (Boolean.TRUE.equals(pedido.getPagada())) {
+            throw new BusinessException("La compra N.º %d ya está pagada".formatted(pedido.getNumero()));
+        }
+        if (medio != TipoPago.Efectivo && medio != TipoPago.Transferencia) {
+            throw new BusinessException(
+                    "Medio de pago no permitido: %s. Solo se aceptan Efectivo y Transferencia.".formatted(medio));
+        }
+        Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
+                .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
+
+        pedido.setPagada(true);
         CompraResumenResponse respuesta = CompraResumenResponse.from(pedidoRepository.save(pedido));
 
         String proveedor = pedido.getProveedor() != null ? pedido.getProveedor().getRazonSocial() : "proveedor";
         cajaService.registrarEgresoAutomatico(
                 pedido.getTotal(),
-                "Pago a proveedor %s — Compra N.º %d".formatted(proveedor, pedido.getNumero()),
+                "Pago a proveedor %s — Compra N.º %d (%s)".formatted(proveedor, pedido.getNumero(), medio),
                 "COMPRA-" + pedido.getNumero(),
-                usuario);
+                usuario,
+                medio);
 
         return respuesta;
     }

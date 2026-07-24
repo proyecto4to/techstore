@@ -38,6 +38,11 @@ export const compraService = {
     return data
   },
 
+  async pagar(id, medio) {
+    const { data } = await api.put(`/compras/${id}/pagar`, { medio })
+    return data
+  },
+
   async anular(id) {
     const { data } = await api.put(`/compras/${id}/anular`)
     return data

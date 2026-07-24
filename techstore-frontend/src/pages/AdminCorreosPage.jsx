@@ -41,8 +41,9 @@ function AdminCorreosPage() {
         <p className="mt-1">
           Cada factura, alta y cambio de contraseña genera una notificación por correo.
           Estado <span className="font-semibold text-primary-300">Simulado</span> = registrado localmente
-          sin envío real (modo demostrativo). Para enviar de verdad, configurá el SMTP y activá
-          <code className="mx-1 rounded bg-dark-bg px-1">notificaciones.email.habilitado</code>.
+          sin envío real. Para enviar de verdad, completá tus credenciales SMTP en{' '}
+          <code className="mx-1 rounded bg-dark-bg px-1">email.local.ps1</code> y reiniciá TechStore
+          (pasan a <span className="font-semibold text-emerald-400">Enviado</span>).
         </p>
       </div>
 

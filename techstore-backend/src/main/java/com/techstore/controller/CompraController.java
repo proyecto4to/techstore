@@ -1,6 +1,7 @@
 package com.techstore.controller;
 
 import com.techstore.dto.request.CompraRequest;
+import com.techstore.dto.request.PagoCompraRequest;
 import com.techstore.dto.response.CompraResumenResponse;
 import com.techstore.dto.response.PageResponse;
 import com.techstore.service.CompraService;
@@ -49,10 +50,17 @@ public class CompraController {
     }
 
     @PutMapping("/{id}/recibir")
-    @Operation(summary = "Recibir la compra",
-            description = "Suma la cantidad de cada item al stock real y registra el pago al proveedor en caja")
-    public CompraResumenResponse recibir(@PathVariable Long id, Authentication auth) {
-        return compraService.recibir(id, auth.getName());
+    @Operation(summary = "Recibir la compra", description = "Suma la cantidad de cada item al stock real")
+    public CompraResumenResponse recibir(@PathVariable Long id) {
+        return compraService.recibir(id);
+    }
+
+    @PutMapping("/{id}/pagar")
+    @Operation(summary = "Pagar la compra al proveedor",
+            description = "Registra el pago al proveedor como egreso en caja con el medio indicado")
+    public CompraResumenResponse pagar(
+            @PathVariable Long id, @Valid @RequestBody PagoCompraRequest request, Authentication auth) {
+        return compraService.pagar(id, request.medio(), auth.getName());
     }
 
     @PutMapping("/{id}/anular")

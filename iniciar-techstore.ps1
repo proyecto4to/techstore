@@ -1,6 +1,15 @@
 # Lanzador de TechStore: levanta PostgreSQL, backend y frontend, y abre la tienda.
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# Credenciales SMTP opcionales para el ENVIO REAL de correos (archivo local, ignorado por git).
+# Copia 'email.local.ps1.ejemplo' como 'email.local.ps1' y poné tu casilla + contraseña de aplicacion.
+$emailLocal = Join-Path $root 'email.local.ps1'
+if (Test-Path $emailLocal) {
+    . $emailLocal
+    Write-Host '  [correo] Credenciales SMTP cargadas: envio de correos REAL activo.' -ForegroundColor Green
+}
+
 $pgData = "$env:LOCALAPPDATA\TechStore\pgdata"
 $pgLog = "$env:LOCALAPPDATA\TechStore\pg.log"
 $pgCtl = Join-Path $root 'tools\pgsql\bin\pg_ctl.exe'

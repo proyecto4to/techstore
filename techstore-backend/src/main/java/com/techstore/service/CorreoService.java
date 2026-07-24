@@ -19,10 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Notificaciones por correo con bandeja de salida. Cada correo se registra
- * siempre en la tabla {@code correos}. El envío real por SMTP ocurre solo si
- * está habilitado ({@code notificaciones.email.habilitado=true}) y hay un
- * {@link JavaMailSender} configurado; si no, queda como SIMULADO (modo local,
- * demostrativo). El envío nunca interrumpe la operación de negocio que lo dispara.
+ * siempre en la tabla {@code correos}. El envío REAL por SMTP ocurre en cuanto
+ * hay credenciales configuradas ({@code spring.mail.username}/{@code password});
+ * si no, el correo queda como SIMULADO (modo local, sin costo ni configuración).
+ * El envío nunca interrumpe la operación de negocio que lo dispara.
  */
 @Slf4j
 @Service
@@ -30,18 +30,16 @@ public class CorreoService {
 
     private final CorreoRepository correoRepository;
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
-    private final boolean habilitado;
-    private final String remitente;
+    /** Usuario/casilla SMTP; si está vacío, no hay envío real (queda Simulado). */
+    private final String usuarioSmtp;
 
     public CorreoService(
             CorreoRepository correoRepository,
             ObjectProvider<JavaMailSender> mailSenderProvider,
-            @Value("${notificaciones.email.habilitado:false}") boolean habilitado,
-            @Value("${notificaciones.email.remitente:no-responder@techstore.py}") String remitente) {
+            @Value("${spring.mail.username:}") String usuarioSmtp) {
         this.correoRepository = correoRepository;
         this.mailSenderProvider = mailSenderProvider;
-        this.habilitado = habilitado;
-        this.remitente = remitente;
+        this.usuarioSmtp = usuarioSmtp;
     }
 
     @Transactional
@@ -63,12 +61,14 @@ public class CorreoService {
         correo.setTieneAdjunto(adjunto != null);
         correo.setAdjuntoNombre(adjunto != null ? adjuntoNombre : null);
 
-        JavaMailSender sender = habilitado ? mailSenderProvider.getIfAvailable() : null;
-        if (sender != null && destinatario != null && !destinatario.isBlank()) {
+        JavaMailSender sender = mailSenderProvider.getIfAvailable();
+        boolean smtpConfigurado = sender != null && usuarioSmtp != null && !usuarioSmtp.isBlank();
+        if (smtpConfigurado && destinatario != null && !destinatario.isBlank()) {
             try {
                 MimeMessage mensaje = sender.createMimeMessage();
                 MimeMessageHelper helper = new MimeMessageHelper(mensaje, adjunto != null, "UTF-8");
-                helper.setFrom(remitente);
+                // El remitente debe ser la casilla autenticada (Gmail y otros lo exigen).
+                helper.setFrom(usuarioSmtp);
                 helper.setTo(destinatario);
                 helper.setSubject(asunto);
                 helper.setText(cuerpo, false);

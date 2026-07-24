@@ -9,6 +9,7 @@ import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Producto;
 import com.techstore.entity.Proveedor;
 import com.techstore.entity.Rol;
+import com.techstore.entity.TipoPago;
 import com.techstore.entity.TipoPedido;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
@@ -28,11 +29,14 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -140,20 +144,18 @@ class CompraServiceTest {
     }
 
     @Test
-    void recibirSumaStockYConfirmaYRegistraEgreso() {
+    void recibirSumaStockYConfirma() {
         Pedido pedido = compraPendiente();
         when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
-        when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
         lenient().when(productoRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(gpu));
         when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        CompraResumenResponse compra = compraService.recibir(20L, "admin@techstore.py");
+        CompraResumenResponse compra = compraService.recibir(20L);
 
         assertEquals("C", compra.estado());
         assertEquals(6, gpu.getStockReal()); // 1 + 5 recibidas
-        // La plata pagada al proveedor sale como egreso de caja.
-        verify(cajaService).registrarEgresoAutomatico(
-                eq(new BigDecimal("14000000")), any(), eq("COMPRA-10"), eq(admin));
+        // Recibir NO mueve la caja: el egreso ocurre al pagar.
+        verifyNoInteractions(cajaService);
     }
 
     @Test
@@ -162,7 +164,7 @@ class CompraServiceTest {
         pedido.setEstado(EstadoPedido.C);
         when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
 
-        assertThrows(BusinessException.class, () -> compraService.recibir(20L, "admin@techstore.py"));
+        assertThrows(BusinessException.class, () -> compraService.recibir(20L));
     }
 
     @Test
@@ -171,6 +173,32 @@ class CompraServiceTest {
         pedido.setTipo(TipoPedido.Venta);
         when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
 
-        assertThrows(BusinessException.class, () -> compraService.recibir(20L, "admin@techstore.py"));
+        assertThrows(BusinessException.class, () -> compraService.recibir(20L));
+    }
+
+    @Test
+    void pagarRegistraEgresoConMedioYMarcaPagada() {
+        Pedido pedido = compraPendiente();
+        when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
+        when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompraResumenResponse compra = compraService.pagar(20L, TipoPago.Transferencia, "admin@techstore.py");
+
+        assertTrue(compra.pagada());
+        // El pago al proveedor sale como egreso de caja con el medio elegido.
+        verify(cajaService).registrarEgresoAutomatico(
+                eq(new BigDecimal("14000000")), any(), eq("COMPRA-10"), eq(admin), eq(TipoPago.Transferencia));
+    }
+
+    @Test
+    void pagarUnaCompraYaPagadaFalla() {
+        Pedido pedido = compraPendiente();
+        pedido.setPagada(true);
+        when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
+
+        assertThrows(BusinessException.class,
+                () -> compraService.pagar(20L, TipoPago.Efectivo, "admin@techstore.py"));
+        verify(cajaService, never()).registrarEgresoAutomatico(any(), any(), any(), any(), any());
     }
 }

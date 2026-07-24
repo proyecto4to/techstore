@@ -8,3 +8,4 @@ tools/
 .vscode/
 .idea/
 *.swp
+email.local.ps1
