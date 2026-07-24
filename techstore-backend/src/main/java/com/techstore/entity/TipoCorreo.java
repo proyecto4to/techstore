@@ -3,6 +3,7 @@ package com.techstore.entity;
 /** Motivo por el que se envía una notificación por correo. */
 public enum TipoCorreo {
     FACTURA("Factura emitida"),
+    PEDIDO("Pedido recibido"),
     BIENVENIDA("Bienvenida"),
     CAMBIO_PASSWORD("Cambio de contraseña"),
     RESETEO_PASSWORD("Reseteo de contraseña"),

@@ -52,6 +52,9 @@ class PedidoServiceTest {
     @Mock
     private AutonumeradorService autonumeradorService;
 
+    @Mock
+    private CorreoService correoService;
+
     private final PedidoMapper mapper = new PedidoMapperImpl();
 
     private PedidoService pedidoService;
@@ -62,7 +65,8 @@ class PedidoServiceTest {
     @BeforeEach
     void setUp() {
         pedidoService = new PedidoService(
-                pedidoRepository, productoRepository, usuarioRepository, autonumeradorService, mapper);
+                pedidoRepository, productoRepository, usuarioRepository, autonumeradorService, mapper,
+                correoService);
 
         Rol rol = new Rol();
         rol.setId(3L);

@@ -8,6 +8,7 @@ import com.techstore.entity.EstadoPedido;
 import com.techstore.entity.Pedido;
 import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Producto;
+import com.techstore.entity.TipoCorreo;
 import com.techstore.entity.TipoPedido;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
@@ -38,6 +39,7 @@ public class PedidoService {
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
     private final PedidoMapper pedidoMapper;
+    private final CorreoService correoService;
 
     /**
      * Crea un pedido de venta en estado Pendiente comprometiendo el stock.
@@ -94,7 +96,26 @@ public class PedidoService {
         }
 
         pedido.setTotal(total);
-        return pedidoMapper.toResponse(pedidoRepository.save(pedido));
+        Pedido guardado = pedidoRepository.save(pedido);
+        enviarConfirmacionPedido(usuario, guardado);
+        return pedidoMapper.toResponse(guardado);
+    }
+
+    /** Avisa al cliente por correo que recibimos su pedido (bandeja de salida). */
+    private void enviarConfirmacionPedido(Usuario cliente, Pedido pedido) {
+        String cuerpo = "Hola " + cliente.getNombre() + ",\n\n"
+                + "¡Recibimos tu pedido N.º " + pedido.getNumero() + "! Total: Gs. "
+                + pedido.getTotal().toPlainString() + ".\n"
+                + "Quedó en estado Pendiente y el stock reservado a tu nombre; cuando lo confirmemos "
+                + "y cobremos te enviaremos la factura por este medio.\n\n"
+                + "Gracias por tu compra.\nTechStore";
+        correoService.enviar(
+                TipoCorreo.PEDIDO,
+                cliente.getEmail(),
+                cliente.getNombre() + " " + cliente.getApellido(),
+                "Recibimos tu pedido N.º " + pedido.getNumero() + " — TechStore",
+                cuerpo,
+                "PEDIDO-" + pedido.getNumero());
     }
 
     /**
