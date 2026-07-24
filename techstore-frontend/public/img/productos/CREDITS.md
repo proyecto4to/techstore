@@ -19,12 +19,32 @@ redimensionadas a 960 px. Cada imagen conserva la licencia indicada por su autor
 | gabinete.jpg | [Fractal Design Focus G.jpg](https://commons.wikimedia.org/wiki/File:Fractal_Design_Focus_G.jpg) | Tiia Monto | CC BY-SA 4.0 |
 | hdd.jpg | [Hard disk WD3000HLFS IMGP6577 wp.jpg](https://commons.wikimedia.org/wiki/File:Hard_disk_WD3000HLFS_IMGP6577_wp.jpg) | Smial | FAL (Licence Art Libre) |
 
-## Accesorios (headset, auriculares, webcam, parlante, pendrive, microsd, router,
-switch, impresora, tinta, hub, cable, ups, mousepad, base-notebook, silla, mochila)
+## Accesorios
 
-Imágenes ilustrativas por categoría obtenidas vía [LoremFlickr](https://loremflickr.com)
-(fotos de Flickr, en su mayoría con licencias Creative Commons). Son demostrativas:
-para uso comercial, reemplazar por fotos propias del producto real o con licencia adquirida.
+Fotos de [Wikimedia Commons](https://commons.wikimedia.org), redimensionadas a 640 px.
+
+| Archivo | Origen (Commons) | Autor | Licencia |
+|---|---|---|---|
+| headset.jpg | Headphones with Microphone.jpg | Zephyris | CC BY-SA 3.0 |
+| auriculares.jpg | 2023 Słuchawki JBL TL0846 (1).jpg | Jacek Halicki | CC BY-SA 4.0 |
+| webcam.jpg | Logitech Brio 301 webcam HS1.jpg | Hayden Schiff | CC BY 4.0 |
+| parlante.jpg | JBL Flip 3 bluetooth speaker (DSCF2653).jpg | Trougnouf (Benoit Brummer) | CC BY 4.0 |
+| pendrive.jpg | 2023 Pendrive'y Verbatim Store 'n' Click 16 GB (1).jpg | Jacek Halicki | CC BY-SA 4.0 |
+| microsd.jpg | MicroSD card 2GB focus-stacked.jpg | Afrank99 | CC BY-SA 3.0 |
+| router.jpg | Wi-fi router in North York Centre station.jpg | Al12si | CC BY-SA 4.0 |
+| switch.jpg | 2550T-PWR-Front.jpg | Geek2003 | CC BY-SA 3.0 |
+| impresora.jpg | Epson-inkjet-printer.jpg | Autor en Wikipedia EN | CC BY-SA 3.0 |
+| tinta.jpg | Epson ink-jet cartridge T019 black-3898.jpg | Raimond Spekking | CC BY-SA 4.0 |
+| hub.jpg | 2023 Hub USB 2.0.jpg | Jacek Halicki | CC BY-SA 4.0 |
+| cable.jpg | Cable TV Box Connectors - RCA USB HDMI Cable Input Plugs.jpg | Tony Webster | CC BY-SA 2.0 |
+| ups.jpg | UPS - uninterruptible power supply.JPG | Work With Sounds | CC BY-SA 4.0 |
+| mousepad.jpg | HP mouse and mousepad 20060803.jpg | Lovecz | Dominio público |
+| base-notebook.jpg | Laptop cooler.JPG | Littletung | CC BY-SA 3.0 |
+| silla.jpg | Gamescom 2009 - Fujitsu (5154).jpg | Raimond Spekking | CC BY-SA 4.0 |
+| mochila.jpg | A backpack with trekking poles and shoes.jpg | SGrabarczuk (WMF) | CC BY-SA 4.0 |
+
+Imágenes ilustrativas del tipo de producto (no del modelo exacto del catálogo). Para
+uso comercial, reemplazar por fotos propias del producto real o con licencia adquirida.
 
 Las licencias CC BY-SA requieren atribución al autor y compartir bajo la misma
 licencia si se redistribuyen las imágenes. Para uso comercial del producto final,
