@@ -111,7 +111,16 @@ function CobroPanel({ total, onCobrar, onCancelar, ocupado }) {
         <button
           onClick={registrar}
           disabled={!valido || ocupado}
-          className="btn btn-primary text-sm"
+          title={
+            valido
+              ? undefined
+              : suma <= 0
+                ? 'Ingresá el monto en efectivo y/o transferencia'
+                : restante > 0
+                  ? `Falta ${formatPrecio(restante)} para llegar al total`
+                  : `Te excedés por ${formatPrecio(-restante)}`
+          }
+          className="btn btn-primary text-sm disabled:cursor-not-allowed"
         >
           💵 Registrar cobro
         </button>

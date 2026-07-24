@@ -122,7 +122,14 @@ function DevolucionPanel({ pedidoId, onEmitir, onCancelar, ocupado }) {
         <button
           onClick={emitir}
           disabled={items.length === 0 || !motivo.trim() || ocupado}
-          className="btn btn-danger text-sm"
+          title={
+            items.length === 0
+              ? 'Elegí al menos una unidad a devolver'
+              : !motivo.trim()
+                ? 'Escribí el motivo de la devolución'
+                : undefined
+          }
+          className="btn btn-danger text-sm disabled:cursor-not-allowed"
         >
           Emitir nota de crédito
         </button>

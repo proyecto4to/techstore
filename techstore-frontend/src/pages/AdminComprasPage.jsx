@@ -258,7 +258,14 @@ function AdminComprasPage() {
           <button
             onClick={() => crearCompraMutation.mutate()}
             disabled={!proveedorId || items.length === 0 || crearCompraMutation.isPending}
-            className="btn btn-primary"
+            title={
+              !proveedorId
+                ? 'Elegí un proveedor'
+                : items.length === 0
+                  ? 'Agregá al menos un item a la compra'
+                  : undefined
+            }
+            className="btn btn-primary disabled:cursor-not-allowed"
           >
             {crearCompraMutation.isPending ? 'Registrando…' : 'Registrar compra'}
           </button>

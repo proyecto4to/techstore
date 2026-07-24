@@ -72,7 +72,12 @@ function ProductCard({ producto }) {
             {disponible ? `${producto.stockDisponible} en stock` : 'Agotado'}
           </span>
         </div>
-        <button onClick={handleAgregar} disabled={!disponible} className="btn btn-primary w-full text-sm">
+        <button
+          onClick={handleAgregar}
+          disabled={!disponible}
+          title={!disponible ? 'Sin stock disponible por el momento' : undefined}
+          className="btn btn-primary w-full text-sm disabled:cursor-not-allowed"
+        >
           {agregado ? (
             <span className="inline-flex items-center gap-2">
               <Check size={16} /> Agregado

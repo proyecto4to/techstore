@@ -103,7 +103,9 @@ function CartPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setCantidad(producto.id, cantidad - 1)}
-                      className="h-7 w-7 rounded border border-dark-border text-neutral-text hover:border-primary-400 hover:bg-primary-400/10"
+                      disabled={cantidad <= 1}
+                      title={cantidad <= 1 ? 'Mínimo 1 — usá el tacho para quitarlo' : undefined}
+                      className="h-7 w-7 rounded border border-dark-border text-neutral-text hover:border-primary-400 hover:bg-primary-400/10 disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label={`Restar uno de ${producto.nombre}`}
                     >
                       −
@@ -111,12 +113,23 @@ function CartPage() {
                     <span className="w-8 text-center">{cantidad}</span>
                     <button
                       onClick={() => setCantidad(producto.id, cantidad + 1)}
-                      className="h-7 w-7 rounded border border-dark-border text-neutral-text hover:border-primary-400 hover:bg-primary-400/10"
+                      disabled={cantidad >= producto.stockDisponible}
+                      title={
+                        cantidad >= producto.stockDisponible
+                          ? `No hay más stock: solo quedan ${producto.stockDisponible}`
+                          : undefined
+                      }
+                      className="h-7 w-7 rounded border border-dark-border text-neutral-text hover:border-primary-400 hover:bg-primary-400/10 disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label={`Sumar uno de ${producto.nombre}`}
                     >
                       +
                     </button>
                   </div>
+                  <p className={`mt-1 text-xs ${cantidad >= producto.stockDisponible ? 'text-orange-400' : 'text-neutral-muted'}`}>
+                    {cantidad >= producto.stockDisponible
+                      ? `Máximo: ${producto.stockDisponible} en stock`
+                      : `${producto.stockDisponible} disponibles`}
+                  </p>
                 </td>
                 <td className="font-semibold text-primary-300">
                   {formatPrecio(producto.precio * cantidad)}
@@ -148,7 +161,12 @@ function CartPage() {
           <p className="mb-3 text-2xl font-bold text-neutral-text">
             Total: <span className="gradient-text">{formatPrecio(total)}</span>
           </p>
-          <button onClick={handleCheckout} disabled={enviando} className="btn btn-primary px-8 py-3">
+          <button
+            onClick={handleCheckout}
+            disabled={enviando}
+            title={enviando ? 'Procesando tu pedido…' : undefined}
+            className="btn btn-primary px-8 py-3 disabled:cursor-not-allowed"
+          >
             {enviando ? 'Procesando…' : usuario ? 'Finalizar compra' : 'Ingresar para comprar'}
           </button>
         </div>
