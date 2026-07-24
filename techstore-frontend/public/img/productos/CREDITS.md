@@ -19,6 +19,13 @@ redimensionadas a 960 px. Cada imagen conserva la licencia indicada por su autor
 | gabinete.jpg | [Fractal Design Focus G.jpg](https://commons.wikimedia.org/wiki/File:Fractal_Design_Focus_G.jpg) | Tiia Monto | CC BY-SA 4.0 |
 | hdd.jpg | [Hard disk WD3000HLFS IMGP6577 wp.jpg](https://commons.wikimedia.org/wiki/File:Hard_disk_WD3000HLFS_IMGP6577_wp.jpg) | Smial | FAL (Licence Art Libre) |
 
+## Accesorios (headset, auriculares, webcam, parlante, pendrive, microsd, router,
+switch, impresora, tinta, hub, cable, ups, mousepad, base-notebook, silla, mochila)
+
+Imágenes ilustrativas por categoría obtenidas vía [LoremFlickr](https://loremflickr.com)
+(fotos de Flickr, en su mayoría con licencias Creative Commons). Son demostrativas:
+para uso comercial, reemplazar por fotos propias del producto real o con licencia adquirida.
+
 Las licencias CC BY-SA requieren atribución al autor y compartir bajo la misma
 licencia si se redistribuyen las imágenes. Para uso comercial del producto final,
 reemplazar por fotografías propias o con licencia adquirida.
