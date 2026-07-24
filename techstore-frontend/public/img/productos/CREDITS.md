@@ -21,27 +21,27 @@ redimensionadas a 960 px. Cada imagen conserva la licencia indicada por su autor
 
 ## Accesorios
 
-Fotos de [Wikimedia Commons](https://commons.wikimedia.org), redimensionadas a 640 px.
+Fotos de [Wikimedia Commons](https://commons.wikimedia.org), redimensionadas a 1000 px.
 
 | Archivo | Origen (Commons) | Autor | Licencia |
 |---|---|---|---|
-| headset.jpg | Headphones with Microphone.jpg | Zephyris | CC BY-SA 3.0 |
-| auriculares.jpg | 2023 Słuchawki JBL TL0846 (1).jpg | Jacek Halicki | CC BY-SA 4.0 |
+| headset.jpg | RGB gaming headset on desk with ambient lighting.jpg | SankalpSasnur | CC0 |
+| auriculares.jpg | JBL LIVE 650 BTNC (Over-Ear Noise Cancelling Headphone) (51127342181).jpg | MIKI Yoshihito | CC BY 2.0 |
 | webcam.jpg | Logitech Brio 301 webcam HS1.jpg | Hayden Schiff | CC BY 4.0 |
 | parlante.jpg | JBL Flip 3 bluetooth speaker (DSCF2653).jpg | Trougnouf (Benoit Brummer) | CC BY 4.0 |
-| pendrive.jpg | 2023 Pendrive'y Verbatim Store 'n' Click 16 GB (1).jpg | Jacek Halicki | CC BY-SA 4.0 |
+| pendrive.jpg | Kingston Technology DataTraveler G4 USB flash drive USB 3.0 32 Gb.jpg | Dmitry Makeev | CC BY-SA 4.0 |
 | microsd.jpg | MicroSD card 2GB focus-stacked.jpg | Afrank99 | CC BY-SA 3.0 |
 | router.jpg | Wi-fi router in North York Centre station.jpg | Al12si | CC BY-SA 4.0 |
-| switch.jpg | 2550T-PWR-Front.jpg | Geek2003 | CC BY-SA 3.0 |
+| switch.jpg | Netgear Gigabit Switch 5-port.jpg | Simon A. Eugster | CC BY-SA 3.0 |
 | impresora.jpg | Epson-inkjet-printer.jpg | Autor en Wikipedia EN | CC BY-SA 3.0 |
-| tinta.jpg | Epson ink-jet cartridge T019 black-3898.jpg | Raimond Spekking | CC BY-SA 4.0 |
+| tinta.jpg | Inkjet Cartridge Microchips.jpg | Zephyris | CC BY-SA 3.0 |
 | hub.jpg | 2023 Hub USB 2.0.jpg | Jacek Halicki | CC BY-SA 4.0 |
 | cable.jpg | Cable TV Box Connectors - RCA USB HDMI Cable Input Plugs.jpg | Tony Webster | CC BY-SA 2.0 |
 | ups.jpg | UPS - uninterruptible power supply.JPG | Work With Sounds | CC BY-SA 4.0 |
-| mousepad.jpg | HP mouse and mousepad 20060803.jpg | Lovecz | Dominio público |
+| mousepad.jpg | Logitech Red mouse on a mouse pad.jpg | mycurrency.com | CC BY-SA 4.0 |
 | base-notebook.jpg | Laptop cooler.JPG | Littletung | CC BY-SA 3.0 |
-| silla.jpg | Gamescom 2009 - Fujitsu (5154).jpg | Raimond Spekking | CC BY-SA 4.0 |
-| mochila.jpg | A backpack with trekking poles and shoes.jpg | SGrabarczuk (WMF) | CC BY-SA 4.0 |
+| silla.jpg | Office chair (4444288246).jpg | Lee Haywood | CC BY-SA 2.0 |
+| mochila.jpg | Laptop backpacks from Mr. DIY at Ayala Center Cebu (2025-02-24).jpg | Wide Awake! | CC BY 4.0 |
 
 Imágenes ilustrativas del tipo de producto (no del modelo exacto del catálogo). Para
 uso comercial, reemplazar por fotos propias del producto real o con licencia adquirida.
