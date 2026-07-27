@@ -29,6 +29,13 @@ export const productoService = {
     await api.delete(`/productos/${id}`)
   },
 
+  async subirImagen(id, archivo) {
+    const formData = new FormData()
+    formData.append('archivo', archivo)
+    const { data } = await api.post(`/productos/${id}/imagen`, formData)
+    return data
+  },
+
   async marcas() {
     const { data } = await api.get('/marcas')
     return data

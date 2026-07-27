@@ -45,6 +45,9 @@ public class SecurityConfig {
                         // El catálogo es público: es la vidriera del e-commerce.
                         .requestMatchers(HttpMethod.GET, "/api/v1/productos/**", "/api/v1/marcas/**")
                         .permitAll()
+                        // Fotos de producto subidas: deben verse en la tienda sin login.
+                        .requestMatchers(HttpMethod.GET, "/uploads/**")
+                        .permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

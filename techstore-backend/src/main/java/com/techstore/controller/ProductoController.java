@@ -12,6 +12,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,8 +23,10 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/productos")
@@ -70,6 +73,14 @@ public class ProductoController {
     @Operation(summary = "Actualizar producto (Admin)")
     public ProductoResponse actualizar(@PathVariable Long id, @Valid @RequestBody ProductoRequest request) {
         return productoService.actualizar(id, request);
+    }
+
+    @PostMapping(value = "/{id}/imagen", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('Admin')")
+    @Operation(summary = "Subir foto de un producto (Admin)",
+            description = "Reemplaza la imagen del producto por un archivo subido desde el equipo (JPG/PNG/WEBP/GIF, hasta 5MB)")
+    public ProductoResponse subirImagen(@PathVariable Long id, @RequestPart("archivo") MultipartFile archivo) {
+        return productoService.actualizarImagen(id, archivo);
     }
 
     @DeleteMapping("/{id}")

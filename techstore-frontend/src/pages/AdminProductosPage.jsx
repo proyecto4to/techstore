@@ -19,6 +19,7 @@ const FORM_VACIO = {
 function AdminProductosPage() {
   const [page, setPage] = useState(0)
   const [form, setForm] = useState(FORM_VACIO)
+  const [archivoImagen, setArchivoImagen] = useState(null)
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
@@ -68,6 +69,19 @@ function AdminProductosPage() {
       setError(null)
       setMensaje(`Producto "${producto.nombre}" ${f.id ? 'actualizado' : 'creado'}.`)
       setForm(FORM_VACIO)
+      setArchivoImagen(null)
+      refrescar()
+    },
+    onError,
+  })
+
+  const subirImagenMutation = useMutation({
+    mutationFn: ({ id, archivo }) => productoService.subirImagen(id, archivo),
+    onSuccess: (producto) => {
+      setError(null)
+      setMensaje('Foto actualizada.')
+      setForm((f) => ({ ...f, imagenUrl: producto.imagenUrl }))
+      setArchivoImagen(null)
       refrescar()
     },
     onError,
@@ -104,7 +118,7 @@ function AdminProductosPage() {
     onError,
   })
 
-  const editar = (producto) =>
+  const editar = (producto) => {
     setForm({
       id: producto.id,
       nombre: producto.nombre,
@@ -116,6 +130,13 @@ function AdminProductosPage() {
       imagenUrl: producto.imagenUrl ?? '',
       activo: producto.activo,
     })
+    setArchivoImagen(null)
+  }
+
+  const cancelarEdicion = () => {
+    setForm(FORM_VACIO)
+    setArchivoImagen(null)
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -213,6 +234,29 @@ function AdminProductosPage() {
               />
             )}
           </div>
+
+          {form.id ? (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={(e) => setArchivoImagen(e.target.files?.[0] ?? null)}
+                className="input"
+              />
+              <button
+                type="button"
+                disabled={!archivoImagen || subirImagenMutation.isPending}
+                onClick={() => subirImagenMutation.mutate({ id: form.id, archivo: archivoImagen })}
+                className="btn btn-secondary whitespace-nowrap text-sm"
+              >
+                {subirImagenMutation.isPending ? 'Subiendo…' : '📁 Subir foto desde mi PC'}
+              </button>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-neutral-muted">
+              Guardá el producto primero para poder subirle una foto desde tu computadora.
+            </p>
+          )}
         </div>
 
         <div>
@@ -267,7 +311,7 @@ function AdminProductosPage() {
             {form.id ? 'Guardar cambios' : 'Crear producto'}
           </button>
           {form.id && (
-            <button type="button" onClick={() => setForm(FORM_VACIO)} className="btn btn-secondary">
+            <button type="button" onClick={cancelarEdicion} className="btn btn-secondary">
               Cancelar edición
             </button>
           )}
