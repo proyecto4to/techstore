@@ -40,7 +40,8 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/api/v1/api-docs/**",
-                                "/actuator/health")
+                                "/actuator/health",
+                                "/error")
                         .permitAll()
                         // El catálogo es público: es la vidriera del e-commerce.
                         .requestMatchers(HttpMethod.GET, "/api/v1/productos/**", "/api/v1/marcas/**")
@@ -48,6 +49,10 @@ public class SecurityConfig {
                         // Fotos de producto subidas: deben verse en la tienda sin login.
                         .requestMatchers(HttpMethod.GET, "/uploads/**")
                         .permitAll()
+                        // El resto de actuator (metrics, info) expone datos internos:
+                        // cualquier usuario autenticado no debería verlos, solo Admin.
+                        .requestMatchers("/actuator/**")
+                        .hasRole("Admin")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
