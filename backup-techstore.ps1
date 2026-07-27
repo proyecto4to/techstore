@@ -10,6 +10,9 @@ $ErrorActionPreference = 'Stop'
 $MAX_BACKUPS = 20
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$secretsLocal = Join-Path $root 'secrets.local.ps1'
+if (Test-Path $secretsLocal) { . $secretsLocal }
+
 $pgDump = Join-Path $root 'tools\pgsql\bin\pg_dump.exe'
 $carpeta = "$env:LOCALAPPDATA\TechStore\backups"
 New-Item -ItemType Directory -Force $carpeta | Out-Null
@@ -22,7 +25,7 @@ function Escribir($texto, $color = 'Gray') {
 }
 
 Escribir "  Respaldando base de datos..." 'DarkYellow'
-$env:PGPASSWORD = 'techstore_pass_dev'
+$env:PGPASSWORD = if ($env:SPRING_DATASOURCE_PASSWORD) { $env:SPRING_DATASOURCE_PASSWORD } else { 'techstore_pass_dev' }
 try {
     # -Fc = formato custom comprimido (se restaura con pg_restore).
     & $pgDump -h localhost -p 5432 -U techstore_user -Fc -f $destino techstore_db

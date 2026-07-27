@@ -9,3 +9,5 @@ tools/
 .idea/
 *.swp
 email.local.ps1
+secrets.local.ps1
+.env

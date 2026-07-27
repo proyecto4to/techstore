@@ -5,6 +5,9 @@
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$secretsLocal = Join-Path $root 'secrets.local.ps1'
+if (Test-Path $secretsLocal) { . $secretsLocal }
+
 $pgRestore = Join-Path $root 'tools\pgsql\bin\pg_restore.exe'
 $pgCtl = Join-Path $root 'tools\pgsql\bin\pg_ctl.exe'
 $carpeta = "$env:LOCALAPPDATA\TechStore\backups"
@@ -68,7 +71,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host '  Restaurando...' -ForegroundColor DarkYellow
-$env:PGPASSWORD = 'techstore_pass_dev'
+$env:PGPASSWORD = if ($env:SPRING_DATASOURCE_PASSWORD) { $env:SPRING_DATASOURCE_PASSWORD } else { 'techstore_pass_dev' }
 # --clean --if-exists: borra los objetos actuales antes de recrearlos.
 & $pgRestore -h localhost -p 5432 -U techstore_user -d techstore_db --clean --if-exists --no-owner $elegido.FullName 2>&1 |
     Where-Object { $_ -notmatch 'does not exist, skipping' }

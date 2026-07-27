@@ -10,6 +10,16 @@ if (Test-Path $emailLocal) {
     Write-Host '  [correo] Credenciales SMTP cargadas: envio de correos REAL activo.' -ForegroundColor Green
 }
 
+# Secretos de JWT y base de datos (archivo local, ignorado por git).
+# Copia 'secrets.local.ps1.ejemplo' como 'secrets.local.ps1' con tus propios valores.
+$secretsLocal = Join-Path $root 'secrets.local.ps1'
+if (Test-Path $secretsLocal) {
+    . $secretsLocal
+    Write-Host '  [secretos] JWT_SECRET y password de BD cargados desde secrets.local.ps1.' -ForegroundColor Green
+} else {
+    Write-Host '  [secretos] AVISO: secrets.local.ps1 no existe, usando valores por defecto (solo para pruebas).' -ForegroundColor Yellow
+}
+
 $pgData = "$env:LOCALAPPDATA\TechStore\pgdata"
 $pgLog = "$env:LOCALAPPDATA\TechStore\pg.log"
 $pgCtl = Join-Path $root 'tools\pgsql\bin\pg_ctl.exe'
