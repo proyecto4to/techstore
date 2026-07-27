@@ -14,6 +14,7 @@ import com.techstore.exception.CuentaInactivaException;
 import com.techstore.repository.RolRepository;
 import com.techstore.repository.UsuarioRepository;
 import com.techstore.security.JwtService;
+import com.techstore.security.LoginRateLimiter;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final CorreoService correoService;
+    private final LoginRateLimiter loginRateLimiter;
 
     /**
      * Alta pública de clientes: crea el usuario con rol Cliente y devuelve
@@ -75,14 +77,18 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        Usuario usuario = usuarioRepository.findByEmail(request.email())
-                .orElseThrow(() -> new BadCredentialsException(CREDENCIALES_INVALIDAS));
+        loginRateLimiter.verificarDisponible(request.email());
+
+        Usuario usuario = usuarioRepository.findByEmail(request.email()).orElse(null);
 
         // La contraseña se valida primero: así solo el dueño de la cuenta (que la
         // conoce) llega a enterarse de que fue bloqueada, sin filtrar ese dato a extraños.
-        if (!passwordEncoder.matches(request.password(), usuario.getPasswordHash())) {
+        if (usuario == null || !passwordEncoder.matches(request.password(), usuario.getPasswordHash())) {
+            loginRateLimiter.registrarFallo(request.email());
             throw new BadCredentialsException(CREDENCIALES_INVALIDAS);
         }
+        loginRateLimiter.registrarExito(request.email());
+
         if (!Boolean.TRUE.equals(usuario.getActivo())) {
             throw new CuentaInactivaException(
                     "Tu cuenta está bloqueada o inactiva. Contactá al administrador para reactivarla.");

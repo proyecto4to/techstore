@@ -9,9 +9,11 @@ import com.techstore.entity.Rol;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
 import com.techstore.exception.CuentaInactivaException;
+import com.techstore.exception.TooManyAttemptsException;
 import com.techstore.repository.RolRepository;
 import com.techstore.repository.UsuarioRepository;
 import com.techstore.security.JwtService;
+import com.techstore.security.LoginRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,7 +51,8 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(usuarioRepository, rolRepository, encoder, jwtService, correoService);
+        authService = new AuthService(
+                usuarioRepository, rolRepository, encoder, jwtService, correoService, new LoginRateLimiter());
 
         Rol rol = new Rol();
         rol.setId(1L);
@@ -105,6 +108,20 @@ class AuthServiceTest {
         // Si además la contraseña es incorrecta, no se revela el estado de la cuenta.
         assertThrows(BadCredentialsException.class,
                 () -> authService.login(new LoginRequest("admin@techstore.py", "incorrecta")));
+    }
+
+    @Test
+    void loginBloqueaTrasVariosIntentosFallidos() {
+        when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
+
+        for (int i = 0; i < 5; i++) {
+            assertThrows(BadCredentialsException.class,
+                    () -> authService.login(new LoginRequest("admin@techstore.py", "incorrecta")));
+        }
+
+        // Al sexto intento se bloquea aunque la contraseña ahora sea correcta.
+        assertThrows(TooManyAttemptsException.class,
+                () -> authService.login(new LoginRequest("admin@techstore.py", "admin123")));
     }
 
     @Test

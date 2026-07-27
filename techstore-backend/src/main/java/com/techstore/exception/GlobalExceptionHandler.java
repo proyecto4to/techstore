@@ -59,6 +59,13 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(TooManyAttemptsException.class)
+    public ProblemDetail handleTooManyAttempts(TooManyAttemptsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+        problem.setTitle("Demasiados intentos");
+        return problem;
+    }
+
     @ExceptionHandler(CuentaInactivaException.class)
     public ProblemDetail handleCuentaInactiva(CuentaInactivaException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
