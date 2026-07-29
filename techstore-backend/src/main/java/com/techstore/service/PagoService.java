@@ -19,8 +19,10 @@ import com.techstore.repository.FacturaRepository;
 import com.techstore.repository.PagoRepository;
 import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.sifen.CodigoControl;
 import com.techstore.sifen.FacturaElectronicaService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -35,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PagoService {
@@ -53,7 +56,6 @@ public class PagoService {
     private final PedidoRepository pedidoRepository;
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
-    private final FacturaPdfService facturaPdfService;
     private final CajaService cajaService;
     private final CorreoService correoService;
     private final EmailTemplateService emailTemplateService;
@@ -101,6 +103,8 @@ public class PagoService {
 
         Factura factura = new Factura();
         factura.setNumero("001-001-%07d".formatted(autonumeradorService.siguiente(ENTIDAD_FACTURA)));
+        // Parte del CDC: se fija ahora para que el documento electrónico sea siempre el mismo.
+        factura.setCodigoSeguridad(CodigoControl.generarCodigoSeguridad());
         factura.setTipo(TIPO_FACTURA_CONTADO);
         factura.setPedido(pedido);
         factura.setSubtotal(pedido.getTotal().subtract(iva));
@@ -190,10 +194,23 @@ public class PagoService {
         return new FacturaPdf(kude.numero(), kude.pdf());
     }
 
-    /** Envía la factura recién emitida al cliente con el PDF adjunto (bandeja de salida). */
+    /**
+     * Envía la factura recién emitida al cliente con el PDF adjunto (bandeja de salida).
+     * El adjunto es el mismo KuDE que se descarga desde el panel y desde "Mis pedidos",
+     * para que el cliente reciba exactamente el documento que ve en el sistema.
+     */
     private void enviarFacturaPorCorreo(Pedido pedido, Factura factura) {
         Usuario cliente = pedido.getUsuario();
-        byte[] pdf = facturaPdfService.generar(factura);
+        // El cobro ya está registrado: si fallara el armado del KuDE, se manda el aviso
+        // sin adjunto en vez de tirar abajo toda la transacción del pago.
+        byte[] pdf;
+        try {
+            pdf = facturaElectronicaService.generarKude(factura.getId()).pdf();
+        } catch (Exception ex) {
+            pdf = null;
+            log.warn("No se pudo generar el KuDE de la factura {} para adjuntarlo al correo: {}",
+                    factura.getNumero(), ex.getMessage());
+        }
         String cuerpo = emailTemplateService.construir(
                 TipoCorreo.FACTURA,
                 "¡Gracias por tu compra!",

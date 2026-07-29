@@ -36,6 +36,14 @@ public class Factura {
     @Column(nullable = false, unique = true, length = 20)
     private String numero;
 
+    /**
+     * Código de seguridad (dCodSeg) del Documento Electrónico. Forma parte del CDC,
+     * así que se fija al emitir la factura y no se regenera: el CDC debe ser el mismo
+     * en el panel, en "Mis pedidos" y en el PDF que se manda por correo.
+     */
+    @Column(name = "codigo_seguridad", nullable = false, length = 9)
+    private String codigoSeguridad;
+
     @Column(nullable = false, length = 10)
     private String tipo;
 

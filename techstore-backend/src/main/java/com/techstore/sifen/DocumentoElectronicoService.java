@@ -58,7 +58,11 @@ public class DocumentoElectronicoService {
         String puntoExpedicion = empresa.puntoExpedicion();
         // El número del CDC/timbrado usa 7 dígitos; tomamos el correlativo de la factura.
         String numeroDoc = String.format("%07d", numeroCorrelativo(factura));
-        String codigoSeguridad = CodigoControl.generarCodigoSeguridad();
+        // Se fija al emitir la factura: si se regenerara acá, el CDC (y con él el QR y
+        // la consulta al SIFEN) cambiaría en cada descarga del mismo documento.
+        String codigoSeguridad = factura.getCodigoSeguridad() == null
+                ? CodigoControl.generarCodigoSeguridad()
+                : factura.getCodigoSeguridad();
 
         String cdc = CodigoControl.generar(
                 TIPO_DOC_FE, empresa.rucNumero(), empresa.rucDv(), establecimiento, puntoExpedicion,
