@@ -64,6 +64,9 @@ class PagoServiceTest {
     private CorreoService correoService;
 
     @Mock
+    private EmailTemplateService emailTemplateService;
+
+    @Mock
     private com.techstore.sifen.FacturaElectronicaService facturaElectronicaService;
 
     private final FacturaPdfService facturaPdfService = new FacturaPdfService(
@@ -81,7 +84,8 @@ class PagoServiceTest {
     void setUp() {
         pagoService = new PagoService(
                 pagoRepository, facturaRepository, pedidoRepository, usuarioRepository,
-                autonumeradorService, facturaPdfService, cajaService, correoService, facturaElectronicaService);
+                autonumeradorService, facturaPdfService, cajaService, correoService, emailTemplateService,
+                facturaElectronicaService);
 
         Rol rol = new Rol();
         rol.setId(2L);

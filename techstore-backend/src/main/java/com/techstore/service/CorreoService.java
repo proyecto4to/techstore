@@ -31,6 +31,7 @@ public class CorreoService {
 
     private final CorreoRepository correoRepository;
     private final ConfiguracionCorreoService configuracionCorreo;
+    private final EmailTemplateService emailTemplateService;
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
     /** Usuario SMTP por properties/env (fallback si no se configuró desde la app). */
     private final String usuarioSmtp;
@@ -38,10 +39,12 @@ public class CorreoService {
     public CorreoService(
             CorreoRepository correoRepository,
             ConfiguracionCorreoService configuracionCorreo,
+            EmailTemplateService emailTemplateService,
             ObjectProvider<JavaMailSender> mailSenderProvider,
             @Value("${spring.mail.username:}") String usuarioSmtp) {
         this.correoRepository = correoRepository;
         this.configuracionCorreo = configuracionCorreo;
+        this.emailTemplateService = emailTemplateService;
         this.mailSenderProvider = mailSenderProvider;
         this.usuarioSmtp = usuarioSmtp;
     }
@@ -107,8 +110,12 @@ public class CorreoService {
                     "No hay SMTP configurado. Completá host, usuario y contraseña.");
         }
         String asunto = "Correo de prueba — TechStore";
-        String cuerpo = "Este es un correo de prueba de TechStore.\n\n"
-                + "Si lo recibiste, el envío real de correos está funcionando. ¡Listo!";
+        String cuerpo = emailTemplateService.construir(
+                TipoCorreo.BIENVENIDA,
+                "Correo de prueba",
+                "administrador",
+                "Este es un correo de prueba de TechStore. Si lo recibiste, el envío real de correos está funcionando. ¡Listo!",
+                null, null, null);
         Correo correo = new Correo();
         correo.setTipo(TipoCorreo.BIENVENIDA);
         correo.setDestinatario(destinatario);
@@ -136,7 +143,7 @@ public class CorreoService {
         helper.setFrom(smtp.remitente());
         helper.setTo(destinatario);
         helper.setSubject(asunto);
-        helper.setText(cuerpo, false);
+        helper.setText(cuerpo, true);
         if (adjunto != null) {
             helper.addAttachment(adjuntoNombre, new ByteArrayResource(adjunto));
         }

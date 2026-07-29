@@ -12,6 +12,7 @@ import com.techstore.exception.CuentaInactivaException;
 import com.techstore.exception.TooManyAttemptsException;
 import com.techstore.repository.RolRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.config.EmpresaProperties;
 import com.techstore.security.JwtService;
 import com.techstore.security.LoginRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,8 +52,13 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
+        EmpresaProperties empresa = new EmpresaProperties(
+                "TechStore Paraguay", null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
+        EmailTemplateService emailTemplateService = new EmailTemplateService(empresa, "http://localhost:5173");
         authService = new AuthService(
-                usuarioRepository, rolRepository, encoder, jwtService, correoService, new LoginRateLimiter());
+                usuarioRepository, rolRepository, encoder, jwtService, correoService,
+                emailTemplateService, new LoginRateLimiter());
 
         Rol rol = new Rol();
         rol.setId(1L);

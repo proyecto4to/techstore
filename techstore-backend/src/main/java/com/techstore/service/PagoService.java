@@ -56,6 +56,7 @@ public class PagoService {
     private final FacturaPdfService facturaPdfService;
     private final CajaService cajaService;
     private final CorreoService correoService;
+    private final EmailTemplateService emailTemplateService;
     private final FacturaElectronicaService facturaElectronicaService;
 
     /**
@@ -193,11 +194,15 @@ public class PagoService {
     private void enviarFacturaPorCorreo(Pedido pedido, Factura factura) {
         Usuario cliente = pedido.getUsuario();
         byte[] pdf = facturaPdfService.generar(factura);
-        String cuerpo = "Hola " + cliente.getNombre() + ",\n\n"
-                + "Adjuntamos la factura " + factura.getNumero() + " correspondiente a tu compra "
-                + "(pedido N.º " + pedido.getNumero() + ") por un total de Gs. "
-                + factura.getTotal().toPlainString() + ".\n\n"
-                + "¡Gracias por tu compra!\nTechStore";
+        String cuerpo = emailTemplateService.construir(
+                TipoCorreo.FACTURA,
+                "¡Gracias por tu compra!",
+                cliente.getNombre(),
+                "Adjuntamos la factura " + factura.getNumero() + " correspondiente a tu compra "
+                        + "(pedido N.º " + pedido.getNumero() + ").",
+                "Total: Gs. " + factura.getTotal().toPlainString(),
+                "VER MIS PEDIDOS",
+                emailTemplateService.url("/pedidos"));
         correoService.enviar(
                 TipoCorreo.FACTURA,
                 cliente.getEmail(),

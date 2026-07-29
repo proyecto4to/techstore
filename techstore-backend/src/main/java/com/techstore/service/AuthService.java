@@ -38,6 +38,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final CorreoService correoService;
+    private final EmailTemplateService emailTemplateService;
     private final LoginRateLimiter loginRateLimiter;
 
     /**
@@ -67,9 +68,14 @@ public class AuthService {
                 usuario.getEmail(),
                 usuario.getNombre() + " " + usuario.getApellido(),
                 "¡Bienvenido a TechStore!",
-                "Hola " + usuario.getNombre() + ",\n\n"
-                        + "Tu cuenta fue creada correctamente. Ya podés iniciar sesión y comprar en TechStore.\n\n"
-                        + "TechStore",
+                emailTemplateService.construir(
+                        TipoCorreo.BIENVENIDA,
+                        "¡Cuenta creada con éxito!",
+                        usuario.getNombre(),
+                        "Tu cuenta fue creada correctamente. Ya podés iniciar sesión y comprar en TechStore.",
+                        null,
+                        "IR A LA TIENDA",
+                        emailTemplateService.url("/")),
                 usuario.getEmail());
 
         return buildAuthResponse(usuario);
@@ -135,10 +141,14 @@ public class AuthService {
                 usuario.getEmail(),
                 usuario.getNombre() + " " + usuario.getApellido(),
                 "Tu contraseña de TechStore fue cambiada",
-                "Hola " + usuario.getNombre() + ",\n\n"
-                        + "Te avisamos que tu contraseña se cambió correctamente. "
-                        + "Si no fuiste vos, contactá al administrador de inmediato.\n\n"
-                        + "TechStore",
+                emailTemplateService.construir(
+                        TipoCorreo.CAMBIO_PASSWORD,
+                        "Contraseña actualizada",
+                        usuario.getNombre(),
+                        "Te avisamos que tu contraseña se cambió correctamente.",
+                        "Si no fuiste vos, contactá al administrador de inmediato.",
+                        "IR A MI CUENTA",
+                        emailTemplateService.url("/cuenta")),
                 usuario.getEmail());
     }
 

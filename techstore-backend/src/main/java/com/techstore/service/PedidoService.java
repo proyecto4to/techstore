@@ -40,6 +40,7 @@ public class PedidoService {
     private final AutonumeradorService autonumeradorService;
     private final PedidoMapper pedidoMapper;
     private final CorreoService correoService;
+    private final EmailTemplateService emailTemplateService;
 
     /**
      * Crea un pedido de venta en estado Pendiente comprometiendo el stock.
@@ -103,12 +104,15 @@ public class PedidoService {
 
     /** Avisa al cliente por correo que recibimos su pedido (bandeja de salida). */
     private void enviarConfirmacionPedido(Usuario cliente, Pedido pedido) {
-        String cuerpo = "Hola " + cliente.getNombre() + ",\n\n"
-                + "¡Recibimos tu pedido N.º " + pedido.getNumero() + "! Total: Gs. "
-                + pedido.getTotal().toPlainString() + ".\n"
-                + "Quedó en estado Pendiente y el stock reservado a tu nombre; cuando lo confirmemos "
-                + "y cobremos te enviaremos la factura por este medio.\n\n"
-                + "Gracias por tu compra.\nTechStore";
+        String cuerpo = emailTemplateService.construir(
+                TipoCorreo.PEDIDO,
+                "¡Recibimos tu pedido!",
+                cliente.getNombre(),
+                "Tu pedido N.º " + pedido.getNumero() + " quedó en estado Pendiente y el stock reservado "
+                        + "a tu nombre. Cuando lo confirmemos y cobremos, te enviaremos la factura por este medio.",
+                "Total: Gs. " + pedido.getTotal().toPlainString(),
+                "VER MIS PEDIDOS",
+                emailTemplateService.url("/pedidos"));
         correoService.enviar(
                 TipoCorreo.PEDIDO,
                 cliente.getEmail(),

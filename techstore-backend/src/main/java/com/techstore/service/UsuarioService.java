@@ -24,6 +24,7 @@ public class UsuarioService {
     private final RolRepository rolRepository;
     private final PasswordEncoder passwordEncoder;
     private final CorreoService correoService;
+    private final EmailTemplateService emailTemplateService;
 
     @Transactional(readOnly = true)
     public PageResponse<UsuarioAdminResponse> listar(Pageable pageable) {
@@ -64,10 +65,13 @@ public class UsuarioService {
                     usuario.getEmail(),
                     usuario.getNombre() + " " + usuario.getApellido(),
                     "Tu cuenta de TechStore fue desactivada",
-                    "Hola " + usuario.getNombre() + ",\n\n"
-                            + "Te informamos que tu cuenta fue desactivada. No podrás iniciar sesión hasta "
-                            + "que un administrador la reactive.\n\n"
-                            + "TechStore",
+                    emailTemplateService.construir(
+                            TipoCorreo.CUENTA_DESACTIVADA,
+                            "Cuenta desactivada",
+                            usuario.getNombre(),
+                            "Te informamos que tu cuenta fue desactivada. No podrás iniciar sesión hasta "
+                                    + "que un administrador la reactive.",
+                            null, null, null),
                     usuario.getEmail());
         }
         return respuesta;
@@ -85,10 +89,14 @@ public class UsuarioService {
                 usuario.getEmail(),
                 usuario.getNombre() + " " + usuario.getApellido(),
                 "Un administrador restableció tu contraseña",
-                "Hola " + usuario.getNombre() + ",\n\n"
-                        + "Un administrador restableció tu contraseña de TechStore. "
-                        + "Iniciá sesión con la nueva contraseña y cambiala cuanto antes desde Mi cuenta.\n\n"
-                        + "TechStore",
+                emailTemplateService.construir(
+                        TipoCorreo.RESETEO_PASSWORD,
+                        "Contraseña restablecida",
+                        usuario.getNombre(),
+                        "Un administrador restableció tu contraseña de TechStore.",
+                        "Iniciá sesión con la nueva contraseña y cambiala cuanto antes desde Mi cuenta.",
+                        "INICIAR SESIÓN",
+                        emailTemplateService.url("/login")),
                 usuario.getEmail());
         return respuesta;
     }

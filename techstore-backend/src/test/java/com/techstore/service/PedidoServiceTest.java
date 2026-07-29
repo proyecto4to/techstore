@@ -55,6 +55,9 @@ class PedidoServiceTest {
     @Mock
     private CorreoService correoService;
 
+    @Mock
+    private EmailTemplateService emailTemplateService;
+
     private final PedidoMapper mapper = new PedidoMapperImpl();
 
     private PedidoService pedidoService;
@@ -66,7 +69,7 @@ class PedidoServiceTest {
     void setUp() {
         pedidoService = new PedidoService(
                 pedidoRepository, productoRepository, usuarioRepository, autonumeradorService, mapper,
-                correoService);
+                correoService, emailTemplateService);
 
         Rol rol = new Rol();
         rol.setId(3L);
