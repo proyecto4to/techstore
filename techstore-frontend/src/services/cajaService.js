@@ -32,6 +32,16 @@ export const cajaService = {
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
   },
 
+  async aperturaActual() {
+    const { data } = await api.get('/caja/apertura')
+    return data
+  },
+
+  async abrir(saldoInicial, notas) {
+    const { data } = await api.post('/caja/apertura', { saldoInicial, notas: notas || null })
+    return data
+  },
+
   async previewCierre() {
     const { data } = await api.get('/caja/cierres/preview')
     return data

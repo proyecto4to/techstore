@@ -1,30 +1,58 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { Lock } from 'lucide-react'
+import { Lock, LockOpen } from 'lucide-react'
 import { cajaService } from '../../services/cajaService'
 import { formatPrecio } from '../../utils/format'
 
 /**
- * Cierre de caja por turno: muestra el efectivo teórico calculado desde
- * el último cierre y deja registrar el efectivo contado a mano, con la
- * diferencia (sobrante/faltante). Lista los cierres anteriores.
+ * Apertura y cierre de caja por turno. Al abrir se declara el efectivo con el
+ * que arranca el cajón; al cerrar se compara el efectivo contado contra el
+ * teórico (saldo inicial + ingresos - egresos). Lista los cierres anteriores.
  */
 function CierreCajaPanel() {
+  const [saldoInicial, setSaldoInicial] = useState('')
+  const [notasApertura, setNotasApertura] = useState('')
   const [contado, setContado] = useState('')
   const [notas, setNotas] = useState('')
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
 
+  const { data: apertura } = useQuery({
+    queryKey: ['caja-apertura'],
+    queryFn: () => cajaService.aperturaActual(),
+  })
+
   const { data: preview } = useQuery({
     queryKey: ['caja-cierre-preview'],
     queryFn: () => cajaService.previewCierre(),
+    enabled: apertura?.abierta === true,
   })
 
   const { data: cierres } = useQuery({
     queryKey: ['caja-cierres'],
     queryFn: () => cajaService.listarCierres(),
     placeholderData: keepPreviousData,
+  })
+
+  const refrescar = () => {
+    queryClient.invalidateQueries({ queryKey: ['caja-apertura'] })
+    queryClient.invalidateQueries({ queryKey: ['caja-cierre-preview'] })
+    queryClient.invalidateQueries({ queryKey: ['caja-cierres'] })
+    queryClient.invalidateQueries({ queryKey: ['caja-resumen'] })
+    queryClient.invalidateQueries({ queryKey: ['caja-movimientos'] })
+  }
+
+  const abrirMutation = useMutation({
+    mutationFn: () => cajaService.abrir(Number(saldoInicial), notasApertura.trim()),
+    onSuccess: (a) => {
+      setError(null)
+      setMensaje(`Caja abierta (turno N.º ${a.numero}) con ${formatPrecio(a.saldoInicial)} en el cajón.`)
+      setSaldoInicial('')
+      setNotasApertura('')
+      refrescar()
+    },
+    onError: (err) => setError(err.response?.data?.detail ?? 'No se pudo abrir la caja.'),
   })
 
   const cerrarMutation = useMutation({
@@ -38,32 +66,81 @@ function CierreCajaPanel() {
       )
       setContado('')
       setNotas('')
-      queryClient.invalidateQueries({ queryKey: ['caja-cierre-preview'] })
-      queryClient.invalidateQueries({ queryKey: ['caja-cierres'] })
-      queryClient.invalidateQueries({ queryKey: ['caja-resumen'] })
-      queryClient.invalidateQueries({ queryKey: ['caja-movimientos'] })
+      refrescar()
     },
     onError: (err) => setError(err.response?.data?.detail ?? 'No se pudo cerrar la caja.'),
   })
 
+  const abierta = apertura?.abierta === true
   const teorico = preview?.efectivoTeorico ?? 0
   const diferencia = contado === '' ? null : Number(contado) - teorico
 
   return (
     <div className="card mt-8">
       <h3 className="mb-4 inline-flex items-center gap-2 text-lg font-semibold text-neutral-text">
-        <Lock size={18} className="text-accent-400" /> Cierre de caja
+        {abierta ? (
+          <>
+            <LockOpen size={18} className="text-emerald-400" /> Caja abierta
+          </>
+        ) : (
+          <>
+            <Lock size={18} className="text-accent-400" /> Caja cerrada
+          </>
+        )}
       </h3>
 
       {mensaje && <p className="alerta-ok" role="status">{mensaje}</p>}
       {error && <p className="alerta-error" role="alert">{error}</p>}
 
-      {preview && (
+      {!abierta && (
         <>
           <p className="mb-3 text-sm text-neutral-muted">
-            Turno abierto desde {new Date(preview.desde).toLocaleString('es-PY')}
+            Para arquear el turno, abrí la caja indicando cuánto efectivo hay en el cajón al empezar.
           </p>
-          <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-neutral-text" htmlFor="saldo-inicial">
+                Efectivo inicial en caja *
+              </label>
+              <input
+                id="saldo-inicial"
+                type="number"
+                min="0"
+                value={saldoInicial}
+                onChange={(e) => setSaldoInicial(e.target.value)}
+                className="input w-48"
+                placeholder="0"
+              />
+            </div>
+            <input
+              value={notasApertura}
+              onChange={(e) => setNotasApertura(e.target.value)}
+              maxLength={1000}
+              placeholder="Notas de la apertura (opcional)"
+              className="input max-w-xs flex-1"
+            />
+            <button
+              onClick={() => abrirMutation.mutate()}
+              disabled={saldoInicial === '' || abrirMutation.isPending}
+              className="btn btn-primary text-sm"
+            >
+              {abrirMutation.isPending ? 'Abriendo…' : 'Abrir caja'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {abierta && preview && (
+        <>
+          <p className="mb-3 text-sm text-neutral-muted">
+            Turno N.º {apertura.numero} abierto el {new Date(apertura.fechaApertura).toLocaleString('es-PY')} por{' '}
+            {apertura.usuario}. Movimientos contados desde {new Date(preview.desde).toLocaleString('es-PY')}.
+          </p>
+          <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-5">
+            <div className="rounded-md border border-dark-border p-3">
+              <p className="text-xs text-neutral-muted">Saldo inicial</p>
+              <p className="font-semibold text-neutral-secondary">{formatPrecio(preview.saldoInicial)}</p>
+            </div>
             <div className="rounded-md border border-dark-border p-3">
               <p className="text-xs text-neutral-muted">Ingresos efectivo</p>
               <p className="font-semibold text-emerald-400">{formatPrecio(preview.ingresosEfectivo)}</p>
@@ -137,6 +214,7 @@ function CierreCajaPanel() {
                 <th>N.º</th>
                 <th>Cierre</th>
                 <th>Cajero</th>
+                <th>Saldo inicial</th>
                 <th>Teórico</th>
                 <th>Contado</th>
                 <th>Diferencia</th>
@@ -148,6 +226,7 @@ function CierreCajaPanel() {
                   <td className="font-semibold text-neutral-text">#{c.numero}</td>
                   <td>{new Date(c.fechaCierre).toLocaleString('es-PY')}</td>
                   <td className="text-neutral-secondary">{c.usuarioEmail}</td>
+                  <td className="text-neutral-secondary">{formatPrecio(c.saldoInicial)}</td>
                   <td>{formatPrecio(c.efectivoTeorico)}</td>
                   <td>{formatPrecio(c.efectivoContado)}</td>
                   <td

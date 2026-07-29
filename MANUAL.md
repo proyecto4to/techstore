@@ -67,6 +67,27 @@ En Admin → Caja ves el arqueo (**ingresos, egresos y saldo**) filtrable por
 fechas. Los cobros y devoluciones se registran solos; para gastos varios
 (servicios, insumos) usá *Registrar movimiento manual*.
 
+### Abrir y cerrar la caja del turno
+
+1. **Al empezar el turno**: contá la plata que hay en el cajón y presioná
+   **Abrir caja** con ese monto. Puede ser el fondo fijo, o lo que quedó del
+   turno anterior — lo que realmente esté ahí.
+2. Durante el turno, cobrás normalmente: los ingresos se registran solos.
+3. **Al terminar**: contá el efectivo y presioná **Registrar cierre**. El
+   sistema compara tu conteo contra el **efectivo teórico**:
+
+   > efectivo teórico = saldo inicial + ingresos en efectivo − egresos en efectivo
+
+   y te muestra el **sobrante o faltante**.
+
+Las **transferencias se informan aparte**: van al banco, no al cajón, así que
+no entran en el efectivo teórico.
+
+> ⚠️ Si no abrís la caja, el sistema no te deja cerrarla — sin saber con
+> cuánto arrancaste, el arqueo no significa nada. Y si al cerrar dejás la
+> plata en el cajón, acordate de declarar ese mismo monto como saldo inicial
+> del próximo turno.
+
 ## 7. Productos
 
 Admin → Productos: crear, editar precio/stock/IVA, poner imagen (una ruta

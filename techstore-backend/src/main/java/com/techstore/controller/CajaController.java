@@ -1,7 +1,9 @@
 package com.techstore.controller;
 
+import com.techstore.dto.request.AbrirCajaRequest;
 import com.techstore.dto.request.CerrarCajaRequest;
 import com.techstore.dto.request.RegistroMovimientoRequest;
+import com.techstore.dto.response.AperturaCajaResponse;
 import com.techstore.dto.response.CierreCajaResponse;
 import com.techstore.dto.response.MovimientoCajaResponse;
 import com.techstore.dto.response.PageResponse;
@@ -75,6 +77,21 @@ public class CajaController {
         return org.springframework.http.ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"arqueo-caja.pdf\"")
                 .body(cajaService.resumenPdf(desde, hasta));
+    }
+
+    @GetMapping("/apertura")
+    @Operation(summary = "Turno de caja abierto",
+            description = "Devuelve la apertura en curso, o abierta=false si la caja está cerrada")
+    public AperturaCajaResponse aperturaActual() {
+        return cierreCajaService.aperturaActual();
+    }
+
+    @PostMapping("/apertura")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Abrir caja",
+            description = "Inicia un turno declarando el efectivo con el que arranca el cajón")
+    public AperturaCajaResponse abrir(@Valid @RequestBody AbrirCajaRequest request, Authentication auth) {
+        return cierreCajaService.abrir(request, auth.getName());
     }
 
     @GetMapping("/cierres/preview")

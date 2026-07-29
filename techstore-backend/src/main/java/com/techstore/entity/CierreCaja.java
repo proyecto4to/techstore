@@ -41,6 +41,10 @@ public class CierreCaja {
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
+    /** Efectivo con el que arrancó el turno, declarado en la apertura. */
+    @Column(name = "saldo_inicial", nullable = false, precision = 15, scale = 2)
+    private BigDecimal saldoInicial = BigDecimal.ZERO;
+
     @Column(name = "ingresos_efectivo", nullable = false, precision = 15, scale = 2)
     private BigDecimal ingresosEfectivo;
 

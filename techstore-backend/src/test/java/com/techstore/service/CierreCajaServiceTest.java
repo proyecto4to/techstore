@@ -1,13 +1,18 @@
 package com.techstore.service;
 
+import com.techstore.dto.request.AbrirCajaRequest;
 import com.techstore.dto.request.CerrarCajaRequest;
+import com.techstore.dto.response.AperturaCajaResponse;
 import com.techstore.dto.response.CierreCajaResponse;
 import com.techstore.dto.response.PreviewCierreResponse;
+import com.techstore.entity.AperturaCaja;
 import com.techstore.entity.CierreCaja;
 import com.techstore.entity.Rol;
 import com.techstore.entity.TipoMovimiento;
 import com.techstore.entity.TipoPago;
 import com.techstore.entity.Usuario;
+import com.techstore.exception.BusinessException;
+import com.techstore.repository.AperturaCajaRepository;
 import com.techstore.repository.CierreCajaRepository;
 import com.techstore.repository.MovimientoCajaRepository;
 import com.techstore.repository.UsuarioRepository;
@@ -22,8 +27,12 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +40,9 @@ class CierreCajaServiceTest {
 
     @Mock
     private CierreCajaRepository cierreCajaRepository;
+
+    @Mock
+    private AperturaCajaRepository aperturaCajaRepository;
 
     @Mock
     private MovimientoCajaRepository movimientoCajaRepository;
@@ -47,7 +59,8 @@ class CierreCajaServiceTest {
     @BeforeEach
     void setUp() {
         cierreCajaService = new CierreCajaService(
-                cierreCajaRepository, movimientoCajaRepository, usuarioRepository, autonumeradorService);
+                cierreCajaRepository, aperturaCajaRepository, movimientoCajaRepository,
+                usuarioRepository, autonumeradorService);
 
         Rol rol = new Rol();
         rol.setNombre("Cajero");
@@ -71,35 +84,103 @@ class CierreCajaServiceTest {
                 .thenReturn(new BigDecimal(ingTransfer));
     }
 
+    /** Turno abierto con el saldo inicial indicado. */
+    private AperturaCaja aperturaCon(String saldoInicial) {
+        AperturaCaja apertura = new AperturaCaja();
+        apertura.setId(1L);
+        apertura.setNumero(1);
+        apertura.setUsuario(cajero);
+        apertura.setSaldoInicial(new BigDecimal(saldoInicial));
+        return apertura;
+    }
+
     @Test
-    void previewCalculaEfectivoTeoricoDelTurno() {
+    void previewSumaElSaldoInicialAlEfectivoTeorico() {
         when(cierreCajaRepository.findTopByOrderByFechaCierreDesc()).thenReturn(Optional.empty());
+        when(aperturaCajaRepository.findByCierreIsNull()).thenReturn(Optional.of(aperturaCon("500000")));
         mockTotales("5000000", "1200000", "800000");
 
         PreviewCierreResponse preview = cierreCajaService.preview();
 
+        assertEquals(new BigDecimal("500000"), preview.saldoInicial());
         assertEquals(new BigDecimal("5000000"), preview.ingresosEfectivo());
         assertEquals(new BigDecimal("1200000"), preview.egresosEfectivo());
         assertEquals(new BigDecimal("800000"), preview.ingresosTransferencia());
-        // Efectivo teórico = ingresos efectivo - egresos efectivo (la transferencia no entra)
-        assertEquals(new BigDecimal("3800000"), preview.efectivoTeorico());
+        // saldo inicial + ingresos - egresos (la transferencia no entra al cajón)
+        assertEquals(new BigDecimal("4300000"), preview.efectivoTeorico());
+    }
+
+    @Test
+    void previewSinCajaAbiertaAsumeSaldoInicialCero() {
+        when(cierreCajaRepository.findTopByOrderByFechaCierreDesc()).thenReturn(Optional.empty());
+        when(aperturaCajaRepository.findByCierreIsNull()).thenReturn(Optional.empty());
+        mockTotales("100000", "0", "0");
+
+        PreviewCierreResponse preview = cierreCajaService.preview();
+
+        assertEquals(BigDecimal.ZERO, preview.saldoInicial());
+        assertEquals(new BigDecimal("100000"), preview.efectivoTeorico());
     }
 
     @Test
     void cierreCalculaDiferenciaContraElConteoFisico() {
         when(cierreCajaRepository.findTopByOrderByFechaCierreDesc()).thenReturn(Optional.empty());
         when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
+        when(aperturaCajaRepository.findAbiertaForUpdate()).thenReturn(Optional.of(aperturaCon("500000")));
         when(autonumeradorService.siguiente("CIERRECAJA")).thenReturn(1);
         when(cierreCajaRepository.save(any(CierreCaja.class))).thenAnswer(inv -> inv.getArgument(0));
-        mockTotales("5000000", "1200000", "800000"); // teórico 3.800.000
+        mockTotales("5000000", "1200000", "800000"); // teórico 500.000 + 5.000.000 - 1.200.000 = 4.300.000
 
-        // El cajero cuenta 3.750.000 -> faltan 50.000
+        // El cajero cuenta 4.250.000 -> faltan 50.000
         CierreCajaResponse cierre = cierreCajaService.cerrar(
-                new CerrarCajaRequest(new BigDecimal("3750000"), "Turno mañana"), "cajero@techstore.py");
+                new CerrarCajaRequest(new BigDecimal("4250000"), "Turno mañana"), "cajero@techstore.py");
 
-        assertEquals(new BigDecimal("3800000"), cierre.efectivoTeorico());
-        assertEquals(new BigDecimal("3750000"), cierre.efectivoContado());
+        assertEquals(new BigDecimal("500000"), cierre.saldoInicial());
+        assertEquals(new BigDecimal("4300000"), cierre.efectivoTeorico());
+        assertEquals(new BigDecimal("4250000"), cierre.efectivoContado());
         assertEquals(new BigDecimal("-50000"), cierre.diferencia());
+    }
+
+    @Test
+    void noSePuedeCerrarSinHaberAbiertoLaCaja() {
+        when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
+        when(aperturaCajaRepository.findAbiertaForUpdate()).thenReturn(Optional.empty());
+
+        assertThrows(BusinessException.class, () -> cierreCajaService.cerrar(
+                new CerrarCajaRequest(new BigDecimal("100000"), null), "cajero@techstore.py"));
+    }
+
+    @Test
+    void noSePuedeAbrirLaCajaDosVeces() {
+        when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
+        AperturaCaja abierta = aperturaCon("500000");
+        abierta.setFechaApertura(LocalDateTime.of(2026, 7, 29, 8, 0));
+        when(aperturaCajaRepository.findAbiertaForUpdate()).thenReturn(Optional.of(abierta));
+
+        assertThrows(BusinessException.class, () -> cierreCajaService.abrir(
+                new AbrirCajaRequest(new BigDecimal("300000"), null), "cajero@techstore.py"));
+    }
+
+    @Test
+    void abrirRegistraElSaldoInicialDelTurno() {
+        when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
+        when(aperturaCajaRepository.findAbiertaForUpdate()).thenReturn(Optional.empty());
+        when(autonumeradorService.siguiente("APERTURACAJA")).thenReturn(7);
+        when(aperturaCajaRepository.save(any(AperturaCaja.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AperturaCajaResponse apertura = cierreCajaService.abrir(
+                new AbrirCajaRequest(new BigDecimal("500000"), "Fondo fijo"), "cajero@techstore.py");
+
+        assertTrue(apertura.abierta());
+        assertEquals(7, apertura.numero());
+        assertEquals(new BigDecimal("500000"), apertura.saldoInicial());
+    }
+
+    @Test
+    void aperturaActualInformaCuandoLaCajaEstaCerrada() {
+        when(aperturaCajaRepository.findByCierreIsNull()).thenReturn(Optional.empty());
+
+        assertFalse(cierreCajaService.aperturaActual().abierta());
     }
 
     @Test
@@ -107,6 +188,7 @@ class CierreCajaServiceTest {
         CierreCaja ultimo = new CierreCaja();
         ultimo.setFechaCierre(LocalDateTime.of(2026, 7, 20, 12, 0));
         when(cierreCajaRepository.findTopByOrderByFechaCierreDesc()).thenReturn(Optional.of(ultimo));
+        lenient().when(aperturaCajaRepository.findByCierreIsNull()).thenReturn(Optional.empty());
         mockTotales("100000", "0", "0");
 
         PreviewCierreResponse preview = cierreCajaService.preview();
