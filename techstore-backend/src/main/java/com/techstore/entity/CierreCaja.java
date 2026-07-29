@@ -54,6 +54,10 @@ public class CierreCaja {
     @Column(name = "ingresos_transferencia", nullable = false, precision = 15, scale = 2)
     private BigDecimal ingresosTransferencia;
 
+    /** Salidas por transferencia (p. ej. pagos a proveedor): no tocan el cajón, van al banco. */
+    @Column(name = "egresos_transferencia", nullable = false, precision = 15, scale = 2)
+    private BigDecimal egresosTransferencia = BigDecimal.ZERO;
+
     @Column(name = "efectivo_teorico", nullable = false, precision = 15, scale = 2)
     private BigDecimal efectivoTeorico;
 

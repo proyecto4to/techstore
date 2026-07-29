@@ -79,13 +79,12 @@ public class CierreCajaService {
     @Transactional(readOnly = true)
     public PreviewCierreResponse preview() {
         LocalDateTime desde = inicioTurno();
-        LocalDateTime hasta = LocalDateTime.now();
         BigDecimal saldoInicial = aperturaCajaRepository.findByCierreIsNull()
                 .map(AperturaCaja::getSaldoInicial)
                 .orElse(BigDecimal.ZERO);
-        Totales t = calcular(saldoInicial, desde, hasta);
+        Totales t = calcularPendiente(saldoInicial);
         return new PreviewCierreResponse(desde, saldoInicial, t.ingresosEfectivo, t.egresosEfectivo,
-                t.ingresosTransferencia, t.efectivoTeorico());
+                t.ingresosTransferencia, t.egresosTransferencia, t.efectivoTeorico());
     }
 
     @Transactional
@@ -98,24 +97,36 @@ public class CierreCajaService {
                 .orElseThrow(() -> new BusinessException(
                         "No hay una caja abierta. Abrí la caja indicando el efectivo inicial antes de cerrarla."));
 
-        LocalDateTime desde = inicioTurno();
-        LocalDateTime hasta = LocalDateTime.now();
-        Totales t = calcular(apertura.getSaldoInicial(), desde, hasta);
-
+        BigDecimal saldoInicial = apertura.getSaldoInicial();
         CierreCaja cierre = new CierreCaja();
         cierre.setNumero(autonumeradorService.siguiente(ENTIDAD_CIERRE));
-        cierre.setFechaDesde(desde);
-        cierre.setFechaCierre(hasta);
+        cierre.setFechaDesde(inicioTurno());
+        cierre.setFechaCierre(LocalDateTime.now());
         cierre.setUsuario(usuario);
-        cierre.setSaldoInicial(apertura.getSaldoInicial());
-        cierre.setIngresosEfectivo(t.ingresosEfectivo);
-        cierre.setEgresosEfectivo(t.egresosEfectivo);
-        cierre.setIngresosTransferencia(t.ingresosTransferencia);
-        cierre.setEfectivoTeorico(t.efectivoTeorico());
+        cierre.setSaldoInicial(saldoInicial);
         cierre.setEfectivoContado(request.efectivoContado());
-        cierre.setDiferencia(request.efectivoContado().subtract(t.efectivoTeorico()));
         cierre.setNotas(request.notas());
-        CierreCaja guardado = cierreCajaRepository.save(cierre);
+        // Totales provisorios: las columnas son NOT NULL y recién se conocen
+        // después de reclamar los movimientos.
+        cierre.setIngresosEfectivo(BigDecimal.ZERO);
+        cierre.setEgresosEfectivo(BigDecimal.ZERO);
+        cierre.setIngresosTransferencia(BigDecimal.ZERO);
+        cierre.setEgresosTransferencia(BigDecimal.ZERO);
+        cierre.setEfectivoTeorico(saldoInicial);
+        cierre.setDiferencia(request.efectivoContado().subtract(saldoInicial));
+        CierreCaja guardado = cierreCajaRepository.saveAndFlush(cierre);
+
+        // Primero se reclaman los pendientes y después se suma lo reclamado: así lo
+        // arqueado es exactamente eso, aunque entre un movimiento nuevo en el medio.
+        movimientoCajaRepository.asignarPendientesA(guardado);
+        Totales t = calcularDeCierre(saldoInicial, guardado.getId());
+
+        guardado.setIngresosEfectivo(t.ingresosEfectivo);
+        guardado.setEgresosEfectivo(t.egresosEfectivo);
+        guardado.setIngresosTransferencia(t.ingresosTransferencia);
+        guardado.setEgresosTransferencia(t.egresosTransferencia);
+        guardado.setEfectivoTeorico(t.efectivoTeorico());
+        guardado.setDiferencia(request.efectivoContado().subtract(t.efectivoTeorico()));
 
         apertura.setCierre(guardado);
         aperturaCajaRepository.save(apertura);
@@ -134,18 +145,30 @@ public class CierreCajaService {
                 .orElse(ORIGEN);
     }
 
-    private Totales calcular(BigDecimal saldoInicial, LocalDateTime desde, LocalDateTime hasta) {
-        BigDecimal ingresosEfectivo = movimientoCajaRepository
-                .totalPorTipoYMedioEntre(TipoMovimiento.Ingreso, TipoPago.Efectivo, desde, hasta);
-        BigDecimal egresosEfectivo = movimientoCajaRepository
-                .totalPorTipoYMedioEntre(TipoMovimiento.Egreso, TipoPago.Efectivo, desde, hasta);
-        BigDecimal ingresosTransferencia = movimientoCajaRepository
-                .totalPorTipoYMedioEntre(TipoMovimiento.Ingreso, TipoPago.Transferencia, desde, hasta);
-        return new Totales(saldoInicial, ingresosEfectivo, egresosEfectivo, ingresosTransferencia);
+    /** Totales de lo que todavía no arqueó ningún cierre. */
+    private Totales calcularPendiente(BigDecimal saldoInicial) {
+        return new Totales(saldoInicial,
+                movimientoCajaRepository.totalPendientePorTipoYMedio(TipoMovimiento.Ingreso, TipoPago.Efectivo),
+                movimientoCajaRepository.totalPendientePorTipoYMedio(TipoMovimiento.Egreso, TipoPago.Efectivo),
+                movimientoCajaRepository.totalPendientePorTipoYMedio(TipoMovimiento.Ingreso, TipoPago.Transferencia),
+                movimientoCajaRepository.totalPendientePorTipoYMedio(TipoMovimiento.Egreso, TipoPago.Transferencia));
+    }
+
+    /** Totales de lo que quedó asignado a un cierre. */
+    private Totales calcularDeCierre(BigDecimal saldoInicial, Long cierreId) {
+        return new Totales(saldoInicial,
+                movimientoCajaRepository.totalDeCierrePorTipoYMedio(
+                        TipoMovimiento.Ingreso, TipoPago.Efectivo, cierreId),
+                movimientoCajaRepository.totalDeCierrePorTipoYMedio(
+                        TipoMovimiento.Egreso, TipoPago.Efectivo, cierreId),
+                movimientoCajaRepository.totalDeCierrePorTipoYMedio(
+                        TipoMovimiento.Ingreso, TipoPago.Transferencia, cierreId),
+                movimientoCajaRepository.totalDeCierrePorTipoYMedio(
+                        TipoMovimiento.Egreso, TipoPago.Transferencia, cierreId));
     }
 
     private record Totales(BigDecimal saldoInicial, BigDecimal ingresosEfectivo, BigDecimal egresosEfectivo,
-                           BigDecimal ingresosTransferencia) {
+                           BigDecimal ingresosTransferencia, BigDecimal egresosTransferencia) {
         /** Lo que debería haber en el cajón: con lo que se abrió, más lo que entró, menos lo que salió. */
         BigDecimal efectivoTeorico() {
             return saldoInicial.add(ingresosEfectivo).subtract(egresosEfectivo);

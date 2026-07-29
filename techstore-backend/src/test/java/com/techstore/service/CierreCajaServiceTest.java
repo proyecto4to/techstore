@@ -19,6 +19,7 @@ import com.techstore.repository.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,7 +33,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -72,16 +77,28 @@ class CierreCajaServiceTest {
         cajero.setRol(rol);
     }
 
-    private void mockTotales(String ingEfectivo, String egrEfectivo, String ingTransfer) {
-        when(movimientoCajaRepository.totalPorTipoYMedioEntre(
-                eq(TipoMovimiento.Ingreso), eq(TipoPago.Efectivo), any(), any()))
-                .thenReturn(new BigDecimal(ingEfectivo));
-        when(movimientoCajaRepository.totalPorTipoYMedioEntre(
-                eq(TipoMovimiento.Egreso), eq(TipoPago.Efectivo), any(), any()))
-                .thenReturn(new BigDecimal(egrEfectivo));
-        when(movimientoCajaRepository.totalPorTipoYMedioEntre(
-                eq(TipoMovimiento.Ingreso), eq(TipoPago.Transferencia), any(), any()))
-                .thenReturn(new BigDecimal(ingTransfer));
+    /** Totales pendientes de arqueo (lo que ve el preview). */
+    private void mockPendientes(String ingEfectivo, String egrEfectivo, String ingTransfer, String egrTransfer) {
+        when(movimientoCajaRepository.totalPendientePorTipoYMedio(
+                TipoMovimiento.Ingreso, TipoPago.Efectivo)).thenReturn(new BigDecimal(ingEfectivo));
+        when(movimientoCajaRepository.totalPendientePorTipoYMedio(
+                TipoMovimiento.Egreso, TipoPago.Efectivo)).thenReturn(new BigDecimal(egrEfectivo));
+        when(movimientoCajaRepository.totalPendientePorTipoYMedio(
+                TipoMovimiento.Ingreso, TipoPago.Transferencia)).thenReturn(new BigDecimal(ingTransfer));
+        when(movimientoCajaRepository.totalPendientePorTipoYMedio(
+                TipoMovimiento.Egreso, TipoPago.Transferencia)).thenReturn(new BigDecimal(egrTransfer));
+    }
+
+    /** Totales ya reclamados por el cierre (lo que se guarda al cerrar). */
+    private void mockReclamados(String ingEfectivo, String egrEfectivo, String ingTransfer, String egrTransfer) {
+        when(movimientoCajaRepository.totalDeCierrePorTipoYMedio(
+                eq(TipoMovimiento.Ingreso), eq(TipoPago.Efectivo), any())).thenReturn(new BigDecimal(ingEfectivo));
+        when(movimientoCajaRepository.totalDeCierrePorTipoYMedio(
+                eq(TipoMovimiento.Egreso), eq(TipoPago.Efectivo), any())).thenReturn(new BigDecimal(egrEfectivo));
+        when(movimientoCajaRepository.totalDeCierrePorTipoYMedio(
+                eq(TipoMovimiento.Ingreso), eq(TipoPago.Transferencia), any())).thenReturn(new BigDecimal(ingTransfer));
+        when(movimientoCajaRepository.totalDeCierrePorTipoYMedio(
+                eq(TipoMovimiento.Egreso), eq(TipoPago.Transferencia), any())).thenReturn(new BigDecimal(egrTransfer));
     }
 
     /** Turno abierto con el saldo inicial indicado. */
@@ -98,7 +115,7 @@ class CierreCajaServiceTest {
     void previewSumaElSaldoInicialAlEfectivoTeorico() {
         when(cierreCajaRepository.findTopByOrderByFechaCierreDesc()).thenReturn(Optional.empty());
         when(aperturaCajaRepository.findByCierreIsNull()).thenReturn(Optional.of(aperturaCon("500000")));
-        mockTotales("5000000", "1200000", "800000");
+        mockPendientes("5000000", "1200000", "800000", "300000");
 
         PreviewCierreResponse preview = cierreCajaService.preview();
 
@@ -106,7 +123,8 @@ class CierreCajaServiceTest {
         assertEquals(new BigDecimal("5000000"), preview.ingresosEfectivo());
         assertEquals(new BigDecimal("1200000"), preview.egresosEfectivo());
         assertEquals(new BigDecimal("800000"), preview.ingresosTransferencia());
-        // saldo inicial + ingresos - egresos (la transferencia no entra al cajón)
+        assertEquals(new BigDecimal("300000"), preview.egresosTransferencia());
+        // saldo inicial + ingresos - egresos (las transferencias no tocan el cajón)
         assertEquals(new BigDecimal("4300000"), preview.efectivoTeorico());
     }
 
@@ -114,7 +132,7 @@ class CierreCajaServiceTest {
     void previewSinCajaAbiertaAsumeSaldoInicialCero() {
         when(cierreCajaRepository.findTopByOrderByFechaCierreDesc()).thenReturn(Optional.empty());
         when(aperturaCajaRepository.findByCierreIsNull()).thenReturn(Optional.empty());
-        mockTotales("100000", "0", "0");
+        mockPendientes("100000", "0", "0", "0");
 
         PreviewCierreResponse preview = cierreCajaService.preview();
 
@@ -128,8 +146,9 @@ class CierreCajaServiceTest {
         when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
         when(aperturaCajaRepository.findAbiertaForUpdate()).thenReturn(Optional.of(aperturaCon("500000")));
         when(autonumeradorService.siguiente("CIERRECAJA")).thenReturn(1);
-        when(cierreCajaRepository.save(any(CierreCaja.class))).thenAnswer(inv -> inv.getArgument(0));
-        mockTotales("5000000", "1200000", "800000"); // teórico 500.000 + 5.000.000 - 1.200.000 = 4.300.000
+        when(cierreCajaRepository.saveAndFlush(any(CierreCaja.class))).thenAnswer(inv -> inv.getArgument(0));
+        // teórico 500.000 + 5.000.000 - 1.200.000 = 4.300.000
+        mockReclamados("5000000", "1200000", "800000", "300000");
 
         // El cajero cuenta 4.250.000 -> faltan 50.000
         CierreCajaResponse cierre = cierreCajaService.cerrar(
@@ -139,6 +158,27 @@ class CierreCajaServiceTest {
         assertEquals(new BigDecimal("4300000"), cierre.efectivoTeorico());
         assertEquals(new BigDecimal("4250000"), cierre.efectivoContado());
         assertEquals(new BigDecimal("-50000"), cierre.diferencia());
+        assertEquals(new BigDecimal("300000"), cierre.egresosTransferencia());
+    }
+
+    @Test
+    void cerrarReclamaLosMovimientosPendientesAntesDeSumarlos() {
+        when(cierreCajaRepository.findTopByOrderByFechaCierreDesc()).thenReturn(Optional.empty());
+        when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
+        when(aperturaCajaRepository.findAbiertaForUpdate()).thenReturn(Optional.of(aperturaCon("0")));
+        when(autonumeradorService.siguiente("CIERRECAJA")).thenReturn(1);
+        when(cierreCajaRepository.saveAndFlush(any(CierreCaja.class))).thenAnswer(inv -> inv.getArgument(0));
+        mockReclamados("100000", "0", "0", "0");
+
+        cierreCajaService.cerrar(new CerrarCajaRequest(new BigDecimal("100000"), null), "cajero@techstore.py");
+
+        // El arqueo se apoya en lo reclamado, no en un rango de fechas: así un
+        // movimiento que se confirma tarde queda pendiente para el próximo cierre.
+        InOrder orden = inOrder(movimientoCajaRepository);
+        orden.verify(movimientoCajaRepository).asignarPendientesA(any(CierreCaja.class));
+        orden.verify(movimientoCajaRepository, atLeastOnce())
+                .totalDeCierrePorTipoYMedio(any(), any(), any());
+        verify(movimientoCajaRepository, never()).totalPendientePorTipoYMedio(any(), any());
     }
 
     @Test
@@ -189,7 +229,7 @@ class CierreCajaServiceTest {
         ultimo.setFechaCierre(LocalDateTime.of(2026, 7, 20, 12, 0));
         when(cierreCajaRepository.findTopByOrderByFechaCierreDesc()).thenReturn(Optional.of(ultimo));
         lenient().when(aperturaCajaRepository.findByCierreIsNull()).thenReturn(Optional.empty());
-        mockTotales("100000", "0", "0");
+        mockPendientes("100000", "0", "0", "0");
 
         PreviewCierreResponse preview = cierreCajaService.preview();
 

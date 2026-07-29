@@ -13,5 +13,6 @@ public record PreviewCierreResponse(
         BigDecimal ingresosEfectivo,
         BigDecimal egresosEfectivo,
         BigDecimal ingresosTransferencia,
+        BigDecimal egresosTransferencia,
         BigDecimal efectivoTeorico) {
 }

@@ -55,6 +55,28 @@ function CierreCajaPanel() {
     onError: (err) => setError(err.response?.data?.detail ?? 'No se pudo abrir la caja.'),
   })
 
+  /**
+   * Antes de cerrar revalida el teórico: si entraron cobros mientras el cajero
+   * contaba la plata, avisa con el valor nuevo en vez de registrar una
+   * diferencia que en realidad no existe.
+   */
+  const confirmarYCerrar = async () => {
+    const actual = await queryClient.fetchQuery({
+      queryKey: ['caja-cierre-preview'],
+      queryFn: () => cajaService.previewCierre(),
+    })
+    if (actual.efectivoTeorico !== teorico) {
+      setMensaje(null)
+      setError(
+        `Entraron movimientos nuevos mientras contabas: el efectivo teórico pasó de ` +
+          `${formatPrecio(teorico)} a ${formatPrecio(actual.efectivoTeorico)}. ` +
+          `Revisá el conteo y volvé a presionar "Registrar cierre".`,
+      )
+      return
+    }
+    cerrarMutation.mutate()
+  }
+
   const cerrarMutation = useMutation({
     mutationFn: () => cajaService.cerrar(Number(contado), notas.trim()),
     onSuccess: (c) => {
@@ -136,7 +158,7 @@ function CierreCajaPanel() {
             Turno N.º {apertura.numero} abierto el {new Date(apertura.fechaApertura).toLocaleString('es-PY')} por{' '}
             {apertura.usuario}. Movimientos contados desde {new Date(preview.desde).toLocaleString('es-PY')}.
           </p>
-          <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-5">
+          <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="rounded-md border border-dark-border p-3">
               <p className="text-xs text-neutral-muted">Saldo inicial</p>
               <p className="font-semibold text-neutral-secondary">{formatPrecio(preview.saldoInicial)}</p>
@@ -149,13 +171,29 @@ function CierreCajaPanel() {
               <p className="text-xs text-neutral-muted">Egresos efectivo</p>
               <p className="font-semibold text-red-400">{formatPrecio(preview.egresosEfectivo)}</p>
             </div>
-            <div className="rounded-md border border-dark-border p-3">
-              <p className="text-xs text-neutral-muted">Efectivo teórico</p>
+            <div className="rounded-md border border-primary-400/40 bg-primary-400/5 p-3">
+              <p className="text-xs text-neutral-muted">Efectivo teórico (en el cajón)</p>
               <p className="font-bold text-neutral-text">{formatPrecio(preview.efectivoTeorico)}</p>
             </div>
+          </div>
+
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-muted">
+            Transferencias del turno (van al banco, no al cajón)
+          </p>
+          <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="rounded-md border border-dark-border p-3">
-              <p className="text-xs text-neutral-muted">Transferencias (al banco)</p>
+              <p className="text-xs text-neutral-muted">Ingresos por transferencia</p>
               <p className="font-semibold text-accent-400">{formatPrecio(preview.ingresosTransferencia)}</p>
+            </div>
+            <div className="rounded-md border border-dark-border p-3">
+              <p className="text-xs text-neutral-muted">Egresos por transferencia</p>
+              <p className="font-semibold text-red-400">{formatPrecio(preview.egresosTransferencia)}</p>
+            </div>
+            <div className="rounded-md border border-dark-border p-3">
+              <p className="text-xs text-neutral-muted">Neto bancario</p>
+              <p className="font-semibold text-neutral-text">
+                {formatPrecio(preview.ingresosTransferencia - preview.egresosTransferencia)}
+              </p>
             </div>
           </div>
 
@@ -195,7 +233,7 @@ function CierreCajaPanel() {
               </p>
             )}
             <button
-              onClick={() => cerrarMutation.mutate()}
+              onClick={confirmarYCerrar}
               disabled={contado === '' || cerrarMutation.isPending}
               className="btn btn-primary text-sm"
             >
@@ -218,6 +256,7 @@ function CierreCajaPanel() {
                 <th>Teórico</th>
                 <th>Contado</th>
                 <th>Diferencia</th>
+                <th>Neto banco</th>
               </tr>
             </thead>
             <tbody>
@@ -235,6 +274,9 @@ function CierreCajaPanel() {
                     }`}
                   >
                     {c.diferencia > 0 ? '+' : ''}{formatPrecio(c.diferencia)}
+                  </td>
+                  <td className="text-neutral-secondary">
+                    {formatPrecio(c.ingresosTransferencia - c.egresosTransferencia)}
                   </td>
                 </tr>
               ))}

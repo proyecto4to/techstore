@@ -81,7 +81,16 @@ fechas. Los cobros y devoluciones se registran solos; para gastos varios
    y te muestra el **sobrante o faltante**.
 
 Las **transferencias se informan aparte**: van al banco, no al cajón, así que
-no entran en el efectivo teórico.
+no entran en el efectivo teórico. Se muestran los ingresos, los egresos (por
+ejemplo pagos a proveedor) y el **neto bancario** del turno.
+
+Si mientras contabas la plata entró un cobro nuevo, al presionar *Registrar
+cierre* el sistema te avisa que el teórico cambió en vez de marcarte una
+diferencia que no existe: revisás el conteo y volvés a confirmar.
+
+> Ningún movimiento se pierde del arqueo: cada cierre toma **todos los
+> movimientos que todavía no fueron arqueados**, sin importar su fecha. Si un
+> cobro se registra con la caja cerrada, lo toma el cierre siguiente.
 
 > ⚠️ Si no abrís la caja, el sistema no te deja cerrarla — sin saber con
 > cuánto arrancaste, el arqueo no significa nada. Y si al cerrar dejás la

@@ -60,6 +60,14 @@ public class MovimientoCaja {
 
     private LocalDateTime fecha = LocalDateTime.now();
 
+    /**
+     * Cierre de caja que arqueó este movimiento. Mientras sea nulo el movimiento
+     * está pendiente y lo va a tomar el próximo cierre, sin importar su fecha.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cierre_id")
+    private CierreCaja cierre;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
