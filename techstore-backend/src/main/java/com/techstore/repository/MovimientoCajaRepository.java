@@ -21,11 +21,13 @@ public interface MovimientoCajaRepository extends JpaRepository<MovimientoCaja, 
     Page<MovimientoCaja> findByFechaGreaterThanEqualAndFechaLessThan(
             LocalDateTime desde, LocalDateTime hasta, Pageable pageable);
 
+    /** Total del período por tipo y medio: separa el efectivo del cajón de lo que va al banco. */
     @Query("select coalesce(sum(m.monto), 0) from MovimientoCaja m "
-            + "where m.tipo = :tipo and m.fecha >= :desde and m.fecha < :hasta")
-    BigDecimal totalPorTipoEntre(@Param("tipo") TipoMovimiento tipo,
-                                 @Param("desde") LocalDateTime desde,
-                                 @Param("hasta") LocalDateTime hasta);
+            + "where m.tipo = :tipo and m.medio = :medio and m.fecha >= :desde and m.fecha < :hasta")
+    BigDecimal totalPorTipoYMedioEntre(@Param("tipo") TipoMovimiento tipo,
+                                       @Param("medio") TipoPago medio,
+                                       @Param("desde") LocalDateTime desde,
+                                       @Param("hasta") LocalDateTime hasta);
 
     /** Total pendiente de arqueo (todavía sin cierre asignado), por tipo y medio. */
     @Query("select coalesce(sum(m.monto), 0) from MovimientoCaja m "

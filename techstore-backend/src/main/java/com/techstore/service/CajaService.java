@@ -105,13 +105,16 @@ public class CajaService {
         LocalDate hastaEfectivo = hasta != null ? hasta : LocalDate.now();
         LocalDateTime[] rango = rango(desde, hasta);
 
-        BigDecimal ingresos = movimientoCajaRepository
-                .totalPorTipoEntre(TipoMovimiento.Ingreso, rango[0], rango[1]);
-        BigDecimal egresos = movimientoCajaRepository
-                .totalPorTipoEntre(TipoMovimiento.Egreso, rango[0], rango[1]);
+        return ResumenCajaResponse.de(
+                desdeEfectivo, hastaEfectivo,
+                total(TipoMovimiento.Ingreso, TipoPago.Efectivo, rango),
+                total(TipoMovimiento.Egreso, TipoPago.Efectivo, rango),
+                total(TipoMovimiento.Ingreso, TipoPago.Transferencia, rango),
+                total(TipoMovimiento.Egreso, TipoPago.Transferencia, rango));
+    }
 
-        return new ResumenCajaResponse(
-                desdeEfectivo, hastaEfectivo, ingresos, egresos, ingresos.subtract(egresos));
+    private BigDecimal total(TipoMovimiento tipo, TipoPago medio, LocalDateTime[] rango) {
+        return movimientoCajaRepository.totalPorTipoYMedioEntre(tipo, medio, rango[0], rango[1]);
     }
 
     @Transactional(readOnly = true)

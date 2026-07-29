@@ -156,13 +156,25 @@ public class ReportePdfService {
     public byte[] caja(ResumenCajaResponse resumen, List<MovimientoCajaResponse> movimientos) {
         return documento("Arqueo de caja", periodo(resumen.desde(), resumen.hasta()), doc -> {
             try {
+                // El efectivo (cajón) y las transferencias (banco) van separados:
+                // sumarlos en un solo saldo no dice cuánta plata hay en la caja.
                 PdfPTable kpis = new PdfPTable(3);
                 kpis.setWidthPercentage(100);
                 kpis.setSpacingAfter(10);
-                kpis.addCell(kpi("Ingresos", "Gs. " + gs(resumen.ingresos())));
-                kpis.addCell(kpi("Egresos", "Gs. " + gs(resumen.egresos())));
-                kpis.addCell(kpi("Saldo", "Gs. " + gs(resumen.saldo())));
+                kpis.addCell(kpi("Efectivo (cajón)", "Gs. " + gs(resumen.netoEfectivo())));
+                kpis.addCell(kpi("Transferencias (banco)", "Gs. " + gs(resumen.netoTransferencia())));
+                kpis.addCell(kpi("Total del período", "Gs. " + gs(resumen.saldo())));
                 doc.add(kpis);
+
+                PdfPTable detalle = tabla(new float[]{34, 33, 33}, "Medio", "Ingresos (Gs.)", "Egresos (Gs.)");
+                detalle.addCell(celda("Efectivo", Element.ALIGN_LEFT));
+                detalle.addCell(celda(gs(resumen.ingresosEfectivo()), Element.ALIGN_RIGHT));
+                detalle.addCell(celda(gs(resumen.egresosEfectivo()), Element.ALIGN_RIGHT));
+                detalle.addCell(celda("Transferencia", Element.ALIGN_LEFT));
+                detalle.addCell(celda(gs(resumen.ingresosTransferencia()), Element.ALIGN_RIGHT));
+                detalle.addCell(celda(gs(resumen.egresosTransferencia()), Element.ALIGN_RIGHT));
+                detalle.setSpacingAfter(10);
+                doc.add(detalle);
 
                 doc.add(seccion("Movimientos"));
                 PdfPTable t = tabla(new float[]{10, 20, 14, 34, 22},

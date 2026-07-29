@@ -63,9 +63,20 @@ En Admin → Compras:
 
 ## 6. Caja
 
-En Admin → Caja ves el arqueo (**ingresos, egresos y saldo**) filtrable por
-fechas. Los cobros y devoluciones se registran solos; para gastos varios
+En Admin → Caja ves el arqueo del período, filtrable por fechas y exportable a
+PDF. Los cobros y devoluciones se registran solos; para gastos varios
 (servicios, insumos) usá *Registrar movimiento manual*.
+
+El total va **separado por medio**, porque no es lo mismo:
+
+| Tarjeta | Qué es |
+|---|---|
+| **Efectivo (cajón)** | La plata que entró y salió del cajón. Es la que contás al cerrar. |
+| **Transferencias (banco)** | Lo que se movió por transferencia: no pasa por el cajón. |
+| **Total del período** | Los dos juntos. Sirve para ver el movimiento general, **no** cuánta plata hay en la caja. |
+
+> Antes había una sola tarjeta "Saldo de caja" que sumaba los dos medios, así
+> que podía mostrar un número positivo aunque el efectivo estuviera en rojo.
 
 ### Abrir y cerrar la caja del turno
 

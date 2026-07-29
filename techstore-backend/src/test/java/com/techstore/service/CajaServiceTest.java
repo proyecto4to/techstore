@@ -89,15 +89,32 @@ class CajaServiceTest {
     }
 
     @Test
-    void resumenCalculaSaldo() {
-        when(movimientoCajaRepository.totalPorTipoEntre(any(), any(), any()))
-                .thenAnswer(inv -> inv.getArgument(0) == TipoMovimiento.Ingreso
-                        ? new BigDecimal("5000000") : new BigDecimal("1200000"));
+    void resumenSeparaElEfectivoDelCajonDeLoQueVaAlBanco() {
+        // efectivo: entran 5.000.000, salen 1.200.000 | transferencia: entran 800.000, salen 300.000
+        when(movimientoCajaRepository.totalPorTipoYMedioEntre(any(), any(), any(), any()))
+                .thenAnswer(inv -> {
+                    boolean ingreso = inv.getArgument(0) == TipoMovimiento.Ingreso;
+                    boolean efectivo = inv.getArgument(1) == com.techstore.entity.TipoPago.Efectivo;
+                    if (efectivo) {
+                        return ingreso ? new BigDecimal("5000000") : new BigDecimal("1200000");
+                    }
+                    return ingreso ? new BigDecimal("800000") : new BigDecimal("300000");
+                });
 
         ResumenCajaResponse resumen = cajaService.resumen(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 17));
 
-        assertEquals(new BigDecimal("5000000"), resumen.ingresos());
-        assertEquals(new BigDecimal("1200000"), resumen.egresos());
-        assertEquals(new BigDecimal("3800000"), resumen.saldo());
+        // Lo que hay en el cajón no incluye las transferencias.
+        assertEquals(new BigDecimal("5000000"), resumen.ingresosEfectivo());
+        assertEquals(new BigDecimal("1200000"), resumen.egresosEfectivo());
+        assertEquals(new BigDecimal("3800000"), resumen.netoEfectivo());
+
+        assertEquals(new BigDecimal("800000"), resumen.ingresosTransferencia());
+        assertEquals(new BigDecimal("300000"), resumen.egresosTransferencia());
+        assertEquals(new BigDecimal("500000"), resumen.netoTransferencia());
+
+        // Los totales siguen sumando ambos medios.
+        assertEquals(new BigDecimal("5800000"), resumen.ingresos());
+        assertEquals(new BigDecimal("1500000"), resumen.egresos());
+        assertEquals(new BigDecimal("4300000"), resumen.saldo());
     }
 }

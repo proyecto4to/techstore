@@ -90,13 +90,29 @@ function AdminCajaPage() {
 
       {resumen && (
         <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <StatCard etiqueta="Ingresos" valor={formatPrecio(resumen.ingresos)} icono="📈" />
-          <StatCard etiqueta="Egresos" valor={formatPrecio(resumen.egresos)} icono="📉" />
           <StatCard
-            etiqueta="Saldo de caja"
-            valor={formatPrecio(resumen.saldo)}
-            detalle={resumen.saldo < 0 ? 'Saldo negativo' : undefined}
+            etiqueta="Efectivo (cajón)"
+            valor={formatPrecio(resumen.netoEfectivo)}
+            detalle={`Ingresos ${formatPrecio(resumen.ingresosEfectivo)} · Egresos ${formatPrecio(
+              resumen.egresosEfectivo,
+            )}`}
             icono="💵"
+          />
+          <StatCard
+            etiqueta="Transferencias (banco)"
+            valor={formatPrecio(resumen.netoTransferencia)}
+            detalle={`Ingresos ${formatPrecio(resumen.ingresosTransferencia)} · Egresos ${formatPrecio(
+              resumen.egresosTransferencia,
+            )}`}
+            icono="🏦"
+          />
+          <StatCard
+            etiqueta="Total del período"
+            valor={formatPrecio(resumen.saldo)}
+            detalle={
+              resumen.saldo < 0 ? 'Negativo: salió más de lo que entró' : 'Efectivo + transferencias'
+            }
+            icono="📊"
           />
         </div>
       )}
