@@ -5,16 +5,23 @@ import { formatPrecio } from '../../utils/format'
  * Panel de cobro de un pedido con pago mixto: efectivo y/o transferencia.
  * La suma debe igualar el total antes de habilitar el registro.
  */
-function CobroPanel({ total, onCobrar, onCancelar, ocupado }) {
+function CobroPanel({ total, onCobrar, onCancelar, ocupado, clienteRuc, clienteRazonSocial }) {
   const [efectivo, setEfectivo] = useState('')
   const [transferencia, setTransferencia] = useState('')
   const [comprobante, setComprobante] = useState('')
+  // Si el cliente ya tiene RUC cargado, se factura a su nombre por defecto.
+  const [conRuc, setConRuc] = useState(Boolean(clienteRuc))
+  const [ruc, setRuc] = useState(clienteRuc ?? '')
+  const [razonSocial, setRazonSocial] = useState(clienteRazonSocial ?? '')
+  const [guardarEnCliente, setGuardarEnCliente] = useState(false)
 
   const nEfectivo = Number(efectivo) || 0
   const nTransferencia = Number(transferencia) || 0
   const suma = nEfectivo + nTransferencia
   const restante = Math.round((total - suma) * 100) / 100
-  const valido = Math.abs(restante) < 0.005 && suma > 0
+  const montosOk = Math.abs(restante) < 0.005 && suma > 0
+  const rucOk = !conRuc || ruc.trim() !== ''
+  const valido = montosOk && rucOk
 
   const registrar = () => {
     const lineas = []
@@ -28,7 +35,11 @@ function CobroPanel({ total, onCobrar, onCancelar, ocupado }) {
         numeroComprobante: comprobante.trim() || null,
       })
     }
-    onCobrar(lineas)
+    // receptor null = factura a consumidor final
+    const receptor = conRuc
+      ? { ruc: ruc.trim(), razonSocial: razonSocial.trim() || null, guardarEnCliente }
+      : null
+    onCobrar(lineas, receptor)
   }
 
   return (
@@ -100,13 +111,70 @@ function CobroPanel({ total, onCobrar, onCancelar, ocupado }) {
         )}
       </div>
 
+      <div className="mb-3 rounded-md border border-dark-border p-3">
+        <label className="flex items-center gap-2 text-sm font-medium text-neutral-text">
+          <input
+            type="checkbox"
+            checked={conRuc}
+            onChange={(e) => setConRuc(e.target.checked)}
+            className="h-4 w-4"
+          />
+          🧾 Facturar con RUC
+        </label>
+        {!conRuc ? (
+          <p className="mt-1 text-xs text-neutral-muted">
+            Sin marcar, la factura sale a consumidor final.
+          </p>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-text" htmlFor="cobro-ruc">
+                RUC *
+              </label>
+              <input
+                id="cobro-ruc"
+                value={ruc}
+                onChange={(e) => setRuc(e.target.value)}
+                maxLength={20}
+                className="input w-40 py-1 text-sm"
+                placeholder="80012345-0"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-text" htmlFor="cobro-razon">
+                Razón social
+              </label>
+              <input
+                id="cobro-razon"
+                value={razonSocial}
+                onChange={(e) => setRazonSocial(e.target.value)}
+                maxLength={255}
+                className="input w-64 py-1 text-sm"
+                placeholder="Nombre del cliente si se deja vacío"
+              />
+            </div>
+            <label className="flex items-center gap-2 pb-1 text-xs text-neutral-secondary">
+              <input
+                type="checkbox"
+                checked={guardarEnCliente}
+                onChange={(e) => setGuardarEnCliente(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Guardar en la cuenta del cliente
+            </label>
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center gap-4">
         <p className={`text-sm font-semibold ${valido ? 'text-emerald-400' : 'text-yellow-400'}`}>
-          {valido
-            ? '✓ Montos completos'
-            : restante > 0
+          {!montosOk
+            ? restante > 0
               ? `Falta: ${formatPrecio(restante)}`
-              : `Excede por: ${formatPrecio(-restante)}`}
+              : `Excede por: ${formatPrecio(-restante)}`
+            : !rucOk
+              ? 'Ingresá el RUC o destildá "Facturar con RUC"'
+              : '✓ Montos completos'}
         </p>
         <button
           onClick={registrar}
@@ -114,11 +182,13 @@ function CobroPanel({ total, onCobrar, onCancelar, ocupado }) {
           title={
             valido
               ? undefined
-              : suma <= 0
-                ? 'Ingresá el monto en efectivo y/o transferencia'
-                : restante > 0
-                  ? `Falta ${formatPrecio(restante)} para llegar al total`
-                  : `Te excedés por ${formatPrecio(-restante)}`
+              : !rucOk
+                ? 'Ingresá el RUC del cliente'
+                : suma <= 0
+                  ? 'Ingresá el monto en efectivo y/o transferencia'
+                  : restante > 0
+                    ? `Falta ${formatPrecio(restante)} para llegar al total`
+                    : `Te excedés por ${formatPrecio(-restante)}`
           }
           className="btn btn-primary text-sm disabled:cursor-not-allowed"
         >

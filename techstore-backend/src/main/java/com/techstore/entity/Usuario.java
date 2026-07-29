@@ -40,6 +40,14 @@ public class Usuario {
     @Column(nullable = false, length = 100)
     private String apellido;
 
+    /** RUC del cliente en formato {@code NNNNNNNN-D}, si factura como contribuyente. */
+    @Column(length = 20)
+    private String ruc;
+
+    /** Razón social a mostrar en la factura; si está vacía se usa nombre y apellido. */
+    @Column(name = "razon_social", length = 255)
+    private String razonSocial;
+
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "rol_id", nullable = false)
     private Rol rol;

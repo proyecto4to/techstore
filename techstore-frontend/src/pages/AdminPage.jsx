@@ -45,15 +45,18 @@ function AdminPage() {
   })
 
   const cobrarMutation = useMutation({
-    mutationFn: ({ id, lineas }) => pedidoService.registrarPago(id, lineas),
+    mutationFn: ({ id, lineas, receptor }) => pedidoService.registrarPago(id, lineas, receptor),
     onSuccess: (pago) => {
       setError(null)
       const metodos = pago.lineas
         .map((l) => `${l.tipoPago} ${formatPrecio(l.monto)}`)
         .join(' + ')
+      const receptor = pago.factura.receptorRuc
+        ? `a ${pago.factura.receptorNombre} (RUC ${pago.factura.receptorRuc})`
+        : 'a consumidor final'
       setMensaje(
         `Cobro registrado (${metodos}). ` +
-          `Factura ${pago.factura.numero} emitida: total ${formatPrecio(pago.factura.total)} ` +
+          `Factura ${pago.factura.numero} emitida ${receptor}: total ${formatPrecio(pago.factura.total)} ` +
           `(IVA ${formatPrecio(pago.factura.iva)}).`,
       )
       setCobroPedidoId(null)
@@ -213,7 +216,11 @@ function AdminPage() {
                         <CobroPanel
                           total={pedido.total}
                           ocupado={ocupado}
-                          onCobrar={(lineas) => cobrarMutation.mutate({ id: pedido.id, lineas })}
+                          clienteRuc={pedido.clienteRuc}
+                          clienteRazonSocial={pedido.clienteRazonSocial}
+                          onCobrar={(lineas, receptor) =>
+                            cobrarMutation.mutate({ id: pedido.id, lineas, receptor })
+                          }
                           onCancelar={() => setCobroPedidoId(null)}
                         />
                       </td>

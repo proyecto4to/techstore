@@ -7,7 +7,10 @@ public record UsuarioResponse(
         String email,
         String nombre,
         String apellido,
-        String rol) {
+        String rol,
+        /** Datos fiscales para facturar como contribuyente; null = consumidor final. */
+        String ruc,
+        String razonSocial) {
 
     public static UsuarioResponse from(Usuario usuario) {
         return new UsuarioResponse(
@@ -15,6 +18,8 @@ public record UsuarioResponse(
                 usuario.getEmail(),
                 usuario.getNombre(),
                 usuario.getApellido(),
-                usuario.getRol().getNombre());
+                usuario.getRol().getNombre(),
+                usuario.getRuc(),
+                usuario.getRazonSocial());
     }
 }

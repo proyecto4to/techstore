@@ -1,6 +1,7 @@
 package com.techstore.service;
 
 import com.techstore.dto.request.CambioPasswordRequest;
+import com.techstore.dto.request.DatosFiscalesRequest;
 import com.techstore.dto.request.LoginRequest;
 import com.techstore.dto.request.RefreshTokenRequest;
 import com.techstore.dto.request.RegistroRequest;
@@ -15,6 +16,7 @@ import com.techstore.repository.RolRepository;
 import com.techstore.repository.UsuarioRepository;
 import com.techstore.security.JwtService;
 import com.techstore.security.LoginRateLimiter;
+import com.techstore.util.RucParaguayo;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
@@ -124,6 +126,32 @@ public class AuthService {
                 .orElseThrow(() -> new BadCredentialsException("Usuario inexistente o inactivo"));
 
         return buildAuthResponse(usuario);
+    }
+
+    /**
+     * Guarda (o borra) los datos fiscales propios, para que las próximas compras
+     * se facturen a ese RUC sin tener que dictarlo en la caja.
+     */
+    @Transactional
+    public UsuarioResponse guardarDatosFiscales(String email, DatosFiscalesRequest request) {
+        Usuario usuario = usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
+
+        String ruc = RucParaguayo.normalizar(request.ruc());
+        if (ruc == null) {
+            // Sin RUC: vuelve a facturar como consumidor final.
+            usuario.setRuc(null);
+            usuario.setRazonSocial(null);
+        } else {
+            if (!RucParaguayo.esValido(ruc)) {
+                throw new BusinessException(
+                        "El RUC '%s' no es válido: revisá el número y el dígito verificador.".formatted(ruc));
+            }
+            usuario.setRuc(ruc);
+            String razonSocial = request.razonSocial();
+            usuario.setRazonSocial(razonSocial == null || razonSocial.isBlank() ? null : razonSocial.trim());
+        }
+        return UsuarioResponse.from(usuarioRepository.save(usuario));
     }
 
     @Transactional

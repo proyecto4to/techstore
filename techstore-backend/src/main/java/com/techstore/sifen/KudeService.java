@@ -20,6 +20,7 @@ import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
 import com.techstore.util.NumeroALetras;
+import com.techstore.util.RucParaguayo;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -102,7 +103,9 @@ public class KudeService {
         String datos = "nVersion=150"
                 + "&Id=" + cdc
                 + "&dFeEmiDE=" + fechaHex
-                + "&dRucRec=0"
+                // Con RUC va el número sin dígito verificador; sin RUC, 0 (innominado).
+                + "&dRucRec=" + (factura.getReceptorRuc() == null
+                        ? "0" : RucParaguayo.numero(factura.getReceptorRuc()))
                 + "&dTotGralOpe=" + plano(factura.getTotal())
                 + "&dTotIVA=" + plano(iva)
                 + "&cItems=" + items
@@ -191,9 +194,13 @@ public class KudeService {
         PdfPCell der = new PdfPCell();
         der.setPadding(7);
         der.setBorderColor(GRIS);
-        der.addElement(new Paragraph("RUC / Documento de Identidad: Sin identificar (Consumidor final)", F_NORMAL));
-        der.addElement(new Paragraph(
-                "Nombre o Razón Social: " + cliente.getNombre() + " " + cliente.getApellido(), F_NORMAL));
+        String rucReceptor = factura.getReceptorRuc();
+        der.addElement(new Paragraph(rucReceptor == null
+                ? "RUC / Documento de Identidad: Sin identificar (Consumidor final)"
+                : "RUC / Documento de Identidad: " + rucReceptor, F_NORMAL));
+        der.addElement(new Paragraph("Nombre o Razón Social: " + (rucReceptor == null
+                ? cliente.getNombre() + " " + cliente.getApellido()
+                : factura.getReceptorNombre()), F_NORMAL));
         der.addElement(new Paragraph("Dirección: —", F_NORMAL));
         der.addElement(new Paragraph("Teléfono: —", F_NORMAL));
         der.addElement(new Paragraph("Correo Electrónico: " + cliente.getEmail(), F_NORMAL));

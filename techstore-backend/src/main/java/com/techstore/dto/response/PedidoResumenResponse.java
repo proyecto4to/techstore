@@ -10,5 +10,8 @@ public record PedidoResumenResponse(
         String estado,
         LocalDateTime fecha,
         BigDecimal total,
-        String usuarioEmail) {
+        String usuarioEmail,
+        /** Datos fiscales del cliente, para prellenar el cobro con RUC. */
+        String clienteRuc,
+        String clienteRazonSocial) {
 }

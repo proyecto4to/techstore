@@ -5,6 +5,7 @@ import com.techstore.entity.Factura;
 import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
+import com.techstore.util.RucParaguayo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
@@ -108,7 +109,7 @@ public class DocumentoElectronicoService {
         hijo(doc, gOpeCom, "dDesMoneOpe", "Guaraní");
 
         agregarEmisor(doc, gDat);
-        agregarReceptor(doc, gDat, factura.getPedido().getUsuario());
+        agregarReceptor(doc, gDat, factura);
 
         // gDtipDE — específico por tipo (factura) + condición + items
         Element gDtip = hijo(doc, de, "gDtipDE", null);
@@ -155,17 +156,32 @@ public class DocumentoElectronicoService {
         hijo(doc, gAct, "dDesActEco", empresa.actividad());
     }
 
-    private void agregarReceptor(Document doc, Element gDat, Usuario cliente) {
-        // Cliente sin RUC registrado -> receptor no contribuyente (B2C), innominado.
+    private void agregarReceptor(Document doc, Element gDat, Factura factura) {
+        Usuario cliente = factura.getPedido().getUsuario();
+        String ruc = factura.getReceptorRuc();
         Element g = hijo(doc, gDat, "gDatRec", null);
-        hijo(doc, g, "iNatRec", "2");
-        hijo(doc, g, "iTiOpe", "2");
-        hijo(doc, g, "cPaisRec", "PRY");
-        hijo(doc, g, "dDesPaisRe", "Paraguay");
-        hijo(doc, g, "iTipIDRec", "5");
-        hijo(doc, g, "dDTipIDRec", "Innominado");
-        hijo(doc, g, "dNumIDRec", "0");
-        hijo(doc, g, "dNomRec", cliente.getNombre() + " " + cliente.getApellido());
+
+        if (ruc == null) {
+            // Sin RUC: receptor no contribuyente (B2C), innominado.
+            hijo(doc, g, "iNatRec", "2");
+            hijo(doc, g, "iTiOpe", "2");
+            hijo(doc, g, "cPaisRec", "PRY");
+            hijo(doc, g, "dDesPaisRe", "Paraguay");
+            hijo(doc, g, "iTipIDRec", "5");
+            hijo(doc, g, "dDTipIDRec", "Innominado");
+            hijo(doc, g, "dNumIDRec", "0");
+            hijo(doc, g, "dNomRec", cliente.getNombre() + " " + cliente.getApellido());
+        } else {
+            // Con RUC: contribuyente (B2B). El RUC va sin el dígito verificador,
+            // que se informa aparte en dDVRec.
+            hijo(doc, g, "iNatRec", "1");
+            hijo(doc, g, "iTiOpe", "1");
+            hijo(doc, g, "cPaisRec", "PRY");
+            hijo(doc, g, "dDesPaisRe", "Paraguay");
+            hijo(doc, g, "dRucRec", RucParaguayo.numero(ruc));
+            hijo(doc, g, "dDVRec", String.valueOf(RucParaguayo.dv(ruc)));
+            hijo(doc, g, "dNomRec", factura.getReceptorNombre());
+        }
         hijo(doc, g, "dEmailRec", cliente.getEmail());
     }
 

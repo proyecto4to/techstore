@@ -44,6 +44,17 @@ public class Factura {
     @Column(name = "codigo_seguridad", nullable = false, length = 9)
     private String codigoSeguridad;
 
+    /**
+     * Receptor congelado al emitir: RUC nulo significa que se facturó a
+     * consumidor final. No se recalcula desde el usuario, porque si el cliente
+     * después corrige sus datos fiscales la factura ya emitida no debe cambiar.
+     */
+    @Column(name = "receptor_ruc", length = 20)
+    private String receptorRuc;
+
+    @Column(name = "receptor_nombre", length = 255)
+    private String receptorNombre;
+
     @Column(nullable = false, length = 10)
     private String tipo;
 

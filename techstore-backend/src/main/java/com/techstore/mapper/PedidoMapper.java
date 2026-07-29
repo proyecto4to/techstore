@@ -14,6 +14,8 @@ public interface PedidoMapper {
     PedidoResponse toResponse(Pedido pedido);
 
     @Mapping(target = "usuarioEmail", source = "usuario.email")
+    @Mapping(target = "clienteRuc", source = "usuario.ruc")
+    @Mapping(target = "clienteRazonSocial", source = "usuario.razonSocial")
     PedidoResumenResponse toResumen(Pedido pedido);
 
     @Mapping(target = "productoId", source = "producto.id")

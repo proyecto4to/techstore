@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -71,6 +72,7 @@ class PagoServiceTest {
 
     private PagoService pagoService;
     private Usuario cajero;
+    private Usuario cliente;
     private Pedido pedido;
 
     @BeforeEach
@@ -92,6 +94,18 @@ class PagoServiceTest {
         cajero.setRol(rol);
         cajero.setActivo(true);
 
+        Rol rolCliente = new Rol();
+        rolCliente.setId(3L);
+        rolCliente.setNombre("Cliente");
+
+        cliente = new Usuario();
+        cliente.setId(9L);
+        cliente.setEmail("cliente@techstore.py");
+        cliente.setNombre("Ana");
+        cliente.setApellido("López");
+        cliente.setRol(rolCliente);
+        cliente.setActivo(true);
+
         Producto cpu = new Producto();
         cpu.setId(1L);
         cpu.setNombre("Intel Core i9");
@@ -103,7 +117,7 @@ class PagoServiceTest {
         pedido.setNumero(7);
         pedido.setTipo(TipoPedido.Venta);
         pedido.setEstado(EstadoPedido.C);
-        pedido.setUsuario(cajero);
+        pedido.setUsuario(cliente);
         PedidoDetalle detalle = new PedidoDetalle();
         detalle.setProducto(cpu);
         detalle.setCantidad(1);
@@ -127,7 +141,7 @@ class PagoServiceTest {
 
     private RegistroPagoRequest todoEfectivo() {
         return new RegistroPagoRequest(List.of(
-                new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)));
+                new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)), null);
     }
 
     @Test
@@ -152,6 +166,77 @@ class PagoServiceTest {
     }
 
     @Test
+    void sinReceptorLaFacturaSaleAConsumidorFinal() {
+        prepararPagoFeliz();
+
+        PagoResponse response = pagoService.registrarPago(10L, todoEfectivo(), "cajero@techstore.py");
+
+        assertNull(response.factura().receptorRuc());
+    }
+
+    @Test
+    void conRucLaFacturaSeEmiteAEseContribuyente() {
+        prepararPagoFeliz();
+
+        PagoResponse response = pagoService.registrarPago(
+                10L,
+                new RegistroPagoRequest(
+                        List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
+                        new RegistroPagoRequest.Receptor("80012345-0", "Empresa Cliente SA", false)),
+                "cajero@techstore.py");
+
+        assertEquals("80012345-0", response.factura().receptorRuc());
+        assertEquals("Empresa Cliente SA", response.factura().receptorNombre());
+        // No se pidió guardarlo, así que la cuenta del cliente queda intacta.
+        assertNull(cliente.getRuc());
+    }
+
+    @Test
+    void seRechazaUnRucConDigitoVerificadorInvalido() {
+        when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
+        when(pagoRepository.existsByPedidoId(10L)).thenReturn(false);
+        when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
+        when(autonumeradorService.siguiente("PAGO")).thenReturn(1);
+        when(autonumeradorService.siguiente("FACTURA")).thenReturn(1);
+
+        assertThrows(BusinessException.class, () -> pagoService.registrarPago(
+                10L,
+                new RegistroPagoRequest(
+                        List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
+                        new RegistroPagoRequest.Receptor("80012345-6", null, false)),
+                "cajero@techstore.py"));
+        verify(facturaRepository, never()).save(any());
+    }
+
+    @Test
+    void guardarEnClienteDejaElRucCargadoParaLaProximaCompra() {
+        prepararPagoFeliz();
+
+        pagoService.registrarPago(
+                10L,
+                new RegistroPagoRequest(
+                        List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
+                        new RegistroPagoRequest.Receptor("80012345-0", "Empresa Cliente SA", true)),
+                "cajero@techstore.py");
+
+        assertEquals("80012345-0", cliente.getRuc());
+        assertEquals("Empresa Cliente SA", cliente.getRazonSocial());
+        verify(usuarioRepository).save(cliente);
+    }
+
+    @Test
+    void siElClienteTieneRucCargadoSeFacturaAEseRucSinPedirlo() {
+        cliente.setRuc("80012345-0");
+        cliente.setRazonSocial("Empresa Cliente SA");
+        prepararPagoFeliz();
+
+        PagoResponse response = pagoService.registrarPago(10L, todoEfectivo(), "cajero@techstore.py");
+
+        assertEquals("80012345-0", response.factura().receptorRuc());
+        assertEquals("Empresa Cliente SA", response.factura().receptorNombre());
+    }
+
+    @Test
     void cobroMixtoRegistraDosPagosYDosMovimientos() {
         when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
         when(pagoRepository.existsByPedidoId(10L)).thenReturn(false);
@@ -165,7 +250,7 @@ class PagoServiceTest {
         PagoResponse response = pagoService.registrarPago(10L,
                 new RegistroPagoRequest(List.of(
                         new LineaPago(TipoPago.Efectivo, new BigDecimal("1000000.00"), null),
-                        new LineaPago(TipoPago.Transferencia, new BigDecimal("1500000.00"), "TX-42"))),
+                        new LineaPago(TipoPago.Transferencia, new BigDecimal("1500000.00"), "TX-42")), null),
                 "cajero@techstore.py");
 
         assertEquals(2, response.lineas().size());
@@ -187,7 +272,7 @@ class PagoServiceTest {
         assertThrows(BusinessException.class, () -> pagoService.registrarPago(10L,
                 new RegistroPagoRequest(List.of(
                         new LineaPago(TipoPago.Efectivo, new BigDecimal("1000000.00"), null),
-                        new LineaPago(TipoPago.Transferencia, new BigDecimal("1000000.00"), null))),
+                        new LineaPago(TipoPago.Transferencia, new BigDecimal("1000000.00"), null)), null),
                 "cajero@techstore.py"));
         verify(pagoRepository, never()).save(any());
         verify(facturaRepository, never()).save(any());
@@ -200,7 +285,7 @@ class PagoServiceTest {
 
         assertThrows(BusinessException.class, () -> pagoService.registrarPago(10L,
                 new RegistroPagoRequest(List.of(
-                        new LineaPago(TipoPago.Tarjeta, new BigDecimal("2500000.00"), "VISA-1"))),
+                        new LineaPago(TipoPago.Tarjeta, new BigDecimal("2500000.00"), "VISA-1")), null),
                 "cajero@techstore.py"));
         verify(facturaRepository, never()).save(any());
     }
@@ -213,7 +298,7 @@ class PagoServiceTest {
         assertThrows(BusinessException.class, () -> pagoService.registrarPago(10L,
                 new RegistroPagoRequest(List.of(
                         new LineaPago(TipoPago.Efectivo, new BigDecimal("1250000.00"), null),
-                        new LineaPago(TipoPago.Efectivo, new BigDecimal("1250000.00"), null))),
+                        new LineaPago(TipoPago.Efectivo, new BigDecimal("1250000.00"), null)), null),
                 "cajero@techstore.py"));
         verify(facturaRepository, never()).save(any());
     }
@@ -246,7 +331,7 @@ class PagoServiceTest {
 
         PagoResponse response = pagoService.registrarPago(10L,
                 new RegistroPagoRequest(List.of(
-                        new LineaPago(TipoPago.Transferencia, new BigDecimal("2500000.00"), "TX-99"))),
+                        new LineaPago(TipoPago.Transferencia, new BigDecimal("2500000.00"), "TX-99")), null),
                 "cajero@techstore.py");
 
         assertEquals(BigDecimal.ZERO, response.factura().iva());

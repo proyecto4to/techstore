@@ -1,6 +1,7 @@
 package com.techstore.controller;
 
 import com.techstore.dto.request.CambioPasswordRequest;
+import com.techstore.dto.request.DatosFiscalesRequest;
 import com.techstore.dto.request.LoginRequest;
 import com.techstore.dto.request.RefreshTokenRequest;
 import com.techstore.dto.request.RegistroRequest;
@@ -34,6 +35,14 @@ public class AuthController {
             description = "Requiere la contraseña actual; disponible para cualquier usuario autenticado")
     public void cambiarPassword(@Valid @RequestBody CambioPasswordRequest request, Authentication auth) {
         authService.cambiarPassword(auth.getName(), request);
+    }
+
+    @PutMapping("/datos-fiscales")
+    @Operation(summary = "Guardar mis datos fiscales",
+            description = "RUC y razón social para facturar como contribuyente; vacío vuelve a consumidor final")
+    public UsuarioResponse guardarDatosFiscales(
+            @Valid @RequestBody DatosFiscalesRequest request, Authentication auth) {
+        return authService.guardarDatosFiscales(auth.getName(), request);
     }
 
     @PostMapping("/registro")

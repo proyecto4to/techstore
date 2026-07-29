@@ -29,8 +29,8 @@ export const pedidoService = {
     return data
   },
 
-  async registrarPago(id, lineas) {
-    const { data } = await api.post(`/pedidos/${id}/pago`, { lineas })
+  async registrarPago(id, lineas, receptor = null) {
+    const { data } = await api.post(`/pedidos/${id}/pago`, { lineas, receptor })
     return data
   },
 

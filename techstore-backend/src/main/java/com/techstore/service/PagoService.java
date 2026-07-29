@@ -21,6 +21,7 @@ import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.UsuarioRepository;
 import com.techstore.sifen.CodigoControl;
 import com.techstore.sifen.FacturaElectronicaService;
+import com.techstore.util.RucParaguayo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -112,6 +113,7 @@ public class PagoService {
         factura.setTotal(pedido.getTotal());
         factura.setEstado(EstadoFactura.Pagada);
         factura.setUsuario(cajero);
+        aplicarReceptor(factura, pedido.getUsuario(), request.receptor());
         factura = facturaRepository.save(factura);
 
         pedido.setEstado(EstadoPedido.G);
@@ -131,6 +133,45 @@ public class PagoService {
         enviarFacturaPorCorreo(pedido, factura);
 
         return PagoResponse.from(pagos, factura);
+    }
+
+    /**
+     * Congela en la factura a quién se le emite. Si el cobro trae un RUC se
+     * factura a ese contribuyente; si no, se usa el que el cliente tenga
+     * cargado en su cuenta; y si no hay ninguno, sale a consumidor final.
+     */
+    private void aplicarReceptor(Factura factura, Usuario cliente, RegistroPagoRequest.Receptor receptor) {
+        String ruc = receptor == null ? null : RucParaguayo.normalizar(receptor.ruc());
+        String razonSocial = receptor == null ? null : receptor.razonSocial();
+
+        if (ruc == null) {
+            // Sin RUC en el cobro: se cae al de la cuenta del cliente, si tiene.
+            ruc = RucParaguayo.normalizar(cliente.getRuc());
+            razonSocial = cliente.getRazonSocial();
+        }
+        if (ruc == null) {
+            return; // consumidor final: receptorRuc queda nulo
+        }
+        if (!RucParaguayo.esValido(ruc)) {
+            throw new BusinessException(
+                    "El RUC '%s' no es válido: revisá el número y el dígito verificador.".formatted(ruc));
+        }
+
+        factura.setReceptorRuc(ruc);
+        factura.setReceptorNombre(nombreReceptor(razonSocial, cliente));
+
+        if (receptor != null && Boolean.TRUE.equals(receptor.guardarEnCliente())) {
+            cliente.setRuc(ruc);
+            cliente.setRazonSocial(factura.getReceptorNombre());
+            usuarioRepository.save(cliente);
+        }
+    }
+
+    private static String nombreReceptor(String razonSocial, Usuario cliente) {
+        if (razonSocial != null && !razonSocial.isBlank()) {
+            return razonSocial.trim();
+        }
+        return cliente.getNombre() + " " + cliente.getApellido();
     }
 
     private void validarLineas(List<RegistroPagoRequest.LineaPago> lineas, BigDecimal total) {

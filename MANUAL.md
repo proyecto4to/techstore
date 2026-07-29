@@ -41,6 +41,25 @@ Usuarios de demostración:
 
 ¿El cliente se arrepintió antes de confirmar? *Anular* libera el stock.
 
+### Facturar con RUC
+
+Por defecto la factura sale a **consumidor final**. Si el cliente necesita su
+RUC, al cobrar tildá **🧾 Facturar con RUC** y completá:
+
+- **RUC** (obligatorio, formato `80012345-0`). El sistema **verifica el dígito
+  verificador**: si está mal, no deja emitir. Es a propósito — un RUC mal
+  tipeado genera una factura electrónica inválida.
+- **Razón social** (opcional): si la dejás vacía se usa el nombre del cliente.
+- **Guardar en la cuenta del cliente**: deja el RUC cargado para que la próxima
+  compra ya salga a su nombre sin tener que dictarlo.
+
+El cliente también puede cargar su RUC por su cuenta, en **Mi cuenta → Datos
+para la factura**. Si lo tiene cargado, el cobro lo trae ya completado.
+
+> ⚠️ **Una factura emitida no se edita.** Si salió a consumidor final y el
+> cliente después pide su RUC, el camino correcto es hacer la **devolución**
+> (nota de crédito, sección 4) y volver a facturar con el RUC.
+
 ## 4. Devoluciones (notas de crédito)
 
 Solo sobre pedidos **Pagados**. En Admin → Pedidos, botón **Devolver**:

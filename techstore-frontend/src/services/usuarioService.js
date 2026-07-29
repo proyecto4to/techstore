@@ -24,4 +24,13 @@ export const usuarioService = {
   async cambiarMiPassword(passwordActual, passwordNueva) {
     await api.put('/auth/password', { passwordActual, passwordNueva })
   },
+
+  /** RUC y razón social propios. Vacíos vuelven a facturar como consumidor final. */
+  async guardarMisDatosFiscales(ruc, razonSocial) {
+    const { data } = await api.put('/auth/datos-fiscales', {
+      ruc: ruc || null,
+      razonSocial: razonSocial || null,
+    })
+    return data
+  },
 }

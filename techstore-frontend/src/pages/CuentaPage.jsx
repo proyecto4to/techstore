@@ -1,14 +1,45 @@
 import { useState } from 'react'
-import { KeyRound } from 'lucide-react'
+import { KeyRound, Receipt } from 'lucide-react'
 import { usuarioService } from '../services/usuarioService'
 import { useAuthStore } from '../store/authStore'
 
 function CuentaPage() {
-  const { usuario } = useAuthStore()
+  const { usuario, setUsuario } = useAuthStore()
   const [form, setForm] = useState({ actual: '', nueva: '', confirmar: '' })
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
   const [guardando, setGuardando] = useState(false)
+
+  const [fiscal, setFiscal] = useState({
+    ruc: usuario?.ruc ?? '',
+    razonSocial: usuario?.razonSocial ?? '',
+  })
+  const [mensajeFiscal, setMensajeFiscal] = useState(null)
+  const [errorFiscal, setErrorFiscal] = useState(null)
+  const [guardandoFiscal, setGuardandoFiscal] = useState(false)
+
+  const guardarFiscales = async (e) => {
+    e.preventDefault()
+    setMensajeFiscal(null)
+    setErrorFiscal(null)
+    setGuardandoFiscal(true)
+    try {
+      const actualizado = await usuarioService.guardarMisDatosFiscales(
+        fiscal.ruc.trim(),
+        fiscal.razonSocial.trim(),
+      )
+      setUsuario(actualizado)
+      setMensajeFiscal(
+        actualizado.ruc
+          ? `Listo: tus compras se van a facturar al RUC ${actualizado.ruc}.`
+          : 'Datos borrados: tus compras se van a facturar a consumidor final.',
+      )
+    } catch (err) {
+      setErrorFiscal(err.response?.data?.detail ?? 'No se pudieron guardar los datos fiscales.')
+    } finally {
+      setGuardandoFiscal(false)
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -36,6 +67,51 @@ function CuentaPage() {
       <p className="mb-8 text-neutral-secondary">
         {usuario?.nombre} {usuario?.apellido} · {usuario?.email} · rol {usuario?.rol}
       </p>
+
+      <form onSubmit={guardarFiscales} className="card mb-6 space-y-5">
+        <h3 className="inline-flex items-center gap-2 text-lg font-semibold text-neutral-text">
+          <Receipt size={18} className="text-primary-300" /> Datos para la factura
+        </h3>
+        <p className="-mt-2 text-sm text-neutral-secondary">
+          Si cargás tu RUC, tus compras se facturan a tu nombre en vez de a consumidor final.
+          Dejalo vacío para volver al consumidor final.
+        </p>
+
+        {mensajeFiscal && <p className="alerta-ok mb-0 text-sm" role="status">{mensajeFiscal}</p>}
+        {errorFiscal && <p className="alerta-error mb-0 text-sm" role="alert">{errorFiscal}</p>}
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="ruc">
+            RUC
+          </label>
+          <input
+            id="ruc"
+            value={fiscal.ruc}
+            onChange={(e) => setFiscal({ ...fiscal, ruc: e.target.value })}
+            maxLength={20}
+            placeholder="80012345-0"
+            className="input"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="razonSocial">
+            Razón social
+          </label>
+          <input
+            id="razonSocial"
+            value={fiscal.razonSocial}
+            onChange={(e) => setFiscal({ ...fiscal, razonSocial: e.target.value })}
+            maxLength={255}
+            placeholder="Si lo dejás vacío se usa tu nombre y apellido"
+            className="input"
+          />
+        </div>
+
+        <button type="submit" disabled={guardandoFiscal} className="btn btn-primary w-full">
+          {guardandoFiscal ? 'Guardando…' : 'Guardar datos fiscales'}
+        </button>
+      </form>
 
       <form onSubmit={handleSubmit} className="card space-y-5">
         <h3 className="inline-flex items-center gap-2 text-lg font-semibold text-neutral-text">

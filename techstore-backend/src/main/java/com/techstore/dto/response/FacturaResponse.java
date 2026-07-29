@@ -14,7 +14,10 @@ public record FacturaResponse(
         BigDecimal subtotal,
         BigDecimal iva,
         BigDecimal total,
-        String estado) {
+        String estado,
+        /** RUC al que se emitió, o null si salió a consumidor final. */
+        String receptorRuc,
+        String receptorNombre) {
 
     public static FacturaResponse from(Factura factura) {
         return new FacturaResponse(
@@ -26,6 +29,8 @@ public record FacturaResponse(
                 factura.getSubtotal(),
                 factura.getIva(),
                 factura.getTotal(),
-                factura.getEstado().name());
+                factura.getEstado().name(),
+                factura.getReceptorRuc(),
+                factura.getReceptorNombre());
     }
 }
