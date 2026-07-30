@@ -125,7 +125,7 @@ class VentaDirectaServiceTest {
     void elCobroYLaFacturaLosHaceElMismoCaminoQueUnaVentaWeb() {
         prepararVentaFeliz();
         RegistroPagoRequest.Receptor receptor =
-                new RegistroPagoRequest.Receptor("80012345-0", "Ferretería Del Este SA", false);
+                new RegistroPagoRequest.Receptor("80012345-0", "Ferretería Del Este SA", null, false);
 
         ventaDirectaService.vender(
                 new VentaDirectaRequest(

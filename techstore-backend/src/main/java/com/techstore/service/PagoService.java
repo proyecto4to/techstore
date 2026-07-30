@@ -144,6 +144,13 @@ public class PagoService {
         String ruc = receptor == null ? null : RucParaguayo.normalizar(receptor.ruc());
         String razonSocial = receptor == null ? null : receptor.razonSocial();
 
+        // El correo es independiente del RUC: un cliente de mostrador puede querer
+        // su factura por correo aunque compre como consumidor final.
+        String email = receptor == null || receptor.email() == null || receptor.email().isBlank()
+                ? null
+                : receptor.email().trim();
+        factura.setReceptorEmail(email);
+
         if (ruc == null) {
             // Sin RUC en el cobro: se cae al de la cuenta del cliente, si tiene.
             ruc = RucParaguayo.normalizar(cliente.getRuc());
@@ -252,19 +259,27 @@ public class PagoService {
             log.warn("No se pudo generar el KuDE de la factura {} para adjuntarlo al correo: {}",
                     factura.getNumero(), ex.getMessage());
         }
+        // Si se informó el correo del receptor, la factura va ahí: en una venta de
+        // mostrador el pedido es del cajero, y el comprobante es del cliente.
+        boolean aReceptor = factura.getReceptorEmail() != null;
+        String destinatario = aReceptor ? factura.getReceptorEmail() : cliente.getEmail();
+        String nombre = aReceptor
+                ? (factura.getReceptorNombre() != null ? factura.getReceptorNombre() : "cliente")
+                : cliente.getNombre() + " " + cliente.getApellido();
+
         String cuerpo = emailTemplateService.construir(
                 TipoCorreo.FACTURA,
                 "¡Gracias por tu compra!",
-                cliente.getNombre(),
+                nombre,
                 "Adjuntamos la factura " + factura.getNumero() + " correspondiente a tu compra "
                         + "(pedido N.º " + pedido.getNumero() + ").",
                 "Total: Gs. " + factura.getTotal().toPlainString(),
-                "VER MIS PEDIDOS",
-                emailTemplateService.url("/pedidos"));
+                aReceptor ? null : "VER MIS PEDIDOS",
+                aReceptor ? null : emailTemplateService.url("/pedidos"));
         correoService.enviar(
                 TipoCorreo.FACTURA,
-                cliente.getEmail(),
-                cliente.getNombre() + " " + cliente.getApellido(),
+                destinatario,
+                nombre,
                 "Tu factura " + factura.getNumero() + " — TechStore",
                 cuerpo,
                 factura.getNumero(),

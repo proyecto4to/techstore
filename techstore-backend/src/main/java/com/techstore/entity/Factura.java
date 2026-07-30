@@ -55,6 +55,13 @@ public class Factura {
     @Column(name = "receptor_nombre", length = 255)
     private String receptorNombre;
 
+    /**
+     * Correo del receptor. Si está cargado se le manda ahí la factura y va en el
+     * dEmailRec del Documento Electrónico; si no, se usa el del dueño del pedido.
+     */
+    @Column(name = "receptor_email", length = 255)
+    private String receptorEmail;
+
     @Column(nullable = false, length = 10)
     private String tipo;
 

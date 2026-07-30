@@ -182,7 +182,10 @@ public class DocumentoElectronicoService {
             hijo(doc, g, "dDVRec", String.valueOf(RucParaguayo.dv(ruc)));
             hijo(doc, g, "dNomRec", factura.getReceptorNombre());
         }
-        hijo(doc, g, "dEmailRec", cliente.getEmail());
+        // El del receptor si se informó; si no, el del dueño del pedido.
+        hijo(doc, g, "dEmailRec", factura.getReceptorEmail() != null
+                ? factura.getReceptorEmail()
+                : cliente.getEmail());
     }
 
     private void agregarItem(Document doc, Element gDtip, PedidoDetalle detalle) {

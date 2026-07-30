@@ -203,7 +203,9 @@ public class KudeService {
                 : factura.getReceptorNombre()), F_NORMAL));
         der.addElement(new Paragraph("Dirección: —", F_NORMAL));
         der.addElement(new Paragraph("Teléfono: —", F_NORMAL));
-        der.addElement(new Paragraph("Correo Electrónico: " + cliente.getEmail(), F_NORMAL));
+        der.addElement(new Paragraph("Correo Electrónico: " + (factura.getReceptorEmail() != null
+                ? factura.getReceptorEmail()
+                : cliente.getEmail()), F_NORMAL));
         tabla.addCell(der);
 
         return tabla;

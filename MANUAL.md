@@ -48,9 +48,11 @@ usá **Admin → Venta directa**:
 
 1. Buscá el producto y presioná **Agregar** (una vez por unidad, o ajustá la
    cantidad en el carrito). Al lado del precio ves cuántas unidades hay.
-2. Cargá el pago igual que en un cobro normal: efectivo, transferencia o los
+2. Si el cliente quiere su factura por correo, escribí su dirección en
+   **Correo del cliente**. Si lo dejás vacío, la factura solo se imprime.
+3. Cargá el pago igual que en un cobro normal: efectivo, transferencia o los
    dos. Si el cliente necesita factura con RUC, tildá *Facturar con RUC*.
-3. **Registrar cobro**. En un solo paso se descuenta el stock, se registra el
+4. **Registrar cobro**. En un solo paso se descuenta el stock, se registra el
    ingreso en caja y se emite la factura, que podés imprimir ahí mismo.
 
 No hay que confirmar nada después: la mercadería sale en el momento, así que la

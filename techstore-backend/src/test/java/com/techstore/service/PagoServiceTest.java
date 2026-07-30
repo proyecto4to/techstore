@@ -11,6 +11,7 @@ import com.techstore.entity.Pedido;
 import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Producto;
 import com.techstore.entity.Rol;
+import com.techstore.entity.TipoCorreo;
 import com.techstore.entity.TipoPago;
 import com.techstore.entity.TipoPedido;
 import com.techstore.entity.Usuario;
@@ -182,13 +183,42 @@ class PagoServiceTest {
                 10L,
                 new RegistroPagoRequest(
                         List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
-                        new RegistroPagoRequest.Receptor("80012345-0", "Empresa Cliente SA", false)),
+                        new RegistroPagoRequest.Receptor("80012345-0", "Empresa Cliente SA", null, false)),
                 "cajero@techstore.py");
 
         assertEquals("80012345-0", response.factura().receptorRuc());
         assertEquals("Empresa Cliente SA", response.factura().receptorNombre());
         // No se pidió guardarlo, así que la cuenta del cliente queda intacta.
         assertNull(cliente.getRuc());
+    }
+
+    @Test
+    void conCorreoDeReceptorLaFacturaSeMandaAlClienteYNoAlDuenoDelPedido() {
+        prepararPagoFeliz();
+
+        PagoResponse response = pagoService.registrarPago(
+                10L,
+                new RegistroPagoRequest(
+                        List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
+                        new RegistroPagoRequest.Receptor(null, null, "mostrador@cliente.py", false)),
+                "cajero@techstore.py");
+
+        // El correo se guarda en la factura (también alimenta el dEmailRec del DE)
+        // y no hace falta RUC: puede ser un consumidor final que quiere su comprobante.
+        assertEquals("mostrador@cliente.py", response.factura().receptorEmail());
+        assertNull(response.factura().receptorRuc());
+        verify(correoService).enviar(
+                eq(TipoCorreo.FACTURA), eq("mostrador@cliente.py"), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void sinCorreoDeReceptorLaFacturaSigueYendoAlDuenoDelPedido() {
+        prepararPagoFeliz();
+
+        pagoService.registrarPago(10L, todoEfectivo(), "cajero@techstore.py");
+
+        verify(correoService).enviar(
+                eq(TipoCorreo.FACTURA), eq("cliente@techstore.py"), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -203,7 +233,7 @@ class PagoServiceTest {
                 10L,
                 new RegistroPagoRequest(
                         List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
-                        new RegistroPagoRequest.Receptor("80012345-6", null, false)),
+                        new RegistroPagoRequest.Receptor("80012345-6", null, null, false)),
                 "cajero@techstore.py"));
         verify(facturaRepository, never()).save(any());
     }
@@ -216,7 +246,7 @@ class PagoServiceTest {
                 10L,
                 new RegistroPagoRequest(
                         List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
-                        new RegistroPagoRequest.Receptor("80012345-0", "Empresa Cliente SA", true)),
+                        new RegistroPagoRequest.Receptor("80012345-0", "Empresa Cliente SA", null, true)),
                 "cajero@techstore.py");
 
         assertEquals("80012345-0", cliente.getRuc());

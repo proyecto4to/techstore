@@ -17,7 +17,8 @@ public record FacturaResponse(
         String estado,
         /** RUC al que se emitió, o null si salió a consumidor final. */
         String receptorRuc,
-        String receptorNombre) {
+        String receptorNombre,
+        String receptorEmail) {
 
     public static FacturaResponse from(Factura factura) {
         return new FacturaResponse(
@@ -31,6 +32,7 @@ public record FacturaResponse(
                 factura.getTotal(),
                 factura.getEstado().name(),
                 factura.getReceptorRuc(),
-                factura.getReceptorNombre());
+                factura.getReceptorNombre(),
+                factura.getReceptorEmail());
     }
 }

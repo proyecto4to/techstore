@@ -16,6 +16,7 @@ function AdminVentaDirectaPage() {
   const [busqueda, setBusqueda] = useState('')
   const [texto, setTexto] = useState('')
   const [carrito, setCarrito] = useState([])
+  const [emailCliente, setEmailCliente] = useState('')
   const [ultimaVenta, setUltimaVenta] = useState(null)
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
@@ -68,17 +69,28 @@ function AdminVentaDirectaPage() {
   const quitar = (productoId) =>
     setCarrito((actual) => actual.filter((i) => i.productoId !== productoId))
 
+  /**
+   * El correo del cliente viaja dentro del receptor, junto con el RUC si lo hay.
+   * Como el pedido queda a nombre del cajero, sin esto la factura le llegaría a él.
+   */
+  const conEmail = (receptor) => {
+    const email = emailCliente.trim()
+    if (!email) return receptor
+    return { ...(receptor ?? { ruc: null, razonSocial: null, guardarEnCliente: false }), email }
+  }
+
   const venderMutation = useMutation({
     mutationFn: ({ lineas, receptor }) =>
       ventaService.vender({
         items: carrito.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad })),
         lineas,
-        receptor,
+        receptor: conEmail(receptor),
       }),
     onSuccess: (pago) => {
       setError(null)
       setUltimaVenta(pago)
       setCarrito([])
+      setEmailCliente('')
       queryClient.invalidateQueries({ queryKey: ['venta-directa-productos'] })
       queryClient.invalidateQueries({ queryKey: ['admin-productos'] })
       queryClient.invalidateQueries({ queryKey: ['productos'] })
@@ -114,7 +126,9 @@ function AdminVentaDirectaPage() {
             {ultimaVenta.factura.receptorRuc
               ? `a ${ultimaVenta.factura.receptorNombre} (RUC ${ultimaVenta.factura.receptorRuc})`
               : 'a consumidor final'}
-            .
+            {ultimaVenta.factura.receptorEmail
+              ? `. Se le envió a ${ultimaVenta.factura.receptorEmail}.`
+              : '.'}
           </span>
           <button
             onClick={() => facturaService.abrirKude(ultimaVenta.factura.id)}
@@ -224,11 +238,32 @@ function AdminVentaDirectaPage() {
                 </tbody>
               </table>
 
+              <div className="mb-3">
+                <label
+                  className="mb-1 block text-sm font-medium text-neutral-text"
+                  htmlFor="email-cliente"
+                >
+                  📧 Correo del cliente (opcional)
+                </label>
+                <input
+                  id="email-cliente"
+                  type="email"
+                  value={emailCliente}
+                  onChange={(e) => setEmailCliente(e.target.value)}
+                  maxLength={255}
+                  placeholder="Para mandarle la factura; si lo dejás vacío, solo se imprime"
+                  className="input"
+                />
+              </div>
+
               <CobroPanel
                 total={total}
                 ocupado={venderMutation.isPending}
                 onCobrar={(lineas, receptor) => venderMutation.mutate({ lineas, receptor })}
-                onCancelar={() => setCarrito([])}
+                onCancelar={() => {
+                  setCarrito([])
+                  setEmailCliente('')
+                }}
               />
             </>
           )}
