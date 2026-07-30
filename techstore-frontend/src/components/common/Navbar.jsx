@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Menu, X, ShoppingCart, Zap } from 'lucide-react'
+import { Menu, X, ShoppingCart } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useCartStore, selectTotalItems } from '../../store/cartStore'
 
@@ -57,9 +57,8 @@ function Navbar() {
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 hover:opacity-80">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary-400 to-secondary-400 text-white">
-              <Zap size={20} />
-            </div>
+            {/* El mismo isotipo que va en la factura y en el favicon. */}
+            <img src="/isotipo.svg" alt="" width="40" height="40" className="h-10 w-10" />
             <h1 className="text-2xl font-bold gradient-text">TechStore</h1>
           </Link>
 

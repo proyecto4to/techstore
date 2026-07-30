@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Zap } from 'lucide-react'
 import { authService } from '../services/authService'
 import { useAuthStore } from '../store/authStore'
 
@@ -35,9 +34,7 @@ function LoginPage() {
     <div className="flex min-h-[80vh] items-center justify-center px-6">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg bg-gradient-to-br from-primary-400 to-secondary-400 text-white">
-            <Zap size={26} />
-          </div>
+          <img src="/isotipo.svg" alt="" width="56" height="56" className="mb-4 inline-block h-14 w-14" />
           <h1 className="text-3xl font-bold gradient-text">TechStore</h1>
           <p className="mt-2 text-neutral-secondary">Sistema de e-commerce profesional</p>
         </div>

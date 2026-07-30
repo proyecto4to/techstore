@@ -200,6 +200,23 @@ con el prefijo nuevo. Las ya emitidas no se tocan.
 Si dejás un campo vacío, vuelve al valor de fábrica que está en
 `techstore-backend/src/main/resources/application.properties`.
 
+### El logo
+
+El isotipo de TechStore (el rayo) sale impreso arriba del nombre en la factura,
+en la nota de crédito y en el KuDE. También es el ícono de la pestaña del
+navegador y el que se ve en la barra superior de la tienda.
+
+Si querés poner **tu propio logo**, reemplazá estos dos archivos por los tuyos:
+
+| Archivo | Para qué |
+|---|---|
+| `techstore-frontend/public/isotipo.svg` | La web (barra superior, login, ícono de la pestaña) |
+| `techstore-backend/src/main/resources/logo/isotipo.png` | Los PDF. Cuadrado, 512×512, fondo transparente |
+
+> Va aparte en PNG porque el generador de PDF no dibuja SVG. Si cambiás el SVG,
+> acordate de exportar también el PNG. Y si el archivo faltara, los documentos
+> se emiten igual, solo que sin logo.
+
 ## 11. Factura electrónica (SIFEN) — demostrativo
 
 En la pestaña **Facturas**, cada factura tiene además de su PDF dos botones:

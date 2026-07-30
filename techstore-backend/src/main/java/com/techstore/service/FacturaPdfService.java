@@ -1,9 +1,11 @@
 package com.techstore.service;
 
+import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
+import com.lowagie.text.Image;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
@@ -15,6 +17,7 @@ import com.techstore.entity.Factura;
 import com.techstore.entity.NotaCredito;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
+import com.techstore.util.LogoPdf;
 import com.techstore.util.NumeroALetras;
 import org.springframework.stereotype.Service;
 
@@ -129,6 +132,14 @@ public class FacturaPdfService {
         PdfPCell datosEmpresa = new PdfPCell();
         datosEmpresa.setBorderColor(GRIS_BORDE);
         datosEmpresa.setPadding(8);
+        // Isotipo encima del nombre; si no se pudo cargar, el encabezado sigue igual.
+        Image logo = LogoPdf.imagen(30f);
+        if (logo != null) {
+            Paragraph marca = new Paragraph();
+            marca.add(new Chunk(logo, 0, -8));
+            marca.setSpacingAfter(2);
+            datosEmpresa.addElement(marca);
+        }
         datosEmpresa.addElement(new Paragraph(empresa().nombre(), F_EMPRESA));
         datosEmpresa.addElement(new Paragraph(empresa().actividad(), F_CHICA));
         datosEmpresa.addElement(new Paragraph(empresa().direccion(), F_NORMAL));

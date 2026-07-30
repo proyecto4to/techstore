@@ -4,6 +4,7 @@ import com.google.zxing.BarcodeFormat;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
+import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
@@ -20,6 +21,7 @@ import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
 import com.techstore.service.EmpresaConfigService;
+import com.techstore.util.LogoPdf;
 import com.techstore.util.NumeroALetras;
 import com.techstore.util.RucParaguayo;
 import org.springframework.stereotype.Service;
@@ -154,6 +156,14 @@ public class KudeService {
         PdfPCell emisor = new PdfPCell();
         emisor.setPadding(8);
         emisor.setBorderColor(GRIS);
+        // Isotipo encima del nombre; si no se pudo cargar, la cabecera sigue igual.
+        Image logo = LogoPdf.imagen(30f);
+        if (logo != null) {
+            Paragraph marca = new Paragraph();
+            marca.add(new Chunk(logo, 0, -8));
+            marca.setSpacingAfter(2);
+            emisor.addElement(marca);
+        }
         emisor.addElement(new Paragraph(empresa().nombre(), F_EMPRESA));
         emisor.addElement(new Paragraph("Sistema de Facturación Electrónica", F_CHICA));
         emisor.addElement(new Paragraph(empresa().direccion(), F_NORMAL));
