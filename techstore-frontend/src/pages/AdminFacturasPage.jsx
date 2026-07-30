@@ -76,6 +76,7 @@ function AdminFacturasPage() {
                 <th>Factura</th>
                 <th>Tipo</th>
                 <th>Pedido</th>
+                <th>Emitida a</th>
                 <th>Fecha</th>
                 <th>Subtotal</th>
                 <th>IVA</th>
@@ -90,6 +91,16 @@ function AdminFacturasPage() {
                   <td className="font-mono font-semibold text-neutral-text">{factura.numero}</td>
                   <td className="text-neutral-secondary">{factura.tipo}</td>
                   <td>N.º {factura.pedidoNumero}</td>
+                  <td>
+                    {factura.receptorRuc ? (
+                      <>
+                        <span className="font-mono text-neutral-text">{factura.receptorRuc}</span>
+                        <span className="block text-xs text-neutral-muted">{factura.receptorNombre}</span>
+                      </>
+                    ) : (
+                      <span className="text-neutral-muted">Consumidor final</span>
+                    )}
+                  </td>
                   <td>{new Date(factura.fecha).toLocaleString('es-PY')}</td>
                   <td>{formatPrecio(factura.subtotal)}</td>
                   <td>{formatPrecio(factura.iva)}</td>

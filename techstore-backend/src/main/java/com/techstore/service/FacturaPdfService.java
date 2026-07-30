@@ -176,12 +176,18 @@ public class FacturaPdfService {
 
     private void agregarCliente(Document documento, Factura factura) throws DocumentException {
         Usuario cliente = factura.getPedido().getUsuario();
+        // El receptor tiene que ser el mismo que el de la factura: si se emitió a
+        // un RUC, la nota de crédito que la anula sale a ese mismo contribuyente.
+        String rucReceptor = factura.getReceptorRuc();
+        String nombreReceptor = rucReceptor == null
+                ? cliente.getNombre() + " " + cliente.getApellido()
+                : factura.getReceptorNombre();
 
         PdfPTable datos = new PdfPTable(new float[]{60, 40});
         datos.setWidthPercentage(100);
+        datos.addCell(celdaBordeada(new Phrase("Nombre o Razón Social: " + nombreReceptor, F_NORMAL)));
         datos.addCell(celdaBordeada(new Phrase(
-                "Nombre o Razón Social: " + cliente.getNombre() + " " + cliente.getApellido(), F_NORMAL)));
-        datos.addCell(celdaBordeada(new Phrase("RUC / C.I.: —", F_NORMAL)));
+                "RUC / C.I.: " + (rucReceptor == null ? "Consumidor final" : rucReceptor), F_NORMAL)));
         datos.addCell(celdaBordeada(new Phrase("Email: " + cliente.getEmail(), F_NORMAL)));
         datos.addCell(celdaBordeada(new Phrase(
                 "Pedido asociado: N.º " + factura.getPedido().getNumero(), F_NORMAL)));
