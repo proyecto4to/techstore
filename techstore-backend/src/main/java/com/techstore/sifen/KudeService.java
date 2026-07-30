@@ -19,6 +19,7 @@ import com.techstore.entity.Factura;
 import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
+import com.techstore.service.EmpresaConfigService;
 import com.techstore.util.NumeroALetras;
 import com.techstore.util.RucParaguayo;
 import org.springframework.stereotype.Service;
@@ -70,14 +71,19 @@ public class KudeService {
     private static final Font F_MINI = new Font(Font.HELVETICA, 7, Font.NORMAL, NEGRO);
     private static final Font F_CHICA = new Font(Font.HELVETICA, 8, Font.NORMAL, GRIS);
 
-    private final EmpresaProperties empresa;
+    private final EmpresaConfigService empresaConfig;
     private final NumberFormat formato;
 
-    public KudeService(EmpresaProperties empresa) {
-        this.empresa = empresa;
+    public KudeService(EmpresaConfigService empresaConfig) {
+        this.empresaConfig = empresaConfig;
         this.formato = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-PY"));
         this.formato.setMaximumFractionDigits(2);
         this.formato.setMinimumFractionDigits(0);
+    }
+
+    /** Datos vigentes del emisor (editables desde la app). */
+    private EmpresaProperties empresa() {
+        return empresaConfig.actual();
     }
 
     public byte[] generar(Factura factura, String cdc, String xmlFirmado) {
@@ -148,19 +154,19 @@ public class KudeService {
         PdfPCell emisor = new PdfPCell();
         emisor.setPadding(8);
         emisor.setBorderColor(GRIS);
-        emisor.addElement(new Paragraph(empresa.nombre(), F_EMPRESA));
+        emisor.addElement(new Paragraph(empresa().nombre(), F_EMPRESA));
         emisor.addElement(new Paragraph("Sistema de Facturación Electrónica", F_CHICA));
-        emisor.addElement(new Paragraph(empresa.direccion(), F_NORMAL));
-        emisor.addElement(new Paragraph("Ciudad: " + empresa.ciudad(), F_NORMAL));
-        emisor.addElement(new Paragraph("Teléfono: " + empresa.telefono(), F_NORMAL));
-        emisor.addElement(new Paragraph("Actividad económica: " + empresa.actividad(), F_NORMAL));
+        emisor.addElement(new Paragraph(empresa().direccion(), F_NORMAL));
+        emisor.addElement(new Paragraph("Ciudad: " + empresa().ciudad(), F_NORMAL));
+        emisor.addElement(new Paragraph("Teléfono: " + empresa().telefono(), F_NORMAL));
+        emisor.addElement(new Paragraph("Actividad económica: " + empresa().actividad(), F_NORMAL));
         tabla.addCell(emisor);
 
         PdfPCell timbrado = new PdfPCell();
         timbrado.setPadding(8);
         timbrado.setBorderColor(GRIS);
-        timbrado.addElement(parrafo("RUC: " + empresa.ruc(), F_NEGRITA, Element.ALIGN_LEFT));
-        timbrado.addElement(parrafo("Timbrado N.º: " + empresa.timbrado(), F_NORMAL, Element.ALIGN_LEFT));
+        timbrado.addElement(parrafo("RUC: " + empresa().ruc(), F_NEGRITA, Element.ALIGN_LEFT));
+        timbrado.addElement(parrafo("Timbrado N.º: " + empresa().timbrado(), F_NORMAL, Element.ALIGN_LEFT));
         timbrado.addElement(parrafo("Fecha de Inicio de Vigencia: " + fechaVigencia(), F_NORMAL, Element.ALIGN_LEFT));
         timbrado.addElement(parrafo(" ", F_MINI, Element.ALIGN_LEFT));
         timbrado.addElement(parrafo("FACTURA ELECTRÓNICA", F_TITULO, Element.ALIGN_CENTER));
@@ -347,9 +353,9 @@ public class KudeService {
 
     private String fechaVigencia() {
         try {
-            return LocalDate.parse(empresa.timbradoInicioVigencia()).format(FECHA);
+            return LocalDate.parse(empresa().timbradoInicioVigencia()).format(FECHA);
         } catch (Exception ex) {
-            return empresa.timbradoInicioVigencia();
+            return empresa().timbradoInicioVigencia();
         }
     }
 

@@ -7,6 +7,7 @@ import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
 import AdminTabs from '../components/admin/AdminTabs'
 import PedidoDetallePanel from '../components/admin/PedidoDetallePanel'
+import CobroPanel from '../components/admin/CobroPanel'
 
 const PROVEEDOR_VACIO = { razonSocial: '', ruc: '', telefono: '', email: '' }
 
@@ -27,7 +28,7 @@ function AdminComprasPage() {
   const [mostrarNuevoProveedor, setMostrarNuevoProveedor] = useState(false)
   const [nuevoProveedor, setNuevoProveedor] = useState(PROVEEDOR_VACIO)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
-  const [medioPago, setMedioPago] = useState({})
+  const [pagoCompraId, setPagoCompraId] = useState(null)
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
@@ -110,10 +111,12 @@ function AdminComprasPage() {
   })
 
   const pagarMutation = useMutation({
-    mutationFn: ({ id, medio }) => compraService.pagar(id, medio),
-    onSuccess: (compra) => {
+    mutationFn: ({ id, lineas }) => compraService.pagar(id, lineas),
+    onSuccess: (compra, { lineas }) => {
       setError(null)
-      setMensaje(`Compra N.º ${compra.numero} pagada (${formatPrecio(compra.total)}): egreso registrado en caja.`)
+      const detalle = lineas.map((l) => `${l.tipoPago} ${formatPrecio(l.monto)}`).join(' + ')
+      setMensaje(`Compra N.º ${compra.numero} pagada (${detalle}): egreso registrado en caja.`)
+      setPagoCompraId(null)
       refrescar()
     },
     onError,
@@ -333,26 +336,15 @@ function AdminComprasPage() {
                               <Wallet size={14} /> Pagada ✓
                             </span>
                           ) : compra.estado !== 'X' ? (
-                            <span className="inline-flex items-center gap-1">
-                              <select
-                                value={medioPago[compra.id] ?? 'Efectivo'}
-                                onChange={(e) => setMedioPago({ ...medioPago, [compra.id]: e.target.value })}
-                                className="input py-1 text-sm"
-                                aria-label="Medio de pago de la compra"
-                              >
-                                <option value="Efectivo">Efectivo</option>
-                                <option value="Transferencia">Transferencia</option>
-                              </select>
-                              <button
-                                onClick={() =>
-                                  pagarMutation.mutate({ id: compra.id, medio: medioPago[compra.id] ?? 'Efectivo' })
-                                }
-                                disabled={pagarMutation.isPending}
-                                className="btn btn-secondary inline-flex items-center gap-1 text-sm"
-                              >
-                                <Wallet size={14} /> Pagar
-                              </button>
-                            </span>
+                            <button
+                              onClick={() =>
+                                setPagoCompraId(pagoCompraId === compra.id ? null : compra.id)
+                              }
+                              disabled={pagarMutation.isPending}
+                              className="btn btn-secondary inline-flex items-center gap-1 text-sm"
+                            >
+                              <Wallet size={14} /> {pagoCompraId === compra.id ? 'Cerrar pago' : 'Pagar'}
+                            </button>
                           ) : null}
 
                           {compra.estado === 'P' && !compra.pagada && (
@@ -371,6 +363,20 @@ function AdminComprasPage() {
                       <tr>
                         <td colSpan={6} className="bg-dark-bg/30 p-3">
                           <PedidoDetallePanel pedidoId={compra.id} />
+                        </td>
+                      </tr>
+                    )}
+                    {pagoCompraId === compra.id && !compra.pagada && compra.estado !== 'X' && (
+                      <tr>
+                        <td colSpan={6} className="bg-dark-bg/30 p-3">
+                          <CobroPanel
+                            total={compra.total}
+                            ocupado={pagarMutation.isPending}
+                            pedirRuc={false}
+                            textoBoton="💸 Registrar pago"
+                            onCobrar={(lineas) => pagarMutation.mutate({ id: compra.id, lineas })}
+                            onCancelar={() => setPagoCompraId(null)}
+                          />
                         </td>
                       </tr>
                     )}
@@ -398,7 +404,7 @@ function AdminComprasPage() {
         Flujo: registrás la compra (queda Pendiente, sin tocar stock) →{' '}
         <strong className="text-neutral-secondary">Recibir</strong> suma las cantidades al stock real →{' '}
         <strong className="text-neutral-secondary">Pagar</strong> registra el egreso al proveedor en la caja
-        (elegí Efectivo o Transferencia). Recibir y Pagar son independientes.
+        (podés repartirlo entre efectivo y transferencia). Recibir y Pagar son independientes.
       </p>
     </div>
   )

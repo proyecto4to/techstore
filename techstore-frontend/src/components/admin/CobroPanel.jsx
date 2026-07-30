@@ -2,10 +2,20 @@ import { useState } from 'react'
 import { formatPrecio } from '../../utils/format'
 
 /**
- * Panel de cobro de un pedido con pago mixto: efectivo y/o transferencia.
- * La suma debe igualar el total antes de habilitar el registro.
+ * Pago mixto: efectivo y/o transferencia, cuya suma debe igualar el total.
+ * Se usa para cobrar una venta y también para pagarle a un proveedor; en ese
+ * caso no hay factura que emitir, así que se oculta la parte del RUC.
  */
-function CobroPanel({ total, onCobrar, onCancelar, ocupado, clienteRuc, clienteRazonSocial }) {
+function CobroPanel({
+  total,
+  onCobrar,
+  onCancelar,
+  ocupado,
+  clienteRuc,
+  clienteRazonSocial,
+  pedirRuc = true,
+  textoBoton = '💵 Registrar cobro',
+}) {
   const [efectivo, setEfectivo] = useState('')
   const [transferencia, setTransferencia] = useState('')
   const [comprobante, setComprobante] = useState('')
@@ -20,7 +30,7 @@ function CobroPanel({ total, onCobrar, onCancelar, ocupado, clienteRuc, clienteR
   const suma = nEfectivo + nTransferencia
   const restante = Math.round((total - suma) * 100) / 100
   const montosOk = Math.abs(restante) < 0.005 && suma > 0
-  const rucOk = !conRuc || ruc.trim() !== ''
+  const rucOk = !pedirRuc || !conRuc || ruc.trim() !== ''
   const valido = montosOk && rucOk
 
   const registrar = () => {
@@ -35,10 +45,11 @@ function CobroPanel({ total, onCobrar, onCancelar, ocupado, clienteRuc, clienteR
         numeroComprobante: comprobante.trim() || null,
       })
     }
-    // receptor null = factura a consumidor final
-    const receptor = conRuc
-      ? { ruc: ruc.trim(), razonSocial: razonSocial.trim() || null, guardarEnCliente }
-      : null
+    // receptor null = factura a consumidor final (o pago a proveedor, que no factura)
+    const receptor =
+      pedirRuc && conRuc
+        ? { ruc: ruc.trim(), razonSocial: razonSocial.trim() || null, guardarEnCliente }
+        : null
     onCobrar(lineas, receptor)
   }
 
@@ -111,6 +122,7 @@ function CobroPanel({ total, onCobrar, onCancelar, ocupado, clienteRuc, clienteR
         )}
       </div>
 
+      {pedirRuc && (
       <div className="mb-3 rounded-md border border-dark-border p-3">
         <label className="flex items-center gap-2 text-sm font-medium text-neutral-text">
           <input
@@ -165,6 +177,7 @@ function CobroPanel({ total, onCobrar, onCancelar, ocupado, clienteRuc, clienteR
           </div>
         )}
       </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-4">
         <p className={`text-sm font-semibold ${valido ? 'text-emerald-400' : 'text-yellow-400'}`}>
@@ -192,7 +205,7 @@ function CobroPanel({ total, onCobrar, onCancelar, ocupado, clienteRuc, clienteR
           }
           className="btn btn-primary text-sm disabled:cursor-not-allowed"
         >
-          💵 Registrar cobro
+          {textoBoton}
         </button>
         <button onClick={onCancelar} className="btn btn-secondary text-sm">
           Cancelar

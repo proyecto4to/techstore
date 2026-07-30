@@ -13,6 +13,7 @@ import com.techstore.entity.Pedido;
 import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Producto;
 import com.techstore.entity.Usuario;
+import com.techstore.config.EmpresaProperties;
 import com.techstore.exception.BusinessException;
 import com.techstore.exception.ResourceNotFoundException;
 import com.techstore.repository.FacturaRepository;
@@ -58,6 +59,7 @@ public class NotaCreditoService {
     private final AutonumeradorService autonumeradorService;
     private final CajaService cajaService;
     private final FacturaPdfService facturaPdfService;
+    private final EmpresaConfigService empresaConfig;
 
     @Transactional
     public NotaCreditoResponse emitir(Long pedidoId, EmitirNotaCreditoRequest request, String emailUsuario) {
@@ -90,7 +92,11 @@ public class NotaCreditoService {
         productoRepository.findAllForUpdate(aDevolver.keySet());
 
         NotaCredito nc = new NotaCredito();
-        nc.setNumero("001-001-%07d".formatted(autonumeradorService.siguiente(ENTIDAD_NC)));
+        // Mismo prefijo que las facturas: sale de los datos de la empresa.
+        EmpresaProperties empresa = empresaConfig.actual();
+        nc.setNumero("%s-%s-%07d".formatted(
+                empresa.establecimiento(), empresa.puntoExpedicion(),
+                autonumeradorService.siguiente(ENTIDAD_NC)));
         nc.setFactura(factura);
         nc.setPedido(pedido);
         nc.setMotivo(request.motivo().trim());

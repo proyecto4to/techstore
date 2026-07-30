@@ -57,10 +57,11 @@ public class CompraController {
 
     @PutMapping("/{id}/pagar")
     @Operation(summary = "Pagar la compra al proveedor",
-            description = "Registra el pago al proveedor como egreso en caja con el medio indicado")
+            description = "Registra el pago como egreso en caja. Puede repartirse entre efectivo y "
+                    + "transferencia; la suma debe igualar el total de la compra")
     public CompraResumenResponse pagar(
             @PathVariable Long id, @Valid @RequestBody PagoCompraRequest request, Authentication auth) {
-        return compraService.pagar(id, request.medio(), auth.getName());
+        return compraService.pagar(id, request.lineas(), auth.getName());
     }
 
     @PutMapping("/{id}/anular")

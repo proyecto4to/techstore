@@ -38,8 +38,9 @@ export const compraService = {
     return data
   },
 
-  async pagar(id, medio) {
-    const { data } = await api.put(`/compras/${id}/pagar`, { medio })
+  /** Puede repartirse entre efectivo y transferencia; la suma debe dar el total. */
+  async pagar(id, lineas) {
+    const { data } = await api.put(`/compras/${id}/pagar`, { lineas })
     return data
   },
 

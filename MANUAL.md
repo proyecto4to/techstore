@@ -98,8 +98,11 @@ En Admin → Compras:
 1. Elegí el proveedor (o creálo ahí mismo con *+ Nuevo proveedor*).
 2. Agregá los productos con la **cantidad** y el **costo unitario** que te cobra el proveedor.
 3. *Registrar compra* — queda **Pendiente**, el stock todavía no cambia.
-4. Cuando llega la mercadería: botón **Recibir** → el stock real sube solo y, en el
-   mismo paso, el pago al proveedor se anota como **egreso en la caja**.
+4. Cuando llega la mercadería: botón **Recibir** → el stock real sube solo.
+5. Botón **Pagar**: podés pagarle **todo en efectivo, todo por transferencia o
+   repartido entre los dos**. Cada parte se anota como un egreso separado en la
+   caja, para que el arqueo distinga lo que salió del cajón de lo que salió del
+   banco. *Recibir* y *Pagar* son independientes: podés hacer uno sin el otro.
 
 ## 6. Caja
 
@@ -175,19 +178,27 @@ Admin → Reportes, con filtro por fechas (Hoy / 7 días / 30 días / Todo):
 ## 10. Datos fiscales de la factura
 
 La factura sale con formato oficial DNIT (timbrado, condición de venta,
-columnas de IVA, total en letras). Los datos de la empresa se configuran en
-`techstore-backend/src/main/resources/application.properties`:
+columnas de IVA, total en letras). Los datos del **emisor** —los tuyos, los que
+salen impresos y viajan dentro del Documento Electrónico— se editan desde
+**Admin → Empresa**, sin tocar ningún archivo:
 
-```properties
-empresa.nombre=TechStore Paraguay
-empresa.ruc=80012345-6            ← poné tu RUC real
-empresa.timbrado=12345678         ← tu timbrado real
-empresa.timbrado-vigencia=01/01/2026 al 31/12/2026
-empresa.direccion=...             (usar ñ para ñ, á para á, ó para ó)
-```
+- **Datos generales**: nombre o razón social, RUC, dirección, ciudad, teléfono
+  y actividad económica.
+- **Timbrado**: número, vigencia impresa y fecha de inicio.
+- **Datos fiscales del DE**: tipo de contribuyente, establecimiento, punto de
+  expedición y los códigos de actividad, departamento, distrito y ciudad que
+  exige el SIFEN. Si no estás seguro de esos códigos, dejalos como están.
 
-> ⚠️ Los valores de fábrica son de demostración. Antes de facturar de
-> verdad, reemplazalos por los datos del contribuyente.
+El **establecimiento** y el **punto de expedición** son los que forman el número
+de tus facturas (`001-001-0000001`): si los cambiás, las facturas nuevas salen
+con el prefijo nuevo. Las ya emitidas no se tocan.
+
+> ⚠️ Los valores de fábrica son de demostración. Antes de facturar de verdad,
+> reemplazalos por los datos del contribuyente. Ojo con el **dígito verificador
+> del RUC**: el de demostración (`80012345-6`) es inventado.
+
+Si dejás un campo vacío, vuelve al valor de fábrica que está en
+`techstore-backend/src/main/resources/application.properties`.
 
 ## 11. Factura electrónica (SIFEN) — demostrativo
 

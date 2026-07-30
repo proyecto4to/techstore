@@ -5,6 +5,7 @@ import com.techstore.entity.Factura;
 import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
+import com.techstore.service.EmpresaConfigService;
 import com.techstore.util.RucParaguayo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,7 +39,12 @@ public class DocumentoElectronicoService {
     private static final DateTimeFormatter D = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final BigDecimal CIEN = BigDecimal.valueOf(100);
 
-    private final EmpresaProperties empresa;
+    private final EmpresaConfigService empresaConfig;
+
+    /** Datos vigentes del emisor (editables desde la app). */
+    private EmpresaProperties empresa() {
+        return empresaConfig.actual();
+    }
 
     /** Resultado: el CDC calculado y el XML del documento electrónico. */
     public record DocumentoElectronico(String cdc, String xml) {
@@ -55,8 +61,8 @@ public class DocumentoElectronicoService {
     }
 
     private DocumentoElectronico construir(Factura factura) throws Exception {
-        String establecimiento = empresa.establecimiento();
-        String puntoExpedicion = empresa.puntoExpedicion();
+        String establecimiento = empresa().establecimiento();
+        String puntoExpedicion = empresa().puntoExpedicion();
         // El número del CDC/timbrado usa 7 dígitos; tomamos el correlativo de la factura.
         String numeroDoc = String.format("%07d", numeroCorrelativo(factura));
         // Se fija al emitir la factura: si se regenerara acá, el CDC (y con él el QR y
@@ -66,8 +72,8 @@ public class DocumentoElectronicoService {
                 : factura.getCodigoSeguridad();
 
         String cdc = CodigoControl.generar(
-                TIPO_DOC_FE, empresa.rucNumero(), empresa.rucDv(), establecimiento, puntoExpedicion,
-                numeroDoc, empresa.tipoContribuyente(), factura.getFecha().toLocalDate(), 1, codigoSeguridad);
+                TIPO_DOC_FE, empresa().rucNumero(), empresa().rucDv(), establecimiento, puntoExpedicion,
+                numeroDoc, empresa().tipoContribuyente(), factura.getFecha().toLocalDate(), 1, codigoSeguridad);
 
         Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
         Element rDE = doc.createElementNS(NS, "rDE");
@@ -90,11 +96,11 @@ public class DocumentoElectronicoService {
         Element gTimb = hijo(doc, de, "gTimb", null);
         hijo(doc, gTimb, "iTiDE", "1");
         hijo(doc, gTimb, "dDesTiDE", "Factura electrónica");
-        hijo(doc, gTimb, "dNumTim", empresa.timbrado());
+        hijo(doc, gTimb, "dNumTim", empresa().timbrado());
         hijo(doc, gTimb, "dEst", establecimiento);
         hijo(doc, gTimb, "dPunExp", puntoExpedicion);
         hijo(doc, gTimb, "dNumDoc", numeroDoc);
-        hijo(doc, gTimb, "dFeIniT", empresa.timbradoInicioVigencia());
+        hijo(doc, gTimb, "dFeIniT", empresa().timbradoInicioVigencia());
 
         // gDatGralOpe — datos generales
         Element gDat = hijo(doc, de, "gDatGralOpe", null);
@@ -138,22 +144,22 @@ public class DocumentoElectronicoService {
 
     private void agregarEmisor(Document doc, Element gDat) {
         Element g = hijo(doc, gDat, "gEmis", null);
-        hijo(doc, g, "dRucEm", empresa.rucNumero());
-        hijo(doc, g, "dDVEmi", String.valueOf(empresa.rucDv()));
-        hijo(doc, g, "iTipCont", String.valueOf(empresa.tipoContribuyente()));
-        hijo(doc, g, "dNomEmi", empresa.nombre());
-        hijo(doc, g, "dDirEmi", empresa.direccion());
+        hijo(doc, g, "dRucEm", empresa().rucNumero());
+        hijo(doc, g, "dDVEmi", String.valueOf(empresa().rucDv()));
+        hijo(doc, g, "iTipCont", String.valueOf(empresa().tipoContribuyente()));
+        hijo(doc, g, "dNomEmi", empresa().nombre());
+        hijo(doc, g, "dDirEmi", empresa().direccion());
         hijo(doc, g, "dNumCas", "0");
-        hijo(doc, g, "cDepEmi", empresa.departamentoCodigo());
-        hijo(doc, g, "dDesDepEmi", empresa.departamentoNombre());
-        hijo(doc, g, "cDisEmi", empresa.distritoCodigo());
-        hijo(doc, g, "dDesDisEmi", empresa.distritoNombre());
-        hijo(doc, g, "cCiuEmi", empresa.ciudadCodigo());
-        hijo(doc, g, "dDesCiuEmi", empresa.ciudadNombre());
-        hijo(doc, g, "dTelEmi", empresa.telefono());
+        hijo(doc, g, "cDepEmi", empresa().departamentoCodigo());
+        hijo(doc, g, "dDesDepEmi", empresa().departamentoNombre());
+        hijo(doc, g, "cDisEmi", empresa().distritoCodigo());
+        hijo(doc, g, "dDesDisEmi", empresa().distritoNombre());
+        hijo(doc, g, "cCiuEmi", empresa().ciudadCodigo());
+        hijo(doc, g, "dDesCiuEmi", empresa().ciudadNombre());
+        hijo(doc, g, "dTelEmi", empresa().telefono());
         Element gAct = hijo(doc, g, "gActEco", null);
-        hijo(doc, gAct, "cActEco", empresa.actividadCodigo());
-        hijo(doc, gAct, "dDesActEco", empresa.actividad());
+        hijo(doc, gAct, "cActEco", empresa().actividadCodigo());
+        hijo(doc, gAct, "dDesActEco", empresa().actividad());
     }
 
     private void agregarReceptor(Document doc, Element gDat, Factura factura) {

@@ -10,6 +10,7 @@ const tabs = [
   { to: '/admin/facturas', label: 'Facturas' },
   { to: '/admin/caja', label: 'Caja' },
   { to: '/admin/usuarios', label: 'Usuarios', soloAdmin: true },
+  { to: '/admin/empresa', label: 'Empresa', soloAdmin: true },
   { to: '/admin/correos', label: 'Correos' },
   { to: '/admin/reportes', label: 'Reportes' },
 ]

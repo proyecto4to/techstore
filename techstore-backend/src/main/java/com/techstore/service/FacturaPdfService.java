@@ -53,14 +53,19 @@ public class FacturaPdfService {
     private static final BigDecimal ONCE = BigDecimal.valueOf(11);
     private static final BigDecimal VEINTIUNO = BigDecimal.valueOf(21);
 
-    private final EmpresaProperties empresa;
+    private final EmpresaConfigService empresaConfig;
     private final NumberFormat formatoNumero;
 
-    public FacturaPdfService(EmpresaProperties empresa) {
-        this.empresa = empresa;
+    public FacturaPdfService(EmpresaConfigService empresaConfig) {
+        this.empresaConfig = empresaConfig;
         this.formatoNumero = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-PY"));
         this.formatoNumero.setMaximumFractionDigits(2);
         this.formatoNumero.setMinimumFractionDigits(0);
+    }
+
+    /** Datos vigentes del emisor (editables desde la app). */
+    private EmpresaProperties empresa() {
+        return empresaConfig.actual();
     }
 
     /** Una línea imprimible de la factura o nota de crédito. */
@@ -124,24 +129,24 @@ public class FacturaPdfService {
         PdfPCell datosEmpresa = new PdfPCell();
         datosEmpresa.setBorderColor(GRIS_BORDE);
         datosEmpresa.setPadding(8);
-        datosEmpresa.addElement(new Paragraph(empresa.nombre(), F_EMPRESA));
-        datosEmpresa.addElement(new Paragraph(empresa.actividad(), F_CHICA));
-        datosEmpresa.addElement(new Paragraph(empresa.direccion(), F_NORMAL));
-        datosEmpresa.addElement(new Paragraph(empresa.ciudad(), F_NORMAL));
-        datosEmpresa.addElement(new Paragraph("Tel.: " + empresa.telefono(), F_NORMAL));
+        datosEmpresa.addElement(new Paragraph(empresa().nombre(), F_EMPRESA));
+        datosEmpresa.addElement(new Paragraph(empresa().actividad(), F_CHICA));
+        datosEmpresa.addElement(new Paragraph(empresa().direccion(), F_NORMAL));
+        datosEmpresa.addElement(new Paragraph(empresa().ciudad(), F_NORMAL));
+        datosEmpresa.addElement(new Paragraph("Tel.: " + empresa().telefono(), F_NORMAL));
         encabezado.addCell(datosEmpresa);
 
         PdfPCell cajaTimbrado = new PdfPCell();
         cajaTimbrado.setBorderColor(GRIS_BORDE);
         cajaTimbrado.setPadding(8);
         cajaTimbrado.setHorizontalAlignment(Element.ALIGN_CENTER);
-        Paragraph ruc = new Paragraph("RUC: " + empresa.ruc(), F_NEGRITA);
+        Paragraph ruc = new Paragraph("RUC: " + empresa().ruc(), F_NEGRITA);
         ruc.setAlignment(Element.ALIGN_CENTER);
         cajaTimbrado.addElement(ruc);
-        Paragraph timbrado = new Paragraph("TIMBRADO N.º " + empresa.timbrado(), F_NEGRITA);
+        Paragraph timbrado = new Paragraph("TIMBRADO N.º " + empresa().timbrado(), F_NEGRITA);
         timbrado.setAlignment(Element.ALIGN_CENTER);
         cajaTimbrado.addElement(timbrado);
-        Paragraph vigencia = new Paragraph("Vigencia: " + empresa.timbradoVigencia(), F_CHICA);
+        Paragraph vigencia = new Paragraph("Vigencia: " + empresa().timbradoVigencia(), F_CHICA);
         vigencia.setAlignment(Element.ALIGN_CENTER);
         cajaTimbrado.addElement(vigencia);
         Paragraph titulo = new Paragraph(tituloDoc, F_TITULO);

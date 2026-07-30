@@ -68,11 +68,12 @@ class NotaCreditoServiceTest {
     @Mock
     private CajaService cajaService;
 
-    private final FacturaPdfService facturaPdfService = new FacturaPdfService(new EmpresaProperties(
-            "TechStore Paraguay", "80012345-6", "Avda. España 1234 c/ Brasil", "Asunción, Paraguay",
-            "(021) 555-123", "Venta de equipos e insumos informáticos", "12345678",
-            "01/01/2026 al 31/12/2026",
-            2, "001", "001", "47411", "11", "CENTRAL", "1", "ASUNCION", "1", "ASUNCION", "2026-01-01"));
+    private final FacturaPdfService facturaPdfService = new FacturaPdfService(
+            FacturaPdfServiceTest.configConEmisor(new EmpresaProperties(
+                    "TechStore Paraguay", "80012345-6", "Avda. España 1234 c/ Brasil", "Asunción, Paraguay",
+                    "(021) 555-123", "Venta de equipos e insumos informáticos", "12345678",
+                    "01/01/2026 al 31/12/2026",
+                    2, "001", "001", "47411", "11", "CENTRAL", "1", "ASUNCION", "1", "ASUNCION", "2026-01-01")));
 
     private NotaCreditoService notaCreditoService;
     private Usuario cajero;
@@ -85,7 +86,10 @@ class NotaCreditoServiceTest {
     void setUp() {
         notaCreditoService = new NotaCreditoService(
                 notaCreditoRepository, notaCreditoDetalleRepository, pedidoRepository, facturaRepository,
-                productoRepository, usuarioRepository, autonumeradorService, cajaService, facturaPdfService);
+                productoRepository, usuarioRepository, autonumeradorService, cajaService, facturaPdfService,
+                FacturaPdfServiceTest.configConEmisor(new EmpresaProperties(
+                        "TechStore Paraguay", "80012345-0", null, null, null, null, "12345678", null,
+                        2, "001", "001", null, null, null, null, null, null, null, "2026-01-01")));
 
         Rol rol = new Rol();
         rol.setNombre("Cajero");

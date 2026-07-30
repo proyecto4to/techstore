@@ -14,6 +14,7 @@ import com.techstore.entity.TipoCorreo;
 import com.techstore.entity.TipoPago;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
+import com.techstore.config.EmpresaProperties;
 import com.techstore.exception.ResourceNotFoundException;
 import com.techstore.repository.FacturaRepository;
 import com.techstore.repository.PagoRepository;
@@ -60,6 +61,7 @@ public class PagoService {
     private final CajaService cajaService;
     private final CorreoService correoService;
     private final EmailTemplateService emailTemplateService;
+    private final EmpresaConfigService empresaConfig;
     private final FacturaElectronicaService facturaElectronicaService;
 
     /**
@@ -103,7 +105,12 @@ public class PagoService {
         BigDecimal iva = calcularIvaIncluido(pedido);
 
         Factura factura = new Factura();
-        factura.setNumero("001-001-%07d".formatted(autonumeradorService.siguiente(ENTIDAD_FACTURA)));
+        // El prefijo sale de los datos del emisor: tiene que coincidir con el que
+        // el CDC arma con el establecimiento y el punto de expedición.
+        EmpresaProperties emisor = empresaConfig.actual();
+        factura.setNumero("%s-%s-%07d".formatted(
+                emisor.establecimiento(), emisor.puntoExpedicion(),
+                autonumeradorService.siguiente(ENTIDAD_FACTURA)));
         // Parte del CDC: se fija ahora para que el documento electrónico sea siempre el mismo.
         factura.setCodigoSeguridad(CodigoControl.generarCodigoSeguridad());
         factura.setTipo(TIPO_FACTURA_CONTADO);

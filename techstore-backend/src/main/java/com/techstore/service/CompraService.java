@@ -1,6 +1,7 @@
 package com.techstore.service;
 
 import com.techstore.dto.request.CompraRequest;
+import com.techstore.dto.request.RegistroPagoRequest;
 import com.techstore.dto.response.CompraResumenResponse;
 import com.techstore.dto.response.PageResponse;
 import com.techstore.entity.EstadoPedido;
@@ -24,8 +25,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -36,6 +41,10 @@ import java.util.stream.Collectors;
 public class CompraService {
 
     private static final String ENTIDAD_PEDIDO = "PEDIDO";
+
+    /** Métodos habilitados, igual que en el cobro de ventas: Tarjeta y Cheque quedan fuera. */
+    private static final Set<TipoPago> METODOS_HABILITADOS =
+            EnumSet.of(TipoPago.Efectivo, TipoPago.Transferencia);
 
     private final PedidoRepository pedidoRepository;
     private final ProductoRepository productoRepository;
@@ -124,7 +133,7 @@ public class CompraService {
      * independiente de la recepción: se puede pagar antes o después de recibir.
      */
     @Transactional
-    public CompraResumenResponse pagar(Long id, TipoPago medio, String emailUsuario) {
+    public CompraResumenResponse pagar(Long id, List<RegistroPagoRequest.LineaPago> lineas, String emailUsuario) {
         Pedido pedido = buscarCompra(id);
         if (pedido.getEstado() == EstadoPedido.X) {
             throw new BusinessException("No se puede pagar una compra anulada");
@@ -132,25 +141,52 @@ public class CompraService {
         if (Boolean.TRUE.equals(pedido.getPagada())) {
             throw new BusinessException("La compra N.º %d ya está pagada".formatted(pedido.getNumero()));
         }
-        if (medio != TipoPago.Efectivo && medio != TipoPago.Transferencia) {
-            throw new BusinessException(
-                    "Medio de pago no permitido: %s. Solo se aceptan Efectivo y Transferencia.".formatted(medio));
-        }
+        validarLineas(lineas, pedido.getTotal());
+
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
 
         pedido.setPagada(true);
         CompraResumenResponse respuesta = CompraResumenResponse.from(pedidoRepository.save(pedido));
 
+        // Un egreso por medio, para que el cierre concilie el efectivo del cajón
+        // aparte de lo que salió por el banco.
         String proveedor = pedido.getProveedor() != null ? pedido.getProveedor().getRazonSocial() : "proveedor";
-        cajaService.registrarEgresoAutomatico(
-                pedido.getTotal(),
-                "Pago a proveedor %s — Compra N.º %d (%s)".formatted(proveedor, pedido.getNumero(), medio),
-                "COMPRA-" + pedido.getNumero(),
-                usuario,
-                medio);
+        for (RegistroPagoRequest.LineaPago linea : lineas) {
+            cajaService.registrarEgresoAutomatico(
+                    linea.monto(),
+                    "Pago a proveedor %s — Compra N.º %d (%s)"
+                            .formatted(proveedor, pedido.getNumero(), linea.tipoPago()),
+                    "COMPRA-" + pedido.getNumero(),
+                    usuario,
+                    linea.tipoPago());
+        }
 
         return respuesta;
+    }
+
+    /** Mismas reglas que el cobro de una venta: solo efectivo/transferencia, sin repetir y sumando el total. */
+    private void validarLineas(List<RegistroPagoRequest.LineaPago> lineas, BigDecimal total) {
+        Set<TipoPago> vistos = new HashSet<>();
+        BigDecimal suma = BigDecimal.ZERO;
+        for (RegistroPagoRequest.LineaPago linea : lineas) {
+            if (!METODOS_HABILITADOS.contains(linea.tipoPago())) {
+                throw new BusinessException(
+                        "Medio de pago no permitido: %s. Solo se aceptan Efectivo y Transferencia."
+                                .formatted(linea.tipoPago()));
+            }
+            if (!vistos.add(linea.tipoPago())) {
+                throw new BusinessException(
+                        "El método %s aparece más de una vez; combiná los montos en una sola línea."
+                                .formatted(linea.tipoPago()));
+            }
+            suma = suma.add(linea.monto());
+        }
+        if (suma.compareTo(total) != 0) {
+            throw new BusinessException(
+                    "La suma de los pagos (%s) no coincide con el total de la compra (%s)."
+                            .formatted(suma.toPlainString(), total.toPlainString()));
+        }
     }
 
     @Transactional

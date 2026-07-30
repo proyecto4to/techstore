@@ -17,14 +17,27 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class FacturaPdfServiceTest {
 
-    private final FacturaPdfService servicio = new FacturaPdfService(new EmpresaProperties(
+    private final FacturaPdfService servicio = new FacturaPdfService(configConEmisor(new EmpresaProperties(
             "TechStore Paraguay", "80012345-6", "Avda. España 1234 c/ Brasil", "Asunción, Paraguay",
             "(021) 555-123", "Venta de equipos e insumos informáticos", "12345678",
             "01/01/2026 al 31/12/2026",
-            2, "001", "001", "47411", "11", "CENTRAL", "1", "ASUNCION", "1", "ASUNCION", "2026-01-01"));
+            2, "001", "001", "47411", "11", "CENTRAL", "1", "ASUNCION", "1", "ASUNCION", "2026-01-01")));
+
+    /**
+     * Config de emisor fija, sin base de datos de por medio. El stub es lenient
+     * porque hay tests que fallan antes de llegar a necesitar estos datos.
+     */
+    static EmpresaConfigService configConEmisor(EmpresaProperties emisor) {
+        EmpresaConfigService config = mock(EmpresaConfigService.class);
+        lenient().when(config.actual()).thenReturn(emisor);
+        return config;
+    }
 
     private Factura facturaDePrueba() {
         Rol rol = new Rol();

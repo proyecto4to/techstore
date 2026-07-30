@@ -1,9 +1,17 @@
 package com.techstore.dto.request;
 
-import com.techstore.entity.TipoPago;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 
-/** Pago de una compra a proveedor: el medio con el que se registra el egreso. */
+import java.util.List;
+
+/**
+ * Pago de una compra a proveedor. Puede repartirse entre efectivo y
+ * transferencia (pago mixto); la suma de las líneas debe igualar el total de la
+ * compra. Cada línea genera su propio egreso en caja, para que el arqueo
+ * distinga lo que salió del cajón de lo que salió del banco.
+ */
 public record PagoCompraRequest(
-        @NotNull(message = "El medio de pago es obligatorio") TipoPago medio) {
+        @NotEmpty(message = "Debe indicar al menos un método de pago")
+        @Valid List<RegistroPagoRequest.LineaPago> lineas) {
 }

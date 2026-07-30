@@ -2,6 +2,7 @@ package com.techstore.service;
 
 import com.techstore.dto.request.CompraRequest;
 import com.techstore.dto.request.CompraRequest.ItemCompra;
+import com.techstore.dto.request.RegistroPagoRequest.LineaPago;
 import com.techstore.dto.response.CompraResumenResponse;
 import com.techstore.entity.EstadoPedido;
 import com.techstore.entity.Pedido;
@@ -176,6 +177,10 @@ class CompraServiceTest {
         assertThrows(BusinessException.class, () -> compraService.recibir(20L));
     }
 
+    private static List<LineaPago> linea(TipoPago medio, String monto) {
+        return List.of(new LineaPago(medio, new BigDecimal(monto), null));
+    }
+
     @Test
     void pagarRegistraEgresoConMedioYMarcaPagada() {
         Pedido pedido = compraPendiente();
@@ -183,12 +188,54 @@ class CompraServiceTest {
         when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
         when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        CompraResumenResponse compra = compraService.pagar(20L, TipoPago.Transferencia, "admin@techstore.py");
+        CompraResumenResponse compra = compraService.pagar(
+                20L, linea(TipoPago.Transferencia, "14000000"), "admin@techstore.py");
 
         assertTrue(compra.pagada());
         // El pago al proveedor sale como egreso de caja con el medio elegido.
         verify(cajaService).registrarEgresoAutomatico(
                 eq(new BigDecimal("14000000")), any(), eq("COMPRA-10"), eq(admin), eq(TipoPago.Transferencia));
+    }
+
+    @Test
+    void pagoMixtoRegistraUnEgresoPorCadaMedio() {
+        Pedido pedido = compraPendiente();
+        when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
+        when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        compraService.pagar(20L, List.of(
+                new LineaPago(TipoPago.Efectivo, new BigDecimal("4000000"), null),
+                new LineaPago(TipoPago.Transferencia, new BigDecimal("10000000"), "TX-7")),
+                "admin@techstore.py");
+
+        // Dos egresos separados: el cierre concilia el cajón aparte del banco.
+        verify(cajaService).registrarEgresoAutomatico(
+                eq(new BigDecimal("4000000")), any(), eq("COMPRA-10"), eq(admin), eq(TipoPago.Efectivo));
+        verify(cajaService).registrarEgresoAutomatico(
+                eq(new BigDecimal("10000000")), any(), eq("COMPRA-10"), eq(admin), eq(TipoPago.Transferencia));
+    }
+
+    @Test
+    void siLasLineasNoSumanElTotalNoSePaga() {
+        Pedido pedido = compraPendiente();
+        when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
+
+        assertThrows(BusinessException.class, () -> compraService.pagar(
+                20L, linea(TipoPago.Efectivo, "1000000"), "admin@techstore.py"));
+        verify(cajaService, never()).registrarEgresoAutomatico(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void noSeAceptaDosVecesElMismoMedio() {
+        Pedido pedido = compraPendiente();
+        when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
+
+        assertThrows(BusinessException.class, () -> compraService.pagar(20L, List.of(
+                new LineaPago(TipoPago.Efectivo, new BigDecimal("7000000"), null),
+                new LineaPago(TipoPago.Efectivo, new BigDecimal("7000000"), null)),
+                "admin@techstore.py"));
+        verify(cajaService, never()).registrarEgresoAutomatico(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -198,7 +245,7 @@ class CompraServiceTest {
         when(pedidoRepository.findWithDetallesById(20L)).thenReturn(Optional.of(pedido));
 
         assertThrows(BusinessException.class,
-                () -> compraService.pagar(20L, TipoPago.Efectivo, "admin@techstore.py"));
+                () -> compraService.pagar(20L, linea(TipoPago.Efectivo, "14000000"), "admin@techstore.py"));
         verify(cajaService, never()).registrarEgresoAutomatico(any(), any(), any(), any(), any());
     }
 }

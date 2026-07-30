@@ -52,14 +52,19 @@ public class ReportePdfService {
     private static final DateTimeFormatter FMT_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter FMT_FECHAHORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-    private final EmpresaProperties empresa;
+    private final EmpresaConfigService empresaConfig;
     private final NumberFormat formato;
 
-    public ReportePdfService(EmpresaProperties empresa) {
-        this.empresa = empresa;
+    public ReportePdfService(EmpresaConfigService empresaConfig) {
+        this.empresaConfig = empresaConfig;
         this.formato = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-PY"));
         this.formato.setMaximumFractionDigits(2);
         this.formato.setMinimumFractionDigits(0);
+    }
+
+    /** Datos vigentes del emisor (editables desde la app). */
+    private EmpresaProperties empresa() {
+        return empresaConfig.actual();
     }
 
     public byte[] ventas(ReporteVentasResponse r) {
@@ -204,8 +209,8 @@ public class ReportePdfService {
             PdfWriter.getInstance(doc, salida);
             doc.open();
 
-            doc.add(new Paragraph(empresa.nombre(), F_EMPRESA));
-            doc.add(new Paragraph("RUC: " + empresa.ruc(), F_CHICA));
+            doc.add(new Paragraph(empresa().nombre(), F_EMPRESA));
+            doc.add(new Paragraph("RUC: " + empresa().ruc(), F_CHICA));
             Paragraph tit = new Paragraph(titulo, F_TITULO);
             tit.setSpacingBefore(8);
             doc.add(tit);

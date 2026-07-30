@@ -78,10 +78,16 @@ class PagoServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Emisor de prueba: establecimiento 001 y punto 001, que es el prefijo
+        // que esperan las aserciones sobre el número de factura.
+        EmpresaConfigService empresaConfig = FacturaPdfServiceTest.configConEmisor(
+                new com.techstore.config.EmpresaProperties(
+                        "TechStore Paraguay", "80012345-0", null, null, null, null, "12345678", null,
+                        2, "001", "001", null, null, null, null, null, null, null, "2026-01-01"));
         pagoService = new PagoService(
                 pagoRepository, facturaRepository, pedidoRepository, usuarioRepository,
                 autonumeradorService, cajaService, correoService, emailTemplateService,
-                facturaElectronicaService);
+                empresaConfig, facturaElectronicaService);
 
         Rol rol = new Rol();
         rol.setId(2L);
