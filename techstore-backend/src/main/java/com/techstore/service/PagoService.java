@@ -152,9 +152,9 @@ public class PagoService {
         if (ruc == null) {
             return; // consumidor final: receptorRuc queda nulo
         }
-        if (!RucParaguayo.esValido(ruc)) {
-            throw new BusinessException(
-                    "El RUC '%s' no es válido: revisá el número y el dígito verificador.".formatted(ruc));
+        String motivo = RucParaguayo.motivoInvalidez(ruc);
+        if (motivo != null) {
+            throw new BusinessException("El RUC '%s' no es válido: %s.".formatted(ruc, motivo));
         }
 
         factura.setReceptorRuc(ruc);

@@ -22,12 +22,46 @@ public final class RucParaguayo {
 
     /** {@code true} si tiene el formato correcto y el dígito verificador coincide. */
     public static boolean esValido(String ruc) {
+        return motivoInvalidez(ruc) == null;
+    }
+
+    /**
+     * Explica por qué un RUC no sirve, o {@code null} si está bien. El mensaje va
+     * directo al usuario, así que dice qué corregir en vez de un "es inválido"
+     * a secas: si el problema es el dígito verificador, indica cuál corresponde.
+     */
+    public static String motivoInvalidez(String ruc) {
         String limpio = normalizar(ruc);
-        // Se permiten letras: los RUC viejos derivados de cédulas antiguas las tienen.
-        if (limpio == null || !limpio.matches("[0-9A-Za-z]{1,10}-\\d")) {
-            return false;
+        if (limpio == null) {
+            return "está vacío";
         }
-        return dv(limpio) == calcularDv(numero(limpio));
+        int guion = limpio.indexOf('-');
+        if (guion < 0) {
+            return "le falta el guion con el dígito verificador (el formato es 80012345-0)";
+        }
+        if (limpio.indexOf('-', guion + 1) >= 0) {
+            return "tiene más de un guion (el formato es 80012345-0)";
+        }
+
+        String numero = limpio.substring(0, guion);
+        String dv = limpio.substring(guion + 1);
+        if (numero.isEmpty()) {
+            return "no tiene número antes del guion";
+        }
+        // Se permiten letras: los RUC viejos derivados de cédulas antiguas las tienen.
+        if (!numero.matches("[0-9A-Za-z]{1,10}")) {
+            return "el número antes del guion tiene caracteres que no corresponden";
+        }
+        if (!dv.matches("\\d")) {
+            return "después del guion tiene que ir un solo dígito (de 0 a 9)";
+        }
+
+        int esperado = calcularDv(numero);
+        if (Integer.parseInt(dv) != esperado) {
+            return "el dígito verificador no coincide: para %s corresponde -%d, no -%s"
+                    .formatted(numero, esperado, dv);
+        }
+        return null;
     }
 
     /** Parte anterior al guion (sin el dígito verificador). */
