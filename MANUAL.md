@@ -41,6 +41,25 @@ Usuarios de demostración:
 
 ¿El cliente se arrepintió antes de confirmar? *Anular* libera el stock.
 
+### Venta directa (el cliente vino a la tienda)
+
+Cuando el cliente compra en el mostrador sin haber hecho un pedido por la web,
+usá **Admin → Venta directa**:
+
+1. Buscá el producto y presioná **Agregar** (una vez por unidad, o ajustá la
+   cantidad en el carrito). Al lado del precio ves cuántas unidades hay.
+2. Cargá el pago igual que en un cobro normal: efectivo, transferencia o los
+   dos. Si el cliente necesita factura con RUC, tildá *Facturar con RUC*.
+3. **Registrar cobro**. En un solo paso se descuenta el stock, se registra el
+   ingreso en caja y se emite la factura, que podés imprimir ahí mismo.
+
+No hay que confirmar nada después: la mercadería sale en el momento, así que la
+venta nace ya pagada. Queda en Admin → Pedidos marcada como *Venta directa en
+mostrador*, para distinguirla de las ventas web.
+
+> El sistema no deja vender unidades que estén reservadas por pedidos web
+> pendientes: la cantidad que muestra es la realmente disponible.
+
 ### Facturar con RUC
 
 Por defecto la factura sale a **consumidor final**. Si el cliente necesita su

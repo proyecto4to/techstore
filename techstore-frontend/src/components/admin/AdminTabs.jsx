@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore'
 const tabs = [
   { to: '/admin/inicio', label: 'Inicio' },
   { to: '/admin', label: 'Pedidos', end: true },
+  { to: '/admin/venta', label: 'Venta directa' },
   { to: '/admin/compras', label: 'Compras' },
   { to: '/admin/productos', label: 'Productos', soloAdmin: true },
   { to: '/admin/facturas', label: 'Facturas' },
