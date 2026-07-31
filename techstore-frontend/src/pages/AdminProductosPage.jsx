@@ -11,6 +11,7 @@ const FORM_VACIO = {
   precio: '',
   iva: 10,
   stockReal: 0,
+  stockMinimo: 0,
   marcaId: '',
   imagenUrl: '',
   activo: true,
@@ -56,6 +57,7 @@ function AdminProductosPage() {
     precio: Number(f.precio),
     iva: Number(f.iva),
     stockReal: Number(f.stockReal),
+    stockMinimo: Number(f.stockMinimo) || 0,
     marcaId: f.marcaId ? Number(f.marcaId) : null,
     modeloId: null,
     imagenUrl: f.imagenUrl?.trim() || null,
@@ -105,6 +107,8 @@ function AdminProductosPage() {
         precio: producto.precio,
         iva: producto.iva,
         stockReal: producto.stockReal,
+      stockMinimo: producto.stockMinimo ?? 0,
+        stockMinimo: producto.stockMinimo ?? 0,
         marcaId: producto.marca?.id ?? null,
         modeloId: producto.modelo?.id ?? null,
         imagenUrl: producto.imagenUrl ?? null,
@@ -306,6 +310,24 @@ function AdminProductosPage() {
           />
         </div>
 
+        <div>
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="stockMinimo">
+            Avisar cuando queden
+          </label>
+          <input
+            id="stockMinimo"
+            type="number"
+            min="0"
+            value={form.stockMinimo}
+            onChange={(e) => setForm({ ...form, stockMinimo: e.target.value })}
+            className="input"
+            aria-describedby="ayuda-stock-minimo"
+          />
+          <p id="ayuda-stock-minimo" className="mt-1 text-xs text-neutral-secondary">
+            En 0 no avisa. Se mide contra el stock disponible, no el real.
+          </p>
+        </div>
+
         <div className="col-span-full flex items-center gap-4">
           <button type="submit" disabled={guardarMutation.isPending} className="btn btn-primary">
             {form.id ? 'Guardar cambios' : 'Crear producto'}
@@ -350,7 +372,19 @@ function AdminProductosPage() {
                   </td>
                   <td className="text-neutral-secondary">{producto.marca?.nombre ?? '—'}</td>
                   <td className="text-primary-300">{formatPrecio(producto.precio)}</td>
-                  <td>{producto.stockReal}</td>
+                  <td>
+                    <span className="inline-flex items-center gap-2">
+                      {producto.stockReal}
+                      {producto.necesitaReposicion && (
+                        <span
+                          title={`Quedan ${producto.stockDisponible} disponibles y el minimo es ${producto.stockMinimo}`}
+                          className="rounded-full bg-amber-400/20 px-2 py-0.5 text-xs font-semibold text-amber-300"
+                        >
+                          reponer
+                        </span>
+                      )}
+                    </span>
+                  </td>
                   <td>{producto.stockComprometido}</td>
                   <td>
                     <span

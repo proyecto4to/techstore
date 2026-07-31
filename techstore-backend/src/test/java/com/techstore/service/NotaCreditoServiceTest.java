@@ -75,6 +75,9 @@ class NotaCreditoServiceTest {
                     "01/01/2026 al 31/12/2026",
                     2, "001", "001", "47411", "11", "CENTRAL", "1", "ASUNCION", "1", "ASUNCION", "2026-01-01")));
 
+    @Mock
+    private AuditoriaService auditoriaService;
+
     private NotaCreditoService notaCreditoService;
     private Usuario cajero;
     private Pedido pedido;
@@ -89,7 +92,8 @@ class NotaCreditoServiceTest {
                 productoRepository, usuarioRepository, autonumeradorService, cajaService, facturaPdfService,
                 FacturaPdfServiceTest.configConEmisor(new EmpresaProperties(
                         "TechStore Paraguay", "80012345-0", null, null, null, null, "12345678", null,
-                        2, "001", "001", null, null, null, null, null, null, null, "2026-01-01")));
+                        2, "001", "001", null, null, null, null, null, null, null, "2026-01-01")),
+                auditoriaService);
 
         Rol rol = new Rol();
         rol.setNombre("Cajero");
@@ -178,9 +182,11 @@ class NotaCreditoServiceTest {
         // El pedido NO quedó completamente devuelto: sigue Pagado y la factura vigente
         assertEquals(EstadoPedido.G, pedido.getEstado());
         assertEquals(EstadoFactura.Pagada, factura.getEstado());
+        // "NC" adelante: sin el prefijo esta referencia sería idéntica a la de
+        // una factura distinta, porque los numeradores son independientes.
         verify(cajaService).registrarEgresoAutomatico(
                 eq(new BigDecimal("800000.00")), eq("Devolución pedido N.º 3"),
-                eq("001-001-0000001"), eq(cajero));
+                eq("NC 001-001-0000001"), eq(cajero));
     }
 
     @Test

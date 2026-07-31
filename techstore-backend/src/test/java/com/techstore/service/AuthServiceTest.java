@@ -5,11 +5,13 @@ import com.techstore.dto.request.LoginRequest;
 import com.techstore.dto.request.RefreshTokenRequest;
 import com.techstore.dto.request.RegistroRequest;
 import com.techstore.dto.response.AuthResponse;
+import com.techstore.entity.IntentoLogin;
 import com.techstore.entity.Rol;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
 import com.techstore.exception.CuentaInactivaException;
 import com.techstore.exception.TooManyAttemptsException;
+import com.techstore.repository.IntentoLoginRepository;
 import com.techstore.repository.RolRepository;
 import com.techstore.repository.UsuarioRepository;
 import com.techstore.config.EmpresaProperties;
@@ -23,12 +25,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,6 +49,9 @@ class AuthServiceTest {
     @Mock
     private CorreoService correoService;
 
+    @Mock
+    private IntentoLoginRepository intentoLoginRepository;
+
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     private final JwtService jwtService =
             new JwtService("clave-de-prueba-suficientemente-larga-para-hmac-sha!!", 900_000, 604_800_000);
@@ -56,9 +65,25 @@ class AuthServiceTest {
                 "TechStore Paraguay", null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null);
         EmailTemplateService emailTemplateService = new EmailTemplateService(empresa, "http://localhost:5173");
+
+        // El limitador ahora guarda los intentos en la base. Se le da un
+        // repositorio de mentira sobre un Map para que el test siga probando la
+        // regla (cinco fallos bloquean) y no la persistencia.
+        Map<String, IntentoLogin> intentos = new HashMap<>();
+        lenient().when(intentoLoginRepository.findById(anyString()))
+                .thenAnswer(inv -> Optional.ofNullable(intentos.get(inv.<String>getArgument(0))));
+        lenient().when(intentoLoginRepository.save(any(IntentoLogin.class)))
+                .thenAnswer(inv -> {
+                    IntentoLogin intento = inv.getArgument(0);
+                    intentos.put(intento.getEmail(), intento);
+                    return intento;
+                });
+        lenient().doAnswer(inv -> intentos.remove(inv.<String>getArgument(0)))
+                .when(intentoLoginRepository).deleteById(anyString());
+
         authService = new AuthService(
                 usuarioRepository, rolRepository, encoder, jwtService, correoService,
-                emailTemplateService, new LoginRateLimiter());
+                emailTemplateService, new LoginRateLimiter(intentoLoginRepository));
 
         Rol rol = new Rol();
         rol.setId(1L);

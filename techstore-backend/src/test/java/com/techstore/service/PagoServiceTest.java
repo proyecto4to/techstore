@@ -167,9 +167,11 @@ class PagoServiceTest {
         assertEquals(new BigDecimal("2272727.27"), response.factura().subtotal());
         assertEquals(EstadoFactura.Pagada.name(), response.factura().estado());
         assertEquals(EstadoPedido.G, pedido.getEstado());
+        // "FAC" adelante: facturas y notas de crédito comparten el formato del
+        // número, así que la referencia sola no alcanza para saber cuál es cuál.
         verify(cajaService).registrarIngresoAutomatico(
                 eq(new BigDecimal("2500000.00")), eq("Cobro pedido N.º 7 (Efectivo)"),
-                eq("001-001-0000001"), eq(cajero), eq(TipoPago.Efectivo));
+                eq("FAC 001-001-0000001"), eq(cajero), eq(TipoPago.Efectivo));
     }
 
     @Test

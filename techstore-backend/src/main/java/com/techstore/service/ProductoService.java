@@ -25,6 +25,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,6 +45,7 @@ public class ProductoService {
     private final MarcaRepository marcaRepository;
     private final ModeloRepository modeloRepository;
     private final ProductoMapper productoMapper;
+    private final AuditoriaService auditoriaService;
 
     @Value("${app.uploads.dir}")
     private String uploadsDir;
@@ -59,6 +62,14 @@ public class ProductoService {
         return productoMapper.toResponse(buscarProducto(id));
     }
 
+    /** Los productos que llegaron a su punto de reposición, del más urgente al menos. */
+    @Transactional(readOnly = true)
+    public List<ProductoResponse> reposicion() {
+        return productoRepository.necesitanReposicion(Producto.UMBRAL_POR_DEFECTO).stream()
+                .map(productoMapper::toResponse)
+                .toList();
+    }
+
     @Transactional
     public ProductoResponse crear(ProductoRequest request) {
         Producto producto = productoMapper.toEntity(request);
@@ -66,15 +77,42 @@ public class ProductoService {
             producto.setActivo(true);
         }
         aplicarRelaciones(producto, request);
-        return productoMapper.toResponse(productoRepository.save(producto));
+        Producto guardado = productoRepository.save(producto);
+
+        auditoriaService.registrar("Producto", guardado.getId(), AuditoriaService.Accion.Crear,
+                "Alta de " + guardado.getNombre(),
+                AuditoriaService.Cambios.nuevo()
+                        .valor("precio", guardado.getPrecio())
+                        .valor("stock", guardado.getStockReal())
+                        .valor("stockMinimo", guardado.getStockMinimo()));
+
+        return productoMapper.toResponse(guardado);
     }
 
     @Transactional
     public ProductoResponse actualizar(Long id, ProductoRequest request) {
         Producto producto = buscarProducto(id);
+
+        // Los valores anteriores se copian ANTES de aplicar el request: después
+        // el objeto ya viene modificado y no habría con qué comparar.
+        BigDecimal precioAnterior = producto.getPrecio();
+        Integer stockAnterior = producto.getStockReal();
+        Integer minimoAnterior = producto.getStockMinimo();
+        String nombreAnterior = producto.getNombre();
+
         productoMapper.updateEntity(request, producto);
         aplicarRelaciones(producto, request);
-        return productoMapper.toResponse(productoRepository.save(producto));
+        Producto guardado = productoRepository.save(producto);
+
+        auditoriaService.registrar("Producto", guardado.getId(), AuditoriaService.Accion.Editar,
+                "Edición de " + guardado.getNombre(),
+                AuditoriaService.Cambios.nuevo()
+                        .de("nombre", nombreAnterior, guardado.getNombre())
+                        .de("precio", precioAnterior, guardado.getPrecio())
+                        .de("stock", stockAnterior, guardado.getStockReal())
+                        .de("stockMinimo", minimoAnterior, guardado.getStockMinimo()));
+
+        return productoMapper.toResponse(guardado);
     }
 
     /**
@@ -86,6 +124,8 @@ public class ProductoService {
         Producto producto = buscarProducto(id);
         producto.setActivo(false);
         productoRepository.save(producto);
+        auditoriaService.registrar("Producto", id, AuditoriaService.Accion.Eliminar,
+                "Baja de " + producto.getNombre());
     }
 
     /** Reemplaza la foto del producto por un archivo subido desde el equipo del Admin. */

@@ -129,10 +129,14 @@ public class PagoService {
         // Un movimiento de caja por método, para que el arqueo distinga
         // el efectivo recibido de las transferencias.
         for (Pago pago : pagos) {
+            // "FAC" adelante: las facturas y las notas de crédito comparten el
+            // formato 001-001-NNNNNNN con numeradores independientes, así que
+            // sin el prefijo dos movimientos sin relación entre sí terminaban
+            // con la misma referencia.
             cajaService.registrarIngresoAutomatico(
                     pago.getMonto(),
                     "Cobro pedido N.º " + pedido.getNumero() + " (" + pago.getTipoPago() + ")",
-                    factura.getNumero(),
+                    "FAC " + factura.getNumero(),
                     cajero,
                     pago.getTipoPago());
         }

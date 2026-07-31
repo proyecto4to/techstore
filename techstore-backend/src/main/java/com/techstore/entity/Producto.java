@@ -47,6 +47,13 @@ public class Producto {
     @Column(name = "stock_comprometido")
     private Integer stockComprometido = 0;
 
+    /**
+     * Punto de reposición: cuando el stock disponible cae hasta acá, el producto
+     * aparece en el aviso de reposición. En 0 nunca avisa.
+     */
+    @Column(name = "stock_minimo", nullable = false)
+    private Integer stockMinimo = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "marca_id")
     private Marca marca;
@@ -72,5 +79,27 @@ public class Producto {
         int real = stockReal == null ? 0 : stockReal;
         int comprometido = stockComprometido == null ? 0 : stockComprometido;
         return real - comprometido;
+    }
+
+    /**
+     * Umbral que se aplica a los productos sin mínimo propio. Existe para no
+     * cambiar el comportamiento anterior, cuando el aviso era este número fijo
+     * para todo el catálogo.
+     */
+    public static final int UMBRAL_POR_DEFECTO = 5;
+
+    /**
+     * Si hay que reponerlo. Se mide contra el stock disponible, no el real: lo
+     * ya comprometido en pedidos pendientes está vendido aunque siga en el
+     * depósito, y contarlo haría que el aviso llegue tarde.
+     */
+    public boolean necesitaReposicion() {
+        return getStockDisponible() <= umbralEfectivo();
+    }
+
+    /** El mínimo propio del producto; si no tiene, el general. */
+    public int umbralEfectivo() {
+        int minimo = stockMinimo == null ? 0 : stockMinimo;
+        return minimo > 0 ? minimo : UMBRAL_POR_DEFECTO;
     }
 }

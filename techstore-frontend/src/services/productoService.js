@@ -36,6 +36,12 @@ export const productoService = {
     return data
   },
 
+  /** Los que llegaron a su punto de reposicion, del mas urgente al menos. */
+  async reposicion() {
+    const { data } = await api.get("/productos/reposicion")
+    return data
+  },
+
   async marcas() {
     const { data } = await api.get('/marcas')
     return data

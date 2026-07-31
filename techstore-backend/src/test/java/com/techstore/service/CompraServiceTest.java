@@ -61,6 +61,9 @@ class CompraServiceTest {
     @Mock
     private CajaService cajaService;
 
+    @Mock
+    private AuditoriaService auditoriaService;
+
     private CompraService compraService;
     private Usuario admin;
     private Proveedor proveedor;
@@ -70,7 +73,7 @@ class CompraServiceTest {
     void setUp() {
         compraService = new CompraService(
                 pedidoRepository, productoRepository, proveedorRepository, usuarioRepository,
-                autonumeradorService, cajaService);
+                autonumeradorService, cajaService, auditoriaService);
 
         Rol rol = new Rol();
         rol.setNombre("Admin");

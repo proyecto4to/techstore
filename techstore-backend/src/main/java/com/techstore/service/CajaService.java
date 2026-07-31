@@ -34,14 +34,27 @@ public class CajaService {
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
     private final ReportePdfService reportePdfService;
+    private final AuditoriaService auditoriaService;
 
     @Transactional
     public MovimientoCajaResponse registrar(RegistroMovimientoRequest request, String emailUsuario) {
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
         TipoPago medio = request.medio() != null ? request.medio() : TipoPago.Efectivo;
-        return MovimientoCajaResponse.from(guardar(
-                request.tipo(), medio, request.monto(), request.concepto(), request.referencia(), usuario));
+        MovimientoCaja movimiento = guardar(
+                request.tipo(), medio, request.monto(), request.concepto(), request.referencia(), usuario);
+
+        // Solo los movimientos cargados a mano: los automáticos ya quedan
+        // explicados por la factura o la compra que los originó.
+        auditoriaService.registrar("MovimientoCaja", movimiento.getId(), AuditoriaService.Accion.Crear,
+                "%s manual de %s en %s — %s".formatted(
+                        movimiento.getTipo(), movimiento.getMonto(), medio, movimiento.getConcepto()),
+                AuditoriaService.Cambios.nuevo()
+                        .valor("numero", movimiento.getNumero())
+                        .valor("monto", movimiento.getMonto())
+                        .valor("medio", medio));
+
+        return MovimientoCajaResponse.from(movimiento);
     }
 
     /**

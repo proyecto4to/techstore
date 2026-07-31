@@ -38,13 +38,17 @@ class CajaServiceTest {
     @Mock
     private ReportePdfService reportePdfService;
 
+    @Mock
+    private AuditoriaService auditoriaService;
+
     private CajaService cajaService;
     private Usuario cajero;
 
     @BeforeEach
     void setUp() {
         cajaService = new CajaService(
-                movimientoCajaRepository, usuarioRepository, autonumeradorService, reportePdfService);
+                movimientoCajaRepository, usuarioRepository, autonumeradorService, reportePdfService,
+                auditoriaService);
 
         Rol rol = new Rol();
         rol.setNombre("Cajero");

@@ -48,6 +48,7 @@ public class CierreCajaService {
     private final MovimientoCajaRepository movimientoCajaRepository;
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
+    private final AuditoriaService auditoriaService;
 
     /** Turno abierto, o {@code abierta=false} si la caja está cerrada. */
     @Transactional(readOnly = true)
@@ -73,7 +74,15 @@ public class CierreCajaService {
         apertura.setUsuario(usuario);
         apertura.setSaldoInicial(request.saldoInicial());
         apertura.setNotas(request.notas());
-        return AperturaCajaResponse.from(aperturaCajaRepository.save(apertura));
+        AperturaCaja guardada = aperturaCajaRepository.save(apertura);
+
+        auditoriaService.registrar("AperturaCaja", guardada.getId(), AuditoriaService.Accion.Abrir,
+                "Abrió la caja con Gs. " + guardada.getSaldoInicial().toPlainString(),
+                AuditoriaService.Cambios.nuevo()
+                        .valor("numero", guardada.getNumero())
+                        .valor("saldoInicial", guardada.getSaldoInicial()));
+
+        return AperturaCajaResponse.from(guardada);
     }
 
     @Transactional(readOnly = true)
@@ -130,6 +139,20 @@ public class CierreCajaService {
 
         apertura.setCierre(guardado);
         aperturaCajaRepository.save(apertura);
+
+        // La diferencia del arqueo es el dato que uno va a querer poder rastrear
+        // meses después, así que queda registrada aparte del propio cierre.
+        auditoriaService.registrar("CierreCaja", guardado.getId(), AuditoriaService.Accion.Cerrar,
+                "Cerró la caja: contó Gs. %s contra Gs. %s teóricos (diferencia Gs. %s)".formatted(
+                        guardado.getEfectivoContado().toPlainString(),
+                        guardado.getEfectivoTeorico().toPlainString(),
+                        guardado.getDiferencia().toPlainString()),
+                AuditoriaService.Cambios.nuevo()
+                        .valor("numero", guardado.getNumero())
+                        .valor("saldoInicial", guardado.getSaldoInicial())
+                        .valor("efectivoContado", guardado.getEfectivoContado())
+                        .valor("efectivoTeorico", guardado.getEfectivoTeorico())
+                        .valor("diferencia", guardado.getDiferencia()));
 
         return CierreCajaResponse.from(guardado);
     }

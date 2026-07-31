@@ -25,6 +25,7 @@ public class UsuarioService {
     private final PasswordEncoder passwordEncoder;
     private final CorreoService correoService;
     private final EmailTemplateService emailTemplateService;
+    private final AuditoriaService auditoriaService;
 
     @Transactional(readOnly = true)
     public PageResponse<UsuarioAdminResponse> listar(Pageable pageable) {
@@ -46,7 +47,13 @@ public class UsuarioService {
         usuario.setApellido(request.apellido());
         usuario.setRol(rol);
         usuario.setActivo(true);
-        return UsuarioAdminResponse.from(usuarioRepository.save(usuario));
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        auditoriaService.registrar("Usuario", guardado.getId(), AuditoriaService.Accion.Crear,
+                "Alta de %s con rol %s".formatted(guardado.getEmail(), rol.getNombre()),
+                AuditoriaService.Cambios.nuevo().valor("rol", rol.getNombre()));
+
+        return UsuarioAdminResponse.from(guardado);
     }
 
     @Transactional
@@ -56,8 +63,13 @@ public class UsuarioService {
         if (!activo && usuario.getEmail().equals(emailSolicitante)) {
             throw new BusinessException("No podés desactivar tu propia cuenta");
         }
+        boolean activoAnterior = Boolean.TRUE.equals(usuario.getActivo());
         usuario.setActivo(activo);
         UsuarioAdminResponse respuesta = UsuarioAdminResponse.from(usuarioRepository.save(usuario));
+
+        auditoriaService.registrar("Usuario", id, AuditoriaService.Accion.Editar,
+                "%s la cuenta %s".formatted(activo ? "Reactivó" : "Desactivó", usuario.getEmail()),
+                AuditoriaService.Cambios.nuevo().de("activo", activoAnterior, activo));
 
         if (!activo) {
             correoService.enviar(
@@ -83,6 +95,11 @@ public class UsuarioService {
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario", id));
         usuario.setPasswordHash(passwordEncoder.encode(passwordNueva));
         UsuarioAdminResponse respuesta = UsuarioAdminResponse.from(usuarioRepository.save(usuario));
+
+        // Nunca la contraseña, ni la vieja ni la nueva: alcanza con dejar
+        // constancia de que alguien la cambió y de quién fue.
+        auditoriaService.registrar("Usuario", id, AuditoriaService.Accion.Editar,
+                "Restableció la contraseña de " + usuario.getEmail());
 
         correoService.enviar(
                 TipoCorreo.RESETEO_PASSWORD,

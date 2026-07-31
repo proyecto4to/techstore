@@ -101,6 +101,7 @@ function DashboardPage() {
                       <th>Producto</th>
                       <th>Marca</th>
                       <th>Disponible</th>
+                      <th>Avisa en</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -119,6 +120,7 @@ function DashboardPage() {
                             {p.stockDisponible} {p.stockDisponible === 0 ? '— agotado' : ''}
                           </span>
                         </td>
+                        <td className="text-neutral-secondary">{p.umbral}</td>
                       </tr>
                     ))}
                   </tbody>

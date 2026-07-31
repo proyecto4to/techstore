@@ -28,6 +28,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/productos")
 @RequiredArgsConstructor
@@ -52,6 +54,14 @@ public class ProductoController {
     private boolean esAdmin(Authentication auth) {
         return auth != null && auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_Admin".equals(a.getAuthority()));
+    }
+
+    @GetMapping("/reposicion")
+    @PreAuthorize("hasAnyRole('Admin','Cajero')")
+    @Operation(summary = "Productos que llegaron a su punto de reposición (Admin/Cajero)",
+            description = "Ordenados por urgencia. Solo aparecen los que tienen un stock mínimo definido.")
+    public List<ProductoResponse> reposicion() {
+        return productoService.reposicion();
     }
 
     @GetMapping("/{id}")

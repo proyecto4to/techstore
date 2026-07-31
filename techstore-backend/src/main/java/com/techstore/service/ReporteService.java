@@ -75,9 +75,16 @@ public class ReporteService {
                 totalFacturado, cantidadFacturas, porEstado, porDia, topProductos, topClientes);
     }
 
+    /**
+     * Productos a reponer. El umbral que se recibe es el general: solo se aplica
+     * a los productos que no tienen un mínimo propio configurado. Antes era un
+     * número fijo para todo el catálogo, y un cable y una placa madre no se
+     * reponen en el mismo punto.
+     */
     @Transactional(readOnly = true)
     public List<StockBajoResponse> stockBajo(int umbral, int limite) {
-        return productoRepository.conStockBajo(umbral, PageRequest.of(0, limite)).stream()
+        return productoRepository.necesitanReposicion(umbral).stream()
+                .limit(limite)
                 .map(StockBajoResponse::from)
                 .toList();
     }

@@ -18,6 +18,7 @@ import AdminComprasPage from './pages/AdminComprasPage'
 import AdminVentaDirectaPage from './pages/AdminVentaDirectaPage'
 import AdminEmpresaPage from './pages/AdminEmpresaPage'
 import AdminCorreosPage from './pages/AdminCorreosPage'
+import AdminAuditoriaPage from './pages/AdminAuditoriaPage'
 import CuentaPage from './pages/CuentaPage'
 import RegisterPage from './pages/RegisterPage'
 import './App.css'
@@ -142,6 +143,14 @@ function App() {
                 element={
                   <ProtectedRoute roles={['Admin', 'Cajero']}>
                     <AdminCorreosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/auditoria"
+                element={
+                  <ProtectedRoute rol="Admin">
+                    <AdminAuditoriaPage />
                   </ProtectedRoute>
                 }
               />

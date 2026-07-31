@@ -26,6 +26,7 @@ public class EmpresaConfigService {
     private final ConfiguracionRepository repo;
     /** Valores de application.properties: el punto de partida si no hay nada en la base. */
     private final EmpresaProperties porDefecto;
+    private final AuditoriaService auditoriaService;
 
     private volatile EmpresaProperties cache;
 
@@ -42,6 +43,11 @@ public class EmpresaConfigService {
 
     @Transactional
     public EmpresaProperties guardar(EmpresaRequest req) {
+        // Estos datos salen impresos en cada factura: cambiarlos es de lo más
+        // sensible que se puede hacer en el sistema, así que se audita el antes
+        // y el después de lo que identifica al emisor ante la DNIT.
+        EmpresaProperties anterior = actual();
+
         set("nombre", req.nombre());
         set("ruc", req.ruc());
         set("direccion", req.direccion());
@@ -64,7 +70,21 @@ public class EmpresaConfigService {
         set("ciudad-nombre", req.ciudadNombre());
 
         cache = null;
-        return actual();
+        EmpresaProperties nueva = actual();
+
+        auditoriaService.registrar("Empresa", null, AuditoriaService.Accion.Editar,
+                "Cambió los datos del emisor de las facturas",
+                AuditoriaService.Cambios.nuevo()
+                        .de("nombre", anterior.nombre(), nueva.nombre())
+                        .de("ruc", anterior.ruc(), nueva.ruc())
+                        .de("timbrado", anterior.timbrado(), nueva.timbrado())
+                        .de("timbradoVigencia", anterior.timbradoVigencia(), nueva.timbradoVigencia())
+                        .de("establecimiento", anterior.establecimiento(), nueva.establecimiento())
+                        .de("puntoExpedicion", anterior.puntoExpedicion(), nueva.puntoExpedicion())
+                        .de("direccion", anterior.direccion(), nueva.direccion())
+                        .de("telefono", anterior.telefono(), nueva.telefono()));
+
+        return nueva;
     }
 
     private EmpresaProperties resolver() {

@@ -52,6 +52,7 @@ public class CompraService {
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
     private final CajaService cajaService;
+    private final AuditoriaService auditoriaService;
 
     @Transactional
     public CompraResumenResponse crear(CompraRequest request, String emailUsuario) {
@@ -152,6 +153,14 @@ public class CompraService {
         // Un egreso por medio, para que el cierre concilie el efectivo del cajón
         // aparte de lo que salió por el banco.
         String proveedor = pedido.getProveedor() != null ? pedido.getProveedor().getRazonSocial() : "proveedor";
+
+        auditoriaService.registrar("Compra", pedido.getId(), AuditoriaService.Accion.Pagar,
+                "Pagó la compra N.º %d a %s".formatted(pedido.getNumero(), proveedor),
+                AuditoriaService.Cambios.nuevo()
+                        .valor("compra", pedido.getNumero())
+                        .valor("proveedor", proveedor)
+                        .valor("total", pedido.getTotal()));
+
         for (RegistroPagoRequest.LineaPago linea : lineas) {
             cajaService.registrarEgresoAutomatico(
                     linea.monto(),

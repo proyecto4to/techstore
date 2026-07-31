@@ -58,6 +58,9 @@ class CierreCajaServiceTest {
     @Mock
     private AutonumeradorService autonumeradorService;
 
+    @Mock
+    private AuditoriaService auditoriaService;
+
     private CierreCajaService cierreCajaService;
     private Usuario cajero;
 
@@ -65,7 +68,7 @@ class CierreCajaServiceTest {
     void setUp() {
         cierreCajaService = new CierreCajaService(
                 cierreCajaRepository, aperturaCajaRepository, movimientoCajaRepository,
-                usuarioRepository, autonumeradorService);
+                usuarioRepository, autonumeradorService, auditoriaService);
 
         Rol rol = new Rol();
         rol.setNombre("Cajero");

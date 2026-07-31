@@ -13,6 +13,7 @@ const tabs = [
   { to: '/admin/empresa', label: 'Empresa', soloAdmin: true },
   { to: '/admin/correos', label: 'Correos' },
   { to: '/admin/reportes', label: 'Reportes' },
+  { to: '/admin/auditoria', label: 'Auditoría', soloAdmin: true },
 ]
 
 function AdminTabs() {

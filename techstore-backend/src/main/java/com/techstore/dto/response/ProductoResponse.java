@@ -12,6 +12,8 @@ public record ProductoResponse(
         Integer stockReal,
         Integer stockComprometido,
         Integer stockDisponible,
+        Integer stockMinimo,
+        boolean necesitaReposicion,
         MarcaRef marca,
         ModeloRef modelo,
         String imagenUrl,

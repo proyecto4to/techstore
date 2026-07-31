@@ -128,7 +128,10 @@ class ReporteServiceTest {
         gpu.setMarca(marca);
         gpu.setStockReal(1);
         gpu.setStockComprometido(0);
-        when(productoRepository.conStockBajo(5, PageRequest.of(0, 20))).thenReturn(List.of(gpu));
+        // El umbral que se pasa ahora es el general: se aplica solo a los
+        // productos que no tienen un mínimo propio, y el límite lo recorta el
+        // servicio en vez de la consulta.
+        when(productoRepository.necesitanReposicion(5)).thenReturn(List.of(gpu));
 
         List<StockBajoResponse> resultado = reporteService.stockBajo(5, 20);
 
@@ -136,5 +139,6 @@ class ReporteServiceTest {
         assertEquals("NVIDIA RTX 4090", resultado.get(0).nombre());
         assertEquals("NVIDIA", resultado.get(0).marca());
         assertEquals(1, resultado.get(0).stockDisponible());
+        assertEquals(Producto.UMBRAL_POR_DEFECTO, resultado.get(0).umbral());
     }
 }

@@ -42,17 +42,21 @@ class ProductoServiceTest {
 
     private final ProductoMapper mapper = new ProductoMapperImpl();
 
+    @Mock
+    private AuditoriaService auditoriaService;
+
     private ProductoService productoService;
 
     @BeforeEach
     void setUp() {
-        productoService = new ProductoService(productoRepository, marcaRepository, modeloRepository, mapper);
+        productoService = new ProductoService(
+                productoRepository, marcaRepository, modeloRepository, mapper, auditoriaService);
     }
 
     private ProductoRequest requestBase(Long marcaId, Long modeloId) {
         return new ProductoRequest(
                 "Intel Core i9-13900K", "Procesador de 24 núcleos",
-                new BigDecimal("2500000.00"), 10, 5, marcaId, modeloId,
+                new BigDecimal("2500000.00"), 10, 5, 2, marcaId, modeloId,
                 "/img/productos/cpu.svg", null);
     }
 

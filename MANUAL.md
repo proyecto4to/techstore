@@ -159,11 +159,47 @@ local o cualquier URL de internet), y **desactivar** lo que ya no vendés
 
 La pestaña **Reportes** avisa cuando un producto tiene **stock bajo**.
 
+### Avisar cuándo reponer
+
+Al editar un producto hay un campo **«Avisar cuando queden»**: es la cantidad
+a partir de la cual el producto aparece en la lista de reposición, tanto en
+Inicio como con una etiqueta naranja en la tabla de Productos.
+
+Ponele a cada producto el número que tenga sentido para ese producto: no es lo
+mismo quedarse con 2 placas madre que con 2 cables HDMI. Los que dejes en **0**
+usan el aviso general, que es 5.
+
+Ojo con esto: la cuenta se hace sobre el stock **disponible**, no sobre el que
+tenés en el depósito. Si tenés 10 en el estante pero 8 ya están comprometidos
+en pedidos sin entregar, para el sistema quedan 2. Es a propósito: si contara
+los 10, el aviso te llegaría cuando ya no tenés nada que vender.
+
 ## 8. Usuarios
 
 Admin → Usuarios: crear cajeros o administradores, desactivar cuentas
 (no pueden entrar más) y resetear contraseñas. Cada persona puede cambiar
 su propia contraseña haciendo clic en su **avatar** (arriba a la derecha).
+
+Tras **5 intentos fallidos** seguidos con el mismo email, ese email queda
+bloqueado **15 minutos**. El bloqueo se guarda en la base, así que reiniciar
+el sistema no lo levanta.
+
+### Auditoría
+
+Admin → Auditoría: **quién hizo qué y cuándo**, con el valor de antes y el de
+después. Queda registrado lo que toca la plata o la identidad del negocio:
+
+- alta, edición y baja de productos (incluido cada cambio de precio),
+- alta de usuarios, activación/desactivación y reseteo de contraseñas
+  (nunca la contraseña en sí, solo que alguien la cambió),
+- cambios en los datos del emisor de la factura,
+- apertura y cierre de caja, con la diferencia del arqueo,
+- movimientos de caja cargados a mano,
+- notas de crédito y pagos a proveedores.
+
+Es **solo lectura**: no hay forma de editar ni borrar estos registros desde el
+sistema. Un registro que se puede modificar no sirve para lo único que sirve
+una auditoría.
 
 ## 9. Reportes
 

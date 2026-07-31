@@ -60,6 +60,7 @@ public class NotaCreditoService {
     private final CajaService cajaService;
     private final FacturaPdfService facturaPdfService;
     private final EmpresaConfigService empresaConfig;
+    private final AuditoriaService auditoriaService;
 
     @Transactional
     public NotaCreditoResponse emitir(Long pedidoId, EmitirNotaCreditoRequest request, String emailUsuario) {
@@ -154,11 +155,21 @@ public class NotaCreditoService {
             facturaRepository.save(factura);
         }
 
+        // Mismo motivo que en el cobro: sin el prefijo, la referencia de esta
+        // nota de crédito puede coincidir con la de una factura distinta.
         cajaService.registrarEgresoAutomatico(
                 totalNc,
                 "Devolución pedido N.º " + pedido.getNumero(),
-                nc.getNumero(),
+                "NC " + nc.getNumero(),
                 emisor);
+
+        auditoriaService.registrar("NotaCredito", nc.getId(), AuditoriaService.Accion.Devolver,
+                "Nota de crédito %s por Gs. %s sobre la factura %s".formatted(
+                        nc.getNumero(), totalNc.toPlainString(), factura.getNumero()),
+                AuditoriaService.Cambios.nuevo()
+                        .valor("notaCredito", nc.getNumero())
+                        .valor("factura", factura.getNumero())
+                        .valor("monto", totalNc));
 
         return NotaCreditoResponse.from(nc);
     }
