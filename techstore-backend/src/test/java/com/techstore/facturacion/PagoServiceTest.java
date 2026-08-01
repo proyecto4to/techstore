@@ -81,7 +81,7 @@ class PagoServiceTest {
         // que esperan las aserciones sobre el número de factura.
         EmpresaConfigService empresaConfig = FacturaPdfServiceTest.configConEmisor(
                 new com.techstore.empresa.EmpresaProperties(
-                        "TechStore Paraguay", "80012345-0", null, null, null, null, "12345678", null,
+                        "TechStore Paraguay", "80012345-0", null, null, null, null, null, "12345678", null,
                         2, "001", "001", null, null, null, null, null, null, null, "2026-01-01"));
         pagoService = new PagoService(
                 pagoRepository, facturaRepository, pedidoRepository, usuarioRepository,

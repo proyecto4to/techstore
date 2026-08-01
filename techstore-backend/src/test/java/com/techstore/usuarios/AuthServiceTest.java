@@ -49,7 +49,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         EmpresaProperties empresa = new EmpresaProperties(
-                "TechStore Paraguay", null, null, null, null, null, null, null,
+                "TechStore Paraguay", null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null);
         EmailTemplateService emailTemplateService = new EmailTemplateService(empresa, "http://localhost:5173");
 

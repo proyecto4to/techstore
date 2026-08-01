@@ -136,15 +136,32 @@ public class KudeService {
             PdfWriter.getInstance(doc, salida);
             doc.open();
 
+            // El orden y los bloques son los de la Gráfica N.º 09 del manual
+            // técnico (KuDE FE, formato 1 convencional).
+            doc.add(titulo());
             doc.add(encabezado(factura));
             doc.add(emisionYReceptor(factura));
             doc.add(tablaItems(factura));
             doc.add(totales(factura));
-            agregarPie(doc, cdc, qrPng);
+            doc.add(consultaSifen(cdc, qrPng));
+            agregarPie(doc);
 
             doc.close();
             return salida.toByteArray();
         }
+    }
+
+    /** Barra con la denominación del documento, arriba de todo (manual, 13.3). */
+    private PdfPTable titulo() {
+        PdfPTable tabla = new PdfPTable(1);
+        tabla.setWidthPercentage(100);
+        PdfPCell celda = new PdfPCell(new Phrase("KuDE de Factura Electrónica", F_NEGRITA));
+        celda.setHorizontalAlignment(Element.ALIGN_CENTER);
+        celda.setBackgroundColor(GRIS_FONDO);
+        celda.setBorderColor(GRIS);
+        celda.setPadding(5);
+        tabla.addCell(celda);
+        return tabla;
     }
 
     /** Cabecera: datos del emisor a la izquierda, timbrado y número a la derecha. */
@@ -168,6 +185,7 @@ public class KudeService {
         emisor.addElement(new Paragraph(empresa().direccion(), F_NORMAL));
         emisor.addElement(new Paragraph("Ciudad: " + empresa().ciudad(), F_NORMAL));
         emisor.addElement(new Paragraph("Teléfono: " + empresa().telefono(), F_NORMAL));
+        emisor.addElement(new Paragraph(empresa().email(), F_NORMAL));
         emisor.addElement(new Paragraph("Actividad económica: " + empresa().actividad(), F_NORMAL));
         tabla.addCell(emisor);
 
@@ -201,10 +219,10 @@ public class KudeService {
         izq.addElement(new Paragraph(
                 "Condición de venta:   Contado [" + (contado ? "X" : " ") + "]   Crédito [" + (contado ? " " : "X") + "]",
                 F_NORMAL));
-        izq.addElement(new Paragraph("Moneda: %s (%s)".formatted(
-                factura.getMoneda().codigo(), factura.getMoneda().nombre()), F_NORMAL));
-        izq.addElement(new Paragraph("Tipo de cambio: —", F_NORMAL));
-        izq.addElement(new Paragraph("Tipo de transacción: Venta de mercadería", F_NORMAL));
+        // Los campos que el modelo del manual muestra vacíos —cuotas, tipo de
+        // cambio, documento asociado— solo se imprimen cuando aplican: una
+        // etiqueta sin valor al lado no le dice nada a quien recibe la factura.
+        izq.addElement(new Paragraph("Moneda: " + factura.getMoneda().codigo(), F_NORMAL));
         tabla.addCell(izq);
 
         PdfPCell der = new PdfPCell();
@@ -217,11 +235,13 @@ public class KudeService {
         der.addElement(new Paragraph("Nombre o Razón Social: " + (rucReceptor == null
                 ? cliente.getNombre() + " " + cliente.getApellido()
                 : factura.getReceptorNombre()), F_NORMAL));
-        der.addElement(new Paragraph("Dirección: —", F_NORMAL));
-        der.addElement(new Paragraph("Teléfono: —", F_NORMAL));
+        // La dirección y el teléfono del receptor todavía no se capturan en
+        // ningún lado, así que no se imprimen: antes salían como una raya fija,
+        // que ocupa lugar sin informar nada.
         der.addElement(new Paragraph("Correo Electrónico: " + (factura.getReceptorEmail() != null
                 ? factura.getReceptorEmail()
                 : cliente.getEmail()), F_NORMAL));
+        der.addElement(new Paragraph("Tipo de transacción: Venta de mercadería", F_NORMAL));
         tabla.addCell(der);
 
         return tabla;
@@ -229,19 +249,22 @@ public class KudeService {
 
     /** Tabla de ítems con las columnas del formato oficial (valor de venta por tasa). */
     private PdfPTable tablaItems(Factura factura) {
-        PdfPTable tabla = new PdfPTable(new float[]{7, 25, 9, 8, 12, 9, 9, 9, 12});
+        // Los anchos dan lugar a los rótulos completos: con menos, "Cantidad" y
+        // "Descuento" se parten al medio de la palabra.
+        PdfPTable tabla = new PdfPTable(new float[]{6, 23, 9, 9, 12, 11, 9, 8, 13});
         tabla.setWidthPercentage(100);
         tabla.setSpacingBefore(6);
 
-        String[] titulos = {"Cód.", "Descripción", "Unidad", "Cant.", "Precio Unit.",
-                "Descuento", "Exentas", "Grav. 5%", "Grav. 10%"};
-        for (String t : titulos) {
-            PdfPCell c = new PdfPCell(new Phrase(t, F_NEGRITA));
-            c.setBackgroundColor(GRIS_FONDO);
-            c.setHorizontalAlignment(Element.ALIGN_CENTER);
-            c.setPadding(4);
-            c.setBorderColor(GRIS);
-            tabla.addCell(c);
+        // Cabecera en dos filas, como la Gráfica N.º 09: las tres columnas de
+        // importe cuelgan de un "Valor de Venta" que las agrupa.
+        String[] simples = {"Cod", "Descripción", "Unidad de medida", "Cantidad",
+                "Precio Unitario", "Descuento"};
+        for (String t : simples) {
+            tabla.addCell(celdaTitulo(t, 1, 2));
+        }
+        tabla.addCell(celdaTitulo("Valor de Venta", 3, 1));
+        for (String t : new String[]{"Exentas", "5%", "10%"}) {
+            tabla.addCell(celdaTitulo(t, 1, 1));
         }
 
         Dinero exentas = Dinero.cero(factura.getMoneda());
@@ -287,6 +310,19 @@ public class KudeService {
         return tabla;
     }
 
+    /** Celda de encabezado de la tabla de ítems, con su ocupación de filas/columnas. */
+    private PdfPCell celdaTitulo(String texto, int columnas, int filas) {
+        PdfPCell c = new PdfPCell(new Phrase(texto, F_NEGRITA));
+        c.setColspan(columnas);
+        c.setRowspan(filas);
+        c.setBackgroundColor(GRIS_FONDO);
+        c.setHorizontalAlignment(Element.ALIGN_CENTER);
+        c.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        c.setPadding(4);
+        c.setBorderColor(GRIS);
+        return c;
+    }
+
     /** Totales de la operación, importe en letras y liquidación del IVA. */
     private PdfPTable totales(Factura factura) {
         Dinero grav5 = Dinero.cero(factura.getMoneda());
@@ -305,48 +341,84 @@ public class KudeService {
         PdfPTable tabla = new PdfPTable(1);
         tabla.setWidthPercentage(100);
 
+        // Las filas y sus rótulos son los del manual (13.4.3): total de la
+        // operación, total en guaraníes y liquidación del IVA.
         tabla.addCell(lineaTotal("TOTAL DE LA OPERACIÓN:   %s %s"
                 .formatted(factura.getMoneda().simbolo(), gs(factura.getTotal())), F_NEGRITA));
+        tabla.addCell(lineaTotal("TOTAL EN %s:   %s".formatted(
+                factura.getMoneda().nombrePlural().toUpperCase(), gs(factura.getTotal())), F_NEGRITA));
         tabla.addCell(lineaTotal(
-                "TOTAL EN %s (EN LETRAS): %s.-".formatted(
-                        factura.getMoneda().nombrePlural().toUpperCase(),
-                        capitalizar(NumeroALetras.enLetras(factura.getTotal()))),
-                F_NORMAL));
-        tabla.addCell(lineaTotal(
-                "LIQUIDACIÓN DEL IVA:   (5%) " + gs(iva5) + "     (10%) " + gs(iva10)
+                "LIQUIDACIÓN IVA:   (5%) " + gs(iva5) + "     (10%) " + gs(iva10)
                         + "     TOTAL IVA: " + gs(iva5.mas(iva10)), F_NORMAL));
+        // El importe en letras no está en el modelo del manual, pero el manual
+        // permite agregar campos y en Paraguay la factura lo lleva por costumbre.
+        tabla.addCell(lineaTotal(
+                "SON: %s.-".formatted(capitalizar(NumeroALetras.enLetras(factura.getTotal()))), F_NORMAL));
         return tabla;
     }
 
-    /** QR de consulta, CDC en grupos de cuatro y leyendas legales. */
-    private void agregarPie(Document doc, String cdc, byte[] qrPng) throws Exception {
+    /**
+     * Bloque de consulta en el SIFEN: el QR a la izquierda y, a su derecha, la
+     * leyenda con la dirección del portal y el CDC en once grupos de cuatro.
+     *
+     * <p>Va encuadrado y en ese orden porque así lo muestra la Gráfica N.º 09
+     * del manual. Antes el QR salía centrado, del tamaño de un cuarto de hoja y
+     * suelto al pie, sin recuadro que lo separara del resto.
+     */
+    private PdfPTable consultaSifen(String cdc, byte[] qrPng) throws Exception {
+        PdfPTable tabla = new PdfPTable(new float[]{18, 82});
+        tabla.setWidthPercentage(100);
+        tabla.setSpacingBefore(6);
+
         Image qr = Image.getInstance(qrPng);
-        qr.setAlignment(Element.ALIGN_CENTER);
-        qr.scaleToFit(130, 130);
-        qr.setSpacingBefore(12);
-        doc.add(qr);
+        qr.scaleToFit(80, 80);
+        PdfPCell celdaQr = new PdfPCell(qr, false);
+        celdaQr.setPadding(6);
+        celdaQr.setBorderColor(GRIS);
+        celdaQr.setHorizontalAlignment(Element.ALIGN_CENTER);
+        celdaQr.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        tabla.addCell(celdaQr);
 
-        doc.add(parrafo(
-                "Consulte la validez de esta Factura Electrónica con el número de CDC impreso abajo en:",
-                F_CHICA, Element.ALIGN_CENTER));
-        doc.add(parrafo(URL_CONSULTA, F_CHICA, Element.ALIGN_CENTER));
+        PdfPCell texto = new PdfPCell();
+        texto.setPadding(6);
+        texto.setBorderColor(GRIS);
+        texto.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        texto.addElement(new Paragraph(
+                "Consulte la validez de esta Factura Electrónica con el número de CDC impreso abajo en:", F_CHICA));
+        texto.addElement(new Paragraph(URL_CONSULTA, F_CHICA));
 
-        Paragraph cdcP = parrafo("CDC: " + CodigoControl.enGruposDeCuatro(cdc), F_NEGRITA, Element.ALIGN_CENTER);
-        cdcP.setSpacingBefore(4);
-        cdcP.setSpacingAfter(6);
-        doc.add(cdcP);
+        // El CDC va resaltado: es el dato que alguien va a tipear en el portal.
+        PdfPTable caja = new PdfPTable(1);
+        caja.setWidthPercentage(100);
+        caja.setSpacingBefore(4);
+        PdfPCell celdaCdc = new PdfPCell(
+                new Phrase("CDC: " + CodigoControl.enGruposDeCuatro(cdc), F_NEGRITA));
+        celdaCdc.setBackgroundColor(GRIS_FONDO);
+        celdaCdc.setBorderColor(GRIS);
+        celdaCdc.setPadding(4);
+        caja.addCell(celdaCdc);
+        texto.addElement(caja);
 
-        doc.add(parrafo(
+        tabla.addCell(texto);
+        return tabla;
+    }
+
+    /** Leyendas legales y espacio de información del emisor (manual, 13.4.5). */
+    private void agregarPie(Document doc) throws Exception {
+        Paragraph representacion = parrafo(
                 "ESTE DOCUMENTO ES UNA REPRESENTACIÓN GRÁFICA DE UN DOCUMENTO ELECTRÓNICO (XML)",
-                F_MINI, Element.ALIGN_CENTER));
+                F_MINI, Element.ALIGN_LEFT);
+        representacion.setSpacingBefore(6);
+        doc.add(representacion);
+
+        doc.add(parrafo("Información de interés del facturador electrónico emisor.", F_CHICA, Element.ALIGN_LEFT));
         doc.add(parrafo(
-                "Información de interés del facturador electrónico emisor: si su documento electrónico presenta "
-                        + "algún error, podrá solicitar la modificación dentro de las 72 horas siguientes de la "
-                        + "emisión de este comprobante.", F_MINI, Element.ALIGN_CENTER));
+                "Si su documento electrónico presenta algún error, podrá solicitar la modificación dentro de "
+                        + "las 72 horas siguientes de la emisión de este comprobante.", F_CHICA, Element.ALIGN_LEFT));
 
         Paragraph aviso = parrafo(
                 "Documento demostrativo — firmado con certificado de PRUEBA, no transmitido al SIFEN.",
-                F_CHICA, Element.ALIGN_CENTER);
+                F_MINI, Element.ALIGN_LEFT);
         aviso.setSpacingBefore(6);
         doc.add(aviso);
     }

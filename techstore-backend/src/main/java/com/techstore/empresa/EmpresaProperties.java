@@ -14,6 +14,8 @@ public record EmpresaProperties(
         String direccion,
         String ciudad,
         String telefono,
+        /** Correo del emisor. El KuDE lo lista entre los datos de la cabecera. */
+        String email,
         String actividad,
         String timbrado,
         String timbradoVigencia,

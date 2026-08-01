@@ -50,6 +50,7 @@ public class EmpresaConfigService {
         set("direccion", req.direccion());
         set("ciudad", req.ciudad());
         set("telefono", req.telefono());
+        set("email", req.email());
         set("actividad", req.actividad());
         set("timbrado", req.timbrado());
         set("timbrado-vigencia", req.timbradoVigencia());
@@ -91,6 +92,7 @@ public class EmpresaConfigService {
                 valor("direccion", porDefecto.direccion()),
                 valor("ciudad", porDefecto.ciudad()),
                 valor("telefono", porDefecto.telefono()),
+                valor("email", porDefecto.email()),
                 valor("actividad", porDefecto.actividad()),
                 valor("timbrado", porDefecto.timbrado()),
                 valor("timbrado-vigencia", porDefecto.timbradoVigencia()),

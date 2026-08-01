@@ -1,5 +1,6 @@
 package com.techstore.empresa;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -17,6 +18,7 @@ public record EmpresaRequest(
         @Size(max = 255) String direccion,
         @Size(max = 100) String ciudad,
         @Size(max = 50) String telefono,
+        @Email(message = "{validacion.email.formato}") @Size(max = 255) String email,
         @Size(max = 255) String actividad,
         @Size(max = 20) String timbrado,
         @Size(max = 100) String timbradoVigencia,
