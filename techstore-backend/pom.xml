@@ -120,7 +120,43 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            PostgreSQL de verdad para las pruebas de integracion, sin Docker.
+            Zonky descarga el binario oficial de Postgres y lo corre como un
+            proceso hijo: mismo motor que produccion, misma sintaxis, mismos
+            tipos (jsonb, enums nativos), y no necesita privilegios de
+            administrador ni WSL, que es lo que Docker Desktop exige en Windows
+            Home. Si algun dia hay Docker, cambiar a Testcontainers es sustituir
+            la clase BaseDatosDePrueba y nada mas: el resto de los tests solo ve
+            una URL JDBC.
+        -->
+        <dependency>
+            <groupId>io.zonky.test</groupId>
+            <artifactId>embedded-postgres</artifactId>
+            <version>2.1.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Fija la version de PostgreSQL de las pruebas para que sea la misma
+                 que corre en la maquina (15). Si el motor de las pruebas fuera otro,
+                 una migracion podria pasar en test y fallar en produccion. -->
+            <dependency>
+                <groupId>io.zonky.test.postgres</groupId>
+                <artifactId>embedded-postgres-binaries-bom</artifactId>
+                <version>15.10.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
         <plugins>
@@ -135,6 +171,25 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+            <!--
+                Los tests de integracion (*IT) van por failsafe, no por surefire:
+                levantan un PostgreSQL de verdad y tardan segundos, asi que el
+                ciclo rapido ("mvn test") tiene que seguir siendo rapido.
+                    mvn test     -> solo los unitarios
+                    mvn verify   -> unitarios + integracion
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

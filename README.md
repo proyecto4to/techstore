@@ -100,6 +100,29 @@ techstore/
 └── tools/                      # Maven portable (no versionado)
 ```
 
+## Pruebas
+
+```powershell
+cd techstore-backend
+
+# Ciclo rápido: solo unitarios (segundos)
+..\tools\apache-maven-3.9.9\bin\mvn.cmd test
+
+# Completo: unitarios + integración (levanta un PostgreSQL de verdad)
+..\tools\apache-maven-3.9.9\bin\mvn.cmd verify
+```
+
+Las de integración (`*IT.java`) levantan **PostgreSQL 15 real** como proceso
+hijo, corren las 22 migraciones desde cero sobre una base vacía y ejercitan la
+API por HTTP con JWT. Verifican lo que ningún unitario puede: que el esquema y
+las entidades no se hayan desincronizado, que la seguridad no deje un endpoint
+abierto, y que cobrar descuente stock, mueva la caja y emita factura.
+
+No hace falta Docker. En Windows Home, Docker Desktop exige WSL2, privilegios de
+administrador y un reinicio; esto no necesita nada de eso. Si algún día se monta
+CI con Docker, migrar a Testcontainers es reescribir `BaseDatosDePrueba` y nada
+más: el resto de los tests solo ve una URL JDBC.
+
 ## Utilidades
 
 Generar un hash BCrypt (para sembrar usuarios en migraciones):
@@ -124,5 +147,5 @@ mvn -q org.codehaus.mojo:exec-maven-plugin:3.1.0:java \
 3. ~~Carrito de compras (Zustand) + checkout con control de stock~~ ✅
 4. ~~Pagos y facturación con IVA + panel admin de pedidos~~ ✅
 5. ~~Panel admin de productos (CRUD desde la web) y reportes de ventas~~ ✅
-6. Tests de integración (Testcontainers) + CI/CD (GitHub Actions)
+6. ~~Tests de integración con PostgreSQL real~~ ✅ (sin Docker) · CI/CD pendiente
 7. Deploy (AWS / DigitalOcean)
