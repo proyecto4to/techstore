@@ -73,5 +73,13 @@ public final class BaseDatosDePrueba {
         // es justamente que las migraciones corran de verdad.
         registro.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registro.add("spring.flyway.enabled", () -> "true");
+        // Flyway tiene su propia conexión (en producción migra con el rol
+        // administrador mientras la app corre con uno limitado). Hay que
+        // apuntarla también acá: si no, se queda con el valor de
+        // application.properties e intenta conectarse a la base real de la
+        // máquina en vez de a esta.
+        registro.add("spring.flyway.url", () -> pg.getJdbcUrl("postgres", "postgres"));
+        registro.add("spring.flyway.user", () -> "postgres");
+        registro.add("spring.flyway.password", () -> "postgres");
     }
 }
