@@ -17,6 +17,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -50,9 +51,18 @@ public class VentaDirectaService {
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
 
         // Fusiona items repetidos del mismo producto (la BD exige unicidad pedido+producto).
-        Map<Long, Integer> cantidades = new LinkedHashMap<>();
+        // Si el mismo producto viene dos veces con descuentos distintos no hay forma
+        // de fusionarlos sin inventar un criterio, así que se rechaza y lo resuelve
+        // quien vende.
+        Map<Long, LineaVenta> cantidades = new LinkedHashMap<>();
         for (VentaDirectaRequest.ItemVenta item : request.items()) {
-            cantidades.merge(item.productoId(), item.cantidad(), Integer::sum);
+            LineaVenta nueva = new LineaVenta(item.cantidad(), item.descuento());
+            cantidades.merge(item.productoId(), nueva, (previa, agregada) -> {
+                if (!previa.mismoDescuentoQue(agregada)) {
+                    throw new BusinessException("ventas.producto.repetido.descuentos.distintos", item.productoId());
+                }
+                return previa.mas(agregada.cantidad());
+            });
         }
 
         // Bloqueo pesimista: dos ventas simultáneas no pueden vender el mismo stock.
@@ -69,7 +79,7 @@ public class VentaDirectaService {
         pedido.setMoneda(Moneda.porDefecto());
 
         Dinero total = Dinero.cero(pedido.getMoneda());
-        for (Map.Entry<Long, Integer> entrada : cantidades.entrySet()) {
+        for (Map.Entry<Long, LineaVenta> entrada : cantidades.entrySet()) {
             Producto producto = productos.get(entrada.getKey());
             if (producto == null) {
                 throw new ResourceNotFoundException("catalogo.producto.no.encontrado", entrada.getKey());
@@ -77,7 +87,7 @@ public class VentaDirectaService {
             if (!Boolean.TRUE.equals(producto.getActivo())) {
                 throw new BusinessException("catalogo.producto.no.disponible", producto.getNombre());
             }
-            int cantidad = entrada.getValue();
+            int cantidad = entrada.getValue().cantidad();
             // Se compara contra el disponible: lo comprometido por pedidos web no se puede vender acá.
             if (cantidad > producto.getStockDisponible()) {
                 throw new BusinessException("catalogo.stock.insuficiente", producto.getNombre(), producto.getStockDisponible(), cantidad);
@@ -92,8 +102,7 @@ public class VentaDirectaService {
             detalle.setIvaAplicado(producto.getIva());
             // Se agrega antes de cargarle importes: la moneda del detalle es la del pedido.
             pedido.agregarDetalle(detalle);
-            detalle.setPrecioUnitario(producto.getPrecio());
-            detalle.setSubtotal(producto.getPrecio().por(cantidad));
+            detalle.fijarPrecio(producto.getPrecio(), entrada.getValue().descuentoEn(pedido.getMoneda()));
 
             total = total.mas(detalle.getSubtotal());
         }
@@ -116,5 +125,27 @@ public class VentaDirectaService {
 
     private static int nvl(Integer valor) {
         return valor == null ? 0 : valor;
+    }
+
+    /**
+     * Lo pedido de un producto una vez fusionadas las líneas repetidas: cuántas
+     * unidades y con qué descuento por unidad.
+     */
+    private record LineaVenta(int cantidad, BigDecimal descuento) {
+
+        LineaVenta mas(int unidades) {
+            return new LineaVenta(cantidad + unidades, descuento);
+        }
+
+        boolean mismoDescuentoQue(LineaVenta otra) {
+            if (descuento == null || otra.descuento == null) {
+                return descuento == null && otra.descuento == null;
+            }
+            return descuento.compareTo(otra.descuento) == 0;
+        }
+
+        Dinero descuentoEn(Moneda moneda) {
+            return descuento == null ? null : Dinero.de(descuento, moneda);
+        }
     }
 }

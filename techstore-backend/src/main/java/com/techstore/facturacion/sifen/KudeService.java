@@ -256,7 +256,7 @@ public class KudeService {
             tabla.addCell(celda("UNI", Element.ALIGN_CENTER));
             tabla.addCell(celda(String.valueOf(d.getCantidad()), Element.ALIGN_CENTER));
             tabla.addCell(celda(gs(d.getPrecioUnitario()), Element.ALIGN_RIGHT));
-            tabla.addCell(celda("0", Element.ALIGN_RIGHT));
+            tabla.addCell(celda(gs(d.getDescuento()), Element.ALIGN_RIGHT));
             tabla.addCell(celda(tasa == 0 ? gs(monto) : "", Element.ALIGN_RIGHT));
             tabla.addCell(celda(tasa == 5 ? gs(monto) : "", Element.ALIGN_RIGHT));
             tabla.addCell(celda(tasa == 10 ? gs(monto) : "", Element.ALIGN_RIGHT));

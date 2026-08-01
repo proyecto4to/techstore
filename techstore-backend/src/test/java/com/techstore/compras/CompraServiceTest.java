@@ -142,8 +142,7 @@ class CompraServiceTest {
         detalle.setCantidad(5);
         detalle.setIvaAplicado(BigDecimal.TEN);
         pedido.agregarDetalle(detalle);
-        detalle.setPrecioUnitario(Dinero.de(2_800_000, Moneda.PYG));
-        detalle.setSubtotal(Dinero.de(14_000_000, Moneda.PYG));
+        detalle.fijarPrecio(Dinero.de(2_800_000, Moneda.PYG), null);
         pedido.setTotal(detalle.getSubtotal());
         return pedido;
     }

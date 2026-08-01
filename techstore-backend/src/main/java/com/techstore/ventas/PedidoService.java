@@ -87,8 +87,9 @@ public class PedidoService {
             detalle.setIvaAplicado(producto.getIva());
             // Se agrega antes de cargarle importes: la moneda del detalle es la del pedido.
             pedido.agregarDetalle(detalle);
-            detalle.setPrecioUnitario(producto.getPrecio());
-            detalle.setSubtotal(producto.getPrecio().por(cantidad));
+            // Una compra por la web va sin descuento: el cliente no se rebaja el precio
+            // a sí mismo. El descuento se carga en el mostrador (venta directa).
+            detalle.fijarPrecio(producto.getPrecio(), null);
 
             total = total.mas(detalle.getSubtotal());
         }

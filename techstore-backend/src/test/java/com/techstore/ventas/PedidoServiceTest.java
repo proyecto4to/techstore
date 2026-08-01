@@ -174,8 +174,7 @@ class PedidoServiceTest {
         detalle.setCantidad(cantidad);
         detalle.setIvaAplicado(producto.getIva());
         pedido.agregarDetalle(detalle);
-        detalle.setPrecioUnitario(producto.getPrecio());
-        detalle.setSubtotal(producto.getPrecio().por(cantidad));
+        detalle.fijarPrecio(producto.getPrecio(), null);
         pedido.setTotal(detalle.getSubtotal());
         return pedido;
     }

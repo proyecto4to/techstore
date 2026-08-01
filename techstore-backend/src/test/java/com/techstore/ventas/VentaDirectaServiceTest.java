@@ -96,7 +96,7 @@ class VentaDirectaServiceTest {
 
     private VentaDirectaRequest venta(int cantidad, String monto) {
         return new VentaDirectaRequest(
-                List.of(new ItemVenta(32L, cantidad)),
+                List.of(new ItemVenta(32L, cantidad, null)),
                 List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal(monto), null)),
                 null, null);
     }
@@ -129,7 +129,7 @@ class VentaDirectaServiceTest {
 
         ventaDirectaService.vender(
                 new VentaDirectaRequest(
-                        List.of(new ItemVenta(32L, 1)),
+                        List.of(new ItemVenta(32L, 1, null)),
                         List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("45000.00"), null)),
                         receptor, "Cliente de mostrador"),
                 "cajero@techstore.py");
@@ -173,12 +173,70 @@ class VentaDirectaServiceTest {
     }
 
     @Test
+    void elDescuentoSeAplicaPorUnidadYBajaElTotal() {
+        prepararVentaFeliz();
+
+        // 3 unidades de 45.000 con 5.000 de rebaja cada una: 3 × 40.000 = 120.000.
+        ventaDirectaService.vender(
+                new VentaDirectaRequest(
+                        List.of(new ItemVenta(32L, 3, new BigDecimal("5000"))),
+                        List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("120000"), null)),
+                        null, null),
+                "cajero@techstore.py");
+
+        ArgumentCaptor<Pedido> captor = ArgumentCaptor.forClass(Pedido.class);
+        verify(pedidoRepository).saveAndFlush(captor.capture());
+        PedidoDetalle detalle = captor.getValue().getDetalles().get(0);
+
+        assertEquals(Dinero.de(5_000, Moneda.PYG), detalle.getDescuento(), "El descuento se guarda por unidad");
+        assertEquals(Dinero.de(15_000, Moneda.PYG), detalle.getDescuentoDeLaLinea());
+        assertEquals(Dinero.de(120_000, Moneda.PYG), detalle.getSubtotal());
+        assertEquals(Dinero.de(120_000, Moneda.PYG), captor.getValue().getTotal());
+    }
+
+    @Test
+    void elDescuentoNoPuedeSuperarElPrecio() {
+        when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
+        when(productoRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(cable));
+        when(autonumeradorService.siguiente("PEDIDO")).thenReturn(50);
+
+        // Una rebaja mayor al precio dejaría la línea en negativo.
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> ventaDirectaService.vender(
+                        new VentaDirectaRequest(
+                                List.of(new ItemVenta(32L, 1, new BigDecimal("50000"))),
+                                List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("0"), null)),
+                                null, null),
+                        "cajero@techstore.py"));
+
+        assertEquals("ventas.descuento.mayor.al.precio", ex.getClave());
+        verify(pagoService, never()).registrarPago(any(), any(), any());
+    }
+
+    @Test
+    void elMismoProductoConDosDescuentosDistintosNoSeFusiona() {
+        when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
+
+        // Fusionarlos obligaría a inventar con cuál de los dos descuentos queda.
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> ventaDirectaService.vender(
+                        new VentaDirectaRequest(
+                                List.of(new ItemVenta(32L, 1, new BigDecimal("5000")),
+                                        new ItemVenta(32L, 1, new BigDecimal("9000"))),
+                                List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("76000"), null)),
+                                null, null),
+                        "cajero@techstore.py"));
+
+        assertEquals("ventas.producto.repetido.descuentos.distintos", ex.getClave());
+    }
+
+    @Test
     void elMismoProductoRepetidoSeFusionaEnUnaSolaLinea() {
         prepararVentaFeliz();
 
         ventaDirectaService.vender(
                 new VentaDirectaRequest(
-                        List.of(new ItemVenta(32L, 2), new ItemVenta(32L, 3)),
+                        List.of(new ItemVenta(32L, 2, null), new ItemVenta(32L, 3, null)),
                         List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("225000.00"), null)),
                         null, null),
                 "cajero@techstore.py");

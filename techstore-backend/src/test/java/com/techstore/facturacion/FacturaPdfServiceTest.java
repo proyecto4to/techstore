@@ -65,8 +65,7 @@ class FacturaPdfServiceTest {
         detalle.setCantidad(1);
         detalle.setIvaAplicado(BigDecimal.TEN);
         pedido.agregarDetalle(detalle);
-        detalle.setPrecioUnitario(producto.getPrecio());
-        detalle.setSubtotal(producto.getPrecio());
+        detalle.fijarPrecio(producto.getPrecio(), null);
         pedido.setTotal(producto.getPrecio());
 
         Factura factura = new Factura();

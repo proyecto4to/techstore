@@ -113,15 +113,17 @@ public class NotaCreditoService {
             Producto producto = detallePedido.getProducto();
             producto.setStockReal((producto.getStockReal() == null ? 0 : producto.getStockReal()) + cantidad);
 
-            Dinero subtotal = detallePedido.getPrecioUnitario().por(cantidad);
             NotaCreditoDetalle detalleNc = new NotaCreditoDetalle();
             detalleNc.setProducto(producto);
             detalleNc.setCantidad(cantidad);
             detalleNc.setIvaAplicado(detallePedido.getIvaAplicado());
             // Se agrega antes de cargarle importes: la moneda del detalle es la de la nota.
             nc.agregarDetalle(detalleNc);
-            detalleNc.setPrecioUnitario(detallePedido.getPrecioUnitario());
-            detalleNc.setSubtotal(subtotal);
+            // Con el mismo descuento que tenía la venta: se devuelve lo que se cobró,
+            // no el precio de lista. Sin esto, rebajar un producto y después
+            // devolverlo le saldría ganando al cliente.
+            detalleNc.fijarPrecio(detallePedido.getPrecioUnitario(), detallePedido.getDescuento());
+            Dinero subtotal = detalleNc.getSubtotal();
 
             totalNc = totalNc.mas(subtotal);
             ivaNc = ivaNc.mas(subtotal.ivaIncluido(detallePedido.getIvaAplicado()));

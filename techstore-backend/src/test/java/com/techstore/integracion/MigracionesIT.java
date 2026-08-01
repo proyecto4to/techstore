@@ -61,7 +61,7 @@ class MigracionesIT {
             }
         }
         assertTrue(fallidas.isEmpty(), "Migraciones fallidas: " + fallidas);
-        assertEquals(25, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
+        assertEquals(26, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
     }
 
     @Test
@@ -121,6 +121,25 @@ class MigracionesIT {
         // Todo lo que ya existía es en guaraníes.
         assertEquals(0, contar("SELECT count(*) FROM productos WHERE moneda <> 'PYG'"),
                 "Quedaron productos en una moneda que no es la del backfill");
+    }
+
+    @Test
+    @DisplayName("V26 dejó el descuento por ítem, y la base rechaza los imposibles")
+    void descuentoPorItem() throws SQLException {
+        for (String tabla : List.of("pedido_detalles", "nota_credito_detalles")) {
+            assertTrue(existeColumna(tabla, "descuento"), "Falta la columna descuento en " + tabla);
+            assertEquals("NO", nullable(tabla, "descuento"), "El descuento de " + tabla + " admite nulo");
+        }
+        // El descuento se guarda por unidad, así que no puede superar el precio
+        // unitario ni ser negativo. Lo garantiza la base, no solo el código.
+        assertTrue(existeRestriccion("pedido_detalles_descuento_valido"),
+                "Sin el CHECK, un UPDATE a mano podría dejar una línea de importe negativo");
+        assertTrue(existeRestriccion("nota_credito_detalles_descuento_valido"));
+    }
+
+    /** {@code true} si la base tiene una restricción con ese nombre. */
+    private boolean existeRestriccion(String nombre) throws SQLException {
+        return contar("SELECT count(*) FROM pg_constraint WHERE conname = '" + nombre + "'") == 1;
     }
 
     @Test

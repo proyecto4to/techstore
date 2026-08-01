@@ -129,8 +129,7 @@ class PagoServiceTest {
         detalle.setCantidad(1);
         detalle.setIvaAplicado(BigDecimal.TEN);
         pedido.agregarDetalle(detalle);
-        detalle.setPrecioUnitario(cpu.getPrecio());
-        detalle.setSubtotal(cpu.getPrecio());
+        detalle.fijarPrecio(cpu.getPrecio(), null);
         pedido.setTotal(Dinero.de(2_500_000, Moneda.PYG));
     }
 

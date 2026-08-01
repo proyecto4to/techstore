@@ -1,6 +1,7 @@
 package com.techstore.ventas;
 
 import com.techstore.catalogo.Producto;
+import com.techstore.comun.BusinessException;
 import com.techstore.comun.ConMoneda;
 import com.techstore.comun.Dinero;
 import com.techstore.comun.Moneda;
@@ -59,6 +60,17 @@ public class PedidoDetalle implements ConMoneda {
     @Column(name = "precio_unitario", nullable = false, precision = 12, scale = 2)
     private BigDecimal precioUnitario;
 
+    /**
+     * Descuento <b>por unidad</b>, no por línea. Así lo define el manual técnico
+     * del SIFEN (EA002, "descuento particular sobre el precio unitario") y así
+     * entra en el cálculo del total del ítem. El {@link #subtotal} ya lo tiene
+     * descontado.
+     */
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal descuento = BigDecimal.ZERO;
+
     @Getter(AccessLevel.NONE)
     @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 15, scale = 2)
@@ -89,19 +101,46 @@ public class PedidoDetalle implements ConMoneda {
         return pedido.getMoneda();
     }
 
+    /**
+     * Carga el precio de la línea y deriva el subtotal, que es
+     * {@code (precio − descuento) × cantidad}.
+     *
+     * <p>No hay un {@code setSubtotal}: el subtotal no es un dato que se cargue
+     * sino el resultado de los otros tres. Si se pudiera fijar aparte, alcanzaría
+     * un descuento aplicado a medias para que la línea diga un importe y el
+     * documento electrónico calcule otro.
+     *
+     * @param descuento por unidad, no por línea. {@code null} es sin descuento.
+     */
+    public void fijarPrecio(Dinero precioUnitario, Dinero descuento) {
+        Dinero rebaja = descuento == null ? Dinero.cero(getMoneda()) : descuento;
+        if (rebaja.esNegativo()) {
+            throw new BusinessException("ventas.descuento.negativo", producto.getNombre());
+        }
+        if (rebaja.mayorQue(precioUnitario)) {
+            throw new BusinessException("ventas.descuento.mayor.al.precio",
+                    producto.getNombre(), rebaja.plano(), precioUnitario.plano());
+        }
+        this.precioUnitario = monto(precioUnitario);
+        this.descuento = monto(rebaja);
+        this.subtotal = monto(precioUnitario.menos(rebaja).por(cantidad));
+    }
+
     public Dinero getPrecioUnitario() {
         return importe(precioUnitario);
     }
 
-    public void setPrecioUnitario(Dinero precioUnitario) {
-        this.precioUnitario = monto(precioUnitario);
+    /** Descuento por unidad. */
+    public Dinero getDescuento() {
+        return importe(descuento);
+    }
+
+    /** Lo que el descuento le saca a la línea entera: útil para el total del documento. */
+    public Dinero getDescuentoDeLaLinea() {
+        return getDescuento().por(cantidad);
     }
 
     public Dinero getSubtotal() {
         return importe(subtotal);
-    }
-
-    public void setSubtotal(Dinero subtotal) {
-        this.subtotal = monto(subtotal);
     }
 }

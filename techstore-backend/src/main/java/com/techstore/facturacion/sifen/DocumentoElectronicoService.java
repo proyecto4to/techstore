@@ -15,6 +15,7 @@ import org.w3c.dom.Element;
 
 import java.io.StringWriter;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -208,8 +209,21 @@ public class DocumentoElectronicoService {
 
         Element gVal = hijo(doc, g, "gValorItem", null);
         hijo(doc, gVal, "dPUniProSer", plano(detalle.getPrecioUnitario()));
-        hijo(doc, gVal, "dTotBruOpeItem", plano(subtotal));
+        // E722: "multiplicación del precio por ítem y la cantidad por ítem". Es el
+        // bruto, antes del descuento; el neto va más abajo en dTotOpeItem.
+        hijo(doc, gVal, "dTotBruOpeItem", plano(detalle.getPrecioUnitario().por(detalle.getCantidad())));
+
         Element gResta = hijo(doc, gVal, "gValorRestaItem", null);
+        Dinero descuento = detalle.getDescuento();
+        // EA002 va siempre: el manual pide completar con 0 cuando no hay descuento.
+        hijo(doc, gResta, "dDescItem", plano(descuento));
+        if (descuento.esPositivo()) {
+            // EA003 es obligatorio cuando hay descuento, y su fórmula la fija el
+            // manual: EA002 × 100 / E721.
+            hijo(doc, gResta, "dPorcDesIt", porcentajeDescuento(detalle));
+        }
+        // EA008 = (precio − descuento) × cantidad, que es exactamente el subtotal
+        // que la línea ya tiene calculado.
         hijo(doc, gResta, "dTotOpeItem", plano(subtotal));
 
         Element gIVA = hijo(doc, g, "gCamIVA", null);
@@ -225,6 +239,7 @@ public class DocumentoElectronicoService {
         Dinero grav10 = Dinero.cero(factura.getMoneda());
         Dinero grav5 = Dinero.cero(factura.getMoneda());
         Dinero exentas = Dinero.cero(factura.getMoneda());
+        Dinero totalDescuento = Dinero.cero(factura.getMoneda());
         for (PedidoDetalle d : factura.getPedido().getDetalles()) {
             int tasa = d.getIvaAplicado() == null ? 0 : d.getIvaAplicado().intValue();
             Dinero monto = d.getSubtotal();
@@ -233,6 +248,10 @@ public class DocumentoElectronicoService {
                 case 5 -> grav5 = grav5.mas(monto);
                 default -> exentas = exentas.mas(monto);
             }
+            // Por línea, no por unidad: el descuento se guarda unitario (EA002),
+            // pero acá se suma lo que efectivamente se rebajó, que es lo único
+            // que hace cerrar bruto − descuento = neto.
+            totalDescuento = totalDescuento.mas(d.getDescuentoDeLaLinea());
         }
         // El mismo cálculo que guarda la factura y que imprime el KuDE.
         Dinero iva10 = grav10.ivaIncluido(BigDecimal.TEN);
@@ -242,6 +261,7 @@ public class DocumentoElectronicoService {
         hijo(doc, g, "dSubExe", plano(exentas));
         hijo(doc, g, "dSub5", plano(grav5));
         hijo(doc, g, "dSub10", plano(grav10));
+        hijo(doc, g, "dTotDesc", plano(totalDescuento));
         hijo(doc, g, "dTotOpe", plano(factura.getTotal()));
         hijo(doc, g, "dTotGralOpe", plano(factura.getTotal()));
         hijo(doc, g, "dIVA5", plano(iva5));
@@ -263,6 +283,19 @@ public class DocumentoElectronicoService {
         }
         padre.appendChild(e);
         return e;
+    }
+
+    /**
+     * Porcentaje que representa el descuento sobre el precio unitario (EA003).
+     * La fórmula la fija el manual: {@code EA002 × 100 / E721}. Se calcula con
+     * decimales porque un descuento de 5.000 sobre 90.000 no da un entero.
+     */
+    private static String porcentajeDescuento(PedidoDetalle detalle) {
+        return detalle.getDescuento().monto()
+                .multiply(BigDecimal.valueOf(100))
+                .divide(detalle.getPrecioUnitario().monto(), 4, RoundingMode.HALF_UP)
+                .stripTrailingZeros()
+                .toPlainString();
     }
 
     private static String plano(Dinero valor) {

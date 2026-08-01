@@ -148,8 +148,7 @@ class NotaCreditoServiceTest {
         d.setCantidad(cantidad);
         d.setIvaAplicado(BigDecimal.TEN);
         pedido.agregarDetalle(d);
-        d.setPrecioUnitario(producto.getPrecio());
-        d.setSubtotal(producto.getPrecio().por(cantidad));
+        d.fijarPrecio(producto.getPrecio(), null);
         return d;
     }
 
@@ -189,6 +188,22 @@ class NotaCreditoServiceTest {
         verify(cajaService).registrarEgresoAutomatico(
                 eq(Dinero.de(800_000, Moneda.PYG)), eq("Devolución pedido N.º 3"),
                 eq("NC 001-001-0000001"), eq(cajero));
+    }
+
+    @Test
+    void seDevuelveLoCobradoYNoElPrecioDeLista() {
+        // La RAM se vendió con 100.000 de rebaja por unidad: 800.000 − 100.000.
+        pedido.getDetalles().get(0).fijarPrecio(ram.getPrecio(), Dinero.de(100_000, Moneda.PYG));
+        prepararHappy();
+
+        NotaCreditoResponse nc = notaCreditoService.emitir(3L,
+                req("Vino fallada", new ItemDevolucion(4L, 1)), "cajero@techstore.py");
+
+        // Si la devolución usara el precio de lista, el cliente cobraría 800.000
+        // por algo que pagó 700.000 y se quedaría con la diferencia.
+        assertEquals(new BigDecimal("700000"), nc.total());
+        verify(cajaService).registrarEgresoAutomatico(
+                eq(Dinero.de(700_000, Moneda.PYG)), any(), any(), eq(cajero));
     }
 
     @Test
@@ -275,8 +290,7 @@ class NotaCreditoServiceTest {
         d.setCantidad(1);
         d.setIvaAplicado(BigDecimal.TEN);
         nc.agregarDetalle(d);
-        d.setPrecioUnitario(ram.getPrecio());
-        d.setSubtotal(ram.getPrecio());
+        d.fijarPrecio(ram.getPrecio(), null);
         when(notaCreditoRepository.findParaPdfById(1L)).thenReturn(Optional.of(nc));
 
         NotaCreditoService.NotaCreditoPdf pdf = notaCreditoService.generarPdf(1L);

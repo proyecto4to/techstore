@@ -59,6 +59,15 @@ public class NotaCreditoDetalle implements ConMoneda {
     @Column(name = "precio_unitario", nullable = false, precision = 12, scale = 2)
     private BigDecimal precioUnitario;
 
+    /**
+     * El mismo descuento por unidad que tenía la línea del pedido: se devuelve
+     * lo que se cobró, no el precio de lista.
+     */
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal descuento = BigDecimal.ZERO;
+
     @Getter(AccessLevel.NONE)
     @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 15, scale = 2)
@@ -89,19 +98,29 @@ public class NotaCreditoDetalle implements ConMoneda {
         return notaCredito.getMoneda();
     }
 
+    /**
+     * Carga el precio de la línea devuelta y deriva el subtotal, que es
+     * {@code (precio − descuento) × cantidad}. Igual que en el pedido, el
+     * subtotal no se carga aparte para que no pueda contradecir a los otros
+     * tres valores.
+     */
+    public void fijarPrecio(Dinero precioUnitario, Dinero descuento) {
+        Dinero rebaja = descuento == null ? Dinero.cero(getMoneda()) : descuento;
+        this.precioUnitario = monto(precioUnitario);
+        this.descuento = monto(rebaja);
+        this.subtotal = monto(precioUnitario.menos(rebaja).por(cantidad));
+    }
+
     public Dinero getPrecioUnitario() {
         return importe(precioUnitario);
     }
 
-    public void setPrecioUnitario(Dinero precioUnitario) {
-        this.precioUnitario = monto(precioUnitario);
+    /** Descuento por unidad. */
+    public Dinero getDescuento() {
+        return importe(descuento);
     }
 
     public Dinero getSubtotal() {
         return importe(subtotal);
-    }
-
-    public void setSubtotal(Dinero subtotal) {
-        this.subtotal = monto(subtotal);
     }
 }

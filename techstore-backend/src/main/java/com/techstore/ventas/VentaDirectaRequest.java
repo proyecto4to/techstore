@@ -2,11 +2,13 @@ package com.techstore.ventas;
 
 import com.techstore.facturacion.RegistroPagoRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -23,6 +25,13 @@ public record VentaDirectaRequest(
 
     public record ItemVenta(
             @NotNull Long productoId,
-            @NotNull @Min(value = 1, message = "{validacion.cantidad.minima}") Integer cantidad) {
+            @NotNull @Min(value = 1, message = "{validacion.cantidad.minima}") Integer cantidad,
+            /**
+             * Rebaja <b>por unidad</b> sobre el precio de lista, no sobre la línea
+             * entera: es como lo pide el documento electrónico. Opcional; nulo es
+             * sin descuento.
+             */
+            @DecimalMin(value = "0", message = "{validacion.descuento.no.negativo}")
+            BigDecimal descuento) {
     }
 }

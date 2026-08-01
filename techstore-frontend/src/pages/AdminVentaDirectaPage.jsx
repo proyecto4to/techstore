@@ -27,7 +27,11 @@ function AdminVentaDirectaPage() {
     placeholderData: keepPreviousData,
   })
 
-  const total = carrito.reduce((suma, i) => suma + Number(i.precio) * i.cantidad, 0)
+  // El descuento es por unidad, igual que lo guarda el sistema y lo pide el
+  // documento electrónico: la línea vale (precio − descuento) × cantidad.
+  const subtotalDe = (i) => (Number(i.precio) - Number(i.descuento || 0)) * i.cantidad
+  const total = carrito.reduce((suma, i) => suma + subtotalDe(i), 0)
+  const totalDescuento = carrito.reduce((suma, i) => suma + Number(i.descuento || 0) * i.cantidad, 0)
 
   const agregar = (producto) => {
     setError(null)
@@ -50,6 +54,7 @@ function AdminVentaDirectaPage() {
           nombre: producto.nombre,
           precio: producto.precio,
           cantidad: 1,
+          descuento: '',
           stockDisponible: producto.stockDisponible,
         },
       ]
@@ -61,6 +66,17 @@ function AdminVentaDirectaPage() {
       actual.map((i) =>
         i.productoId === productoId
           ? { ...i, cantidad: Math.max(1, Math.min(cantidad, i.stockDisponible)) }
+          : i,
+      ),
+    )
+  }
+
+  /** La rebaja no puede superar el precio: dejaría la línea en negativo. */
+  const cambiarDescuento = (productoId, descuento) => {
+    setCarrito((actual) =>
+      actual.map((i) =>
+        i.productoId === productoId
+          ? { ...i, descuento: descuento === '' ? '' : Math.max(0, Math.min(Number(descuento), Number(i.precio))) }
           : i,
       ),
     )
@@ -82,7 +98,11 @@ function AdminVentaDirectaPage() {
   const venderMutation = useMutation({
     mutationFn: ({ lineas, receptor }) =>
       ventaService.vender({
-        items: carrito.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad })),
+        items: carrito.map((i) => ({
+          productoId: i.productoId,
+          cantidad: i.cantidad,
+          descuento: i.descuento === '' ? null : Number(i.descuento),
+        })),
         lineas,
         receptor: conEmail(receptor),
       }),
@@ -204,6 +224,7 @@ function AdminVentaDirectaPage() {
                   <tr>
                     <th>Producto</th>
                     <th>Cant.</th>
+                    <th>Desc. c/u</th>
                     <th>Subtotal</th>
                     <th></th>
                   </tr>
@@ -223,7 +244,20 @@ function AdminVentaDirectaPage() {
                           aria-label={`Cantidad de ${i.nombre}`}
                         />
                       </td>
-                      <td className="text-primary-300">{formatPrecio(i.precio * i.cantidad)}</td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          max={i.precio}
+                          step="1"
+                          value={i.descuento}
+                          placeholder="0"
+                          onChange={(e) => cambiarDescuento(i.productoId, e.target.value)}
+                          className="input w-24 py-1 text-sm"
+                          aria-label={`Descuento por unidad de ${i.nombre}`}
+                        />
+                      </td>
+                      <td className="text-primary-300">{formatPrecio(subtotalDe(i))}</td>
                       <td>
                         <button
                           onClick={() => quitar(i.productoId)}
@@ -237,6 +271,13 @@ function AdminVentaDirectaPage() {
                   ))}
                 </tbody>
               </table>
+
+              {totalDescuento > 0 && (
+                <p className="mb-3 text-sm text-neutral-secondary">
+                  Descuento aplicado:{' '}
+                  <span className="font-semibold text-amber-400">−{formatPrecio(totalDescuento)}</span>
+                </p>
+              )}
 
               <div className="mb-3">
                 <label

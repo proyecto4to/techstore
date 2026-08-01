@@ -98,8 +98,9 @@ public class CompraService {
             detalle.setIvaAplicado(producto.getIva());
             // Se agrega antes de cargarle importes: la moneda del detalle es la del pedido.
             pedido.agregarDetalle(detalle);
-            detalle.setPrecioUnitario(costoUnitario);
-            detalle.setSubtotal(costoUnitario.por(item.cantidad()));
+            // Una compra a proveedor no lleva descuento por línea: lo que se negocia
+            // con el proveedor ya viene en el costo unitario acordado.
+            detalle.fijarPrecio(costoUnitario, null);
             total = total.mas(detalle.getSubtotal());
         }
 
