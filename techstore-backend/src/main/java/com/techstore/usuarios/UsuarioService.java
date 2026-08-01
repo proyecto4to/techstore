@@ -32,10 +32,10 @@ public class UsuarioService {
     @Transactional
     public UsuarioAdminResponse crear(CrearUsuarioRequest request) {
         if (usuarioRepository.existsByEmail(request.email())) {
-            throw new BusinessException("Ya existe una cuenta con el email " + request.email());
+            throw new BusinessException("usuarios.email.duplicado", request.email());
         }
         Rol rol = rolRepository.findByNombre(request.rol())
-                .orElseThrow(() -> new BusinessException("El rol '%s' no existe".formatted(request.rol())));
+                .orElseThrow(() -> new BusinessException("usuarios.rol.inexistente", request.rol()));
 
         Usuario usuario = new Usuario();
         usuario.setEmail(request.email());
@@ -56,9 +56,9 @@ public class UsuarioService {
     @Transactional
     public UsuarioAdminResponse cambiarActivo(Long id, boolean activo, String emailSolicitante) {
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario", id));
+                .orElseThrow(() -> new ResourceNotFoundException("usuarios.no.encontrado", id));
         if (!activo && usuario.getEmail().equals(emailSolicitante)) {
-            throw new BusinessException("No podés desactivar tu propia cuenta");
+            throw new BusinessException("usuarios.no.autodesactivar");
         }
         boolean activoAnterior = Boolean.TRUE.equals(usuario.getActivo());
         usuario.setActivo(activo);
@@ -89,7 +89,7 @@ public class UsuarioService {
     @Transactional
     public UsuarioAdminResponse resetearPassword(Long id, String passwordNueva) {
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario", id));
+                .orElseThrow(() -> new ResourceNotFoundException("usuarios.no.encontrado", id));
         usuario.setPasswordHash(passwordEncoder.encode(passwordNueva));
         UsuarioAdminResponse respuesta = UsuarioAdminResponse.from(usuarioRepository.save(usuario));
 

@@ -38,10 +38,10 @@ public class AuthService {
     @Transactional
     public AuthResponse registrar(RegistroRequest request) {
         if (usuarioRepository.existsByEmail(request.email())) {
-            throw new BusinessException("Ya existe una cuenta con el email " + request.email());
+            throw new BusinessException("usuarios.email.duplicado", request.email());
         }
         Rol rolCliente = rolRepository.findByNombre(ROL_CLIENTE)
-                .orElseThrow(() -> new BusinessException("El rol Cliente no está configurado en el sistema"));
+                .orElseThrow(() -> new BusinessException("usuarios.rol.cliente.faltante"));
 
         Usuario usuario = new Usuario();
         usuario.setEmail(request.email());
@@ -86,8 +86,7 @@ public class AuthService {
         loginRateLimiter.registrarExito(request.email());
 
         if (!Boolean.TRUE.equals(usuario.getActivo())) {
-            throw new CuentaInactivaException(
-                    "Tu cuenta está bloqueada o inactiva. Contactá al administrador para reactivarla.");
+            throw new CuentaInactivaException("usuarios.cuenta.inactiva");
         }
 
         usuario.setLastLogin(LocalDateTime.now());
@@ -133,7 +132,7 @@ public class AuthService {
         } else {
             String motivo = RucParaguayo.motivoInvalidez(ruc);
             if (motivo != null) {
-                throw new BusinessException("El RUC '%s' no es válido: %s.".formatted(ruc, motivo));
+                throw new BusinessException("facturacion.ruc.invalido", ruc, motivo);
             }
             usuario.setRuc(ruc);
             String razonSocial = request.razonSocial();

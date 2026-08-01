@@ -69,15 +69,14 @@ public class PedidoService {
         for (Map.Entry<Long, Integer> entrada : cantidades.entrySet()) {
             Producto producto = productos.get(entrada.getKey());
             if (producto == null) {
-                throw new ResourceNotFoundException("Producto", entrada.getKey());
+                throw new ResourceNotFoundException("catalogo.producto.no.encontrado", entrada.getKey());
             }
             if (!Boolean.TRUE.equals(producto.getActivo())) {
-                throw new BusinessException("El producto '%s' ya no está disponible".formatted(producto.getNombre()));
+                throw new BusinessException("catalogo.producto.no.disponible", producto.getNombre());
             }
             int cantidad = entrada.getValue();
             if (cantidad > producto.getStockDisponible()) {
-                throw new BusinessException("Stock insuficiente para '%s': disponibles %d, solicitados %d"
-                        .formatted(producto.getNombre(), producto.getStockDisponible(), cantidad));
+                throw new BusinessException("catalogo.stock.insuficiente", producto.getNombre(), producto.getStockDisponible(), cantidad);
             }
 
             producto.setStockComprometido(nvl(producto.getStockComprometido()) + cantidad);
@@ -126,14 +125,14 @@ public class PedidoService {
     @Transactional
     public PedidoResponse confirmar(Long id) {
         Pedido pedido = buscarConDetalles(id);
-        exigirEstado(pedido, EstadoPedido.P, "confirmar");
+        exigirEstado(pedido, EstadoPedido.P, "ventas.pedido.no.confirmable");
 
         bloquearProductosDe(pedido);
         for (PedidoDetalle detalle : pedido.getDetalles()) {
             Producto producto = detalle.getProducto();
             int nuevoStock = nvl(producto.getStockReal()) - detalle.getCantidad();
             if (nuevoStock < 0) {
-                throw new BusinessException("El stock real de '%s' quedaría negativo".formatted(producto.getNombre()));
+                throw new BusinessException("catalogo.stock.real.negativo", producto.getNombre());
             }
             producto.setStockReal(nuevoStock);
             producto.setStockComprometido(Math.max(0, nvl(producto.getStockComprometido()) - detalle.getCantidad()));
@@ -153,7 +152,7 @@ public class PedidoService {
         if (!esAdmin && !pedido.getUsuario().getEmail().equals(emailSolicitante)) {
             throw new AccessDeniedException("No puede anular pedidos de otro usuario");
         }
-        exigirEstado(pedido, EstadoPedido.P, "anular");
+        exigirEstado(pedido, EstadoPedido.P, "ventas.pedido.no.anulable");
 
         bloquearProductosDe(pedido);
         for (PedidoDetalle detalle : pedido.getDetalles()) {
@@ -185,13 +184,17 @@ public class PedidoService {
 
     private Pedido buscarConDetalles(Long id) {
         return pedidoRepository.findWithDetallesById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Pedido", id));
+                .orElseThrow(() -> new ResourceNotFoundException("ventas.pedido.no.encontrado", id));
     }
 
-    private void exigirEstado(Pedido pedido, EstadoPedido esperado, String accion) {
+    /**
+     * Cada acción trae la clave de su propio mensaje en vez de pasar el verbo
+     * como argumento: una frase armada pegando un verbo suelto se traduce mal,
+     * porque en otros idiomas el verbo no va necesariamente en ese lugar.
+     */
+    private void exigirEstado(Pedido pedido, EstadoPedido esperado, String claveMensaje) {
         if (pedido.getEstado() != esperado) {
-            throw new BusinessException("Solo se puede %s un pedido en estado %s (actual: %s)"
-                    .formatted(accion, esperado, pedido.getEstado()));
+            throw new BusinessException(claveMensaje, esperado, pedido.getEstado());
         }
     }
 

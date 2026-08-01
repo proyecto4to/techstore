@@ -126,7 +126,7 @@ public class ReportePdfService {
                 }
                 doc.add(clientes);
             } catch (DocumentException ex) {
-                throw new BusinessException("Error al generar el reporte: " + ex.getMessage());
+                throw new BusinessException("reportes.generacion.fallo", ex.getMessage());
             }
         });
     }
@@ -151,7 +151,7 @@ public class ReportePdfService {
                         }
                         doc.add(t);
                     } catch (DocumentException ex) {
-                        throw new BusinessException("Error al generar el reporte: " + ex.getMessage());
+                        throw new BusinessException("reportes.generacion.fallo", ex.getMessage());
                     }
                 });
     }
@@ -196,7 +196,7 @@ public class ReportePdfService {
                 }
                 doc.add(t);
             } catch (DocumentException ex) {
-                throw new BusinessException("Error al generar el reporte: " + ex.getMessage());
+                throw new BusinessException("reportes.generacion.fallo", ex.getMessage());
             }
         });
     }
@@ -220,7 +220,7 @@ public class ReportePdfService {
             doc.close();
             return salida.toByteArray();
         } catch (DocumentException | java.io.IOException ex) {
-            throw new BusinessException("No se pudo generar el PDF: " + ex.getMessage());
+            throw new BusinessException("documento.pdf.fallo", ex.getMessage());
         }
     }
 

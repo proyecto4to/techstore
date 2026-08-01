@@ -13,6 +13,6 @@ import java.util.List;
  * distinga lo que salió del cajón de lo que salió del banco.
  */
 public record PagoCompraRequest(
-        @NotEmpty(message = "Debe indicar al menos un método de pago")
+        @NotEmpty(message = "{validacion.metodo.pago.obligatorio}")
         @Valid List<RegistroPagoRequest.LineaPago> lineas) {
 }

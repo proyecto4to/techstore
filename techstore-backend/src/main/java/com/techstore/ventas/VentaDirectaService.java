@@ -72,16 +72,15 @@ public class VentaDirectaService {
         for (Map.Entry<Long, Integer> entrada : cantidades.entrySet()) {
             Producto producto = productos.get(entrada.getKey());
             if (producto == null) {
-                throw new ResourceNotFoundException("Producto", entrada.getKey());
+                throw new ResourceNotFoundException("catalogo.producto.no.encontrado", entrada.getKey());
             }
             if (!Boolean.TRUE.equals(producto.getActivo())) {
-                throw new BusinessException("El producto '%s' ya no está disponible".formatted(producto.getNombre()));
+                throw new BusinessException("catalogo.producto.no.disponible", producto.getNombre());
             }
             int cantidad = entrada.getValue();
             // Se compara contra el disponible: lo comprometido por pedidos web no se puede vender acá.
             if (cantidad > producto.getStockDisponible()) {
-                throw new BusinessException("Stock insuficiente para '%s': disponibles %d, solicitados %d"
-                        .formatted(producto.getNombre(), producto.getStockDisponible(), cantidad));
+                throw new BusinessException("catalogo.stock.insuficiente", producto.getNombre(), producto.getStockDisponible(), cantidad);
             }
 
             // La mercadería sale ahora: se descuenta del stock real, sin pasar por comprometido.

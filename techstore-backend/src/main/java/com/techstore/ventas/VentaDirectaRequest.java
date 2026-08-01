@@ -14,8 +14,8 @@ import java.util.List;
  * por la web. Se arma la venta, se cobra y se emite la factura en un solo paso.
  */
 public record VentaDirectaRequest(
-        @NotEmpty(message = "Agregá al menos un producto") @Valid List<ItemVenta> items,
-        @NotEmpty(message = "Debe indicar al menos un método de pago")
+        @NotEmpty(message = "{validacion.venta.producto.obligatorio}") @Valid List<ItemVenta> items,
+        @NotEmpty(message = "{validacion.metodo.pago.obligatorio}")
         @Valid List<RegistroPagoRequest.LineaPago> lineas,
         /** Opcional: si viene, la factura sale a ese RUC en vez de a consumidor final. */
         @Valid RegistroPagoRequest.Receptor receptor,
@@ -23,6 +23,6 @@ public record VentaDirectaRequest(
 
     public record ItemVenta(
             @NotNull Long productoId,
-            @NotNull @Min(value = 1, message = "La cantidad debe ser al menos 1") Integer cantidad) {
+            @NotNull @Min(value = 1, message = "{validacion.cantidad.minima}") Integer cantidad) {
     }
 }

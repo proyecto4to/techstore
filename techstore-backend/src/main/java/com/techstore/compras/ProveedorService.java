@@ -32,7 +32,7 @@ public class ProveedorService {
     @Transactional
     public ProveedorResponse crear(ProveedorRequest request) {
         if (request.ruc() != null && !request.ruc().isBlank() && proveedorRepository.existsByRuc(request.ruc())) {
-            throw new BusinessException("Ya existe un proveedor con el RUC " + request.ruc());
+            throw new BusinessException("compras.proveedor.ruc.duplicado", request.ruc());
         }
         Proveedor proveedor = new Proveedor();
         aplicar(proveedor, request);
@@ -45,7 +45,7 @@ public class ProveedorService {
         if (request.ruc() != null && !request.ruc().isBlank()
                 && !Objects.equals(request.ruc(), proveedor.getRuc())
                 && proveedorRepository.existsByRuc(request.ruc())) {
-            throw new BusinessException("Ya existe un proveedor con el RUC " + request.ruc());
+            throw new BusinessException("compras.proveedor.ruc.duplicado", request.ruc());
         }
         aplicar(proveedor, request);
         return ProveedorResponse.from(proveedorRepository.save(proveedor));
@@ -60,7 +60,7 @@ public class ProveedorService {
 
     private Proveedor buscar(Long id) {
         return proveedorRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Proveedor", id));
+                .orElseThrow(() -> new ResourceNotFoundException("compras.proveedor.no.encontrado", id));
     }
 
     private static void aplicar(Proveedor proveedor, ProveedorRequest request) {

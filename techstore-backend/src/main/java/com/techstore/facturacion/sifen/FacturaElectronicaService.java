@@ -45,6 +45,6 @@ public class FacturaElectronicaService {
 
     private Factura buscar(Long facturaId) {
         return facturaRepository.findParaPdfById(facturaId)
-                .orElseThrow(() -> new ResourceNotFoundException("Factura", facturaId));
+                .orElseThrow(() -> new ResourceNotFoundException("facturacion.factura.no.encontrada", facturaId));
     }
 }

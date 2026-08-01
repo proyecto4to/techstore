@@ -18,7 +18,7 @@ public class AutonumeradorService {
     @Transactional
     public int siguiente(String entidad) {
         Autonumerador contador = autonumeradorRepository.findByEntidadForUpdate(entidad)
-                .orElseThrow(() -> new BusinessException("No existe autonumerador para la entidad " + entidad));
+                .orElseThrow(() -> new BusinessException("comun.autonumerador.inexistente", entidad));
         contador.setValor(contador.getValor() + 1);
         autonumeradorRepository.save(contador);
         return contador.getValor();

@@ -5,8 +5,8 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record ResetPasswordRequest(
-        @NotBlank @Size(min = 8, max = 100, message = "La contraseña debe tener al menos 8 caracteres")
+        @NotBlank @Size(min = 8, max = 100, message = "{validacion.password.longitud}")
         @Pattern(regexp = "(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+",
-                message = "La contraseña debe incluir mayúscula, minúscula y número")
+                message = "{validacion.password.complejidad}")
         String password) {
 }

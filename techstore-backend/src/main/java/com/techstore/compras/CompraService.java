@@ -59,16 +59,16 @@ public class CompraService {
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
         Proveedor proveedor = proveedorRepository.findById(request.proveedorId())
-                .orElseThrow(() -> new ResourceNotFoundException("Proveedor", request.proveedorId()));
+                .orElseThrow(() -> new ResourceNotFoundException("compras.proveedor.no.encontrado", request.proveedorId()));
         if (!Boolean.TRUE.equals(proveedor.getActivo())) {
-            throw new BusinessException("El proveedor '%s' está inactivo".formatted(proveedor.getRazonSocial()));
+            throw new BusinessException("compras.proveedor.inactivo", proveedor.getRazonSocial());
         }
 
         // Un producto repetido en la lista se rechaza: cada item lleva su costo.
         Map<Long, CompraRequest.ItemCompra> items = new LinkedHashMap<>();
         for (CompraRequest.ItemCompra item : request.items()) {
             if (items.put(item.productoId(), item) != null) {
-                throw new BusinessException("El producto %d aparece más de una vez en la compra".formatted(item.productoId()));
+                throw new BusinessException("compras.producto.repetido", item.productoId());
             }
         }
 
@@ -89,7 +89,7 @@ public class CompraService {
         for (CompraRequest.ItemCompra item : items.values()) {
             Producto producto = productos.get(item.productoId());
             if (producto == null) {
-                throw new ResourceNotFoundException("Producto", item.productoId());
+                throw new ResourceNotFoundException("catalogo.producto.no.encontrado", item.productoId());
             }
             Dinero costoUnitario = Dinero.de(item.costoUnitario(), pedido.getMoneda());
             PedidoDetalle detalle = new PedidoDetalle();
@@ -115,8 +115,7 @@ public class CompraService {
     public CompraResumenResponse recibir(Long id) {
         Pedido pedido = buscarCompra(id);
         if (pedido.getEstado() != EstadoPedido.P) {
-            throw new BusinessException("Solo se puede recibir una compra Pendiente (actual: %s)"
-                    .formatted(pedido.getEstado()));
+            throw new BusinessException("compras.solo.recibir.pendiente", pedido.getEstado());
         }
 
         productoRepository.findAllForUpdate(pedido.getDetalles().stream()
@@ -141,10 +140,10 @@ public class CompraService {
     public CompraResumenResponse pagar(Long id, List<RegistroPagoRequest.LineaPago> lineas, String emailUsuario) {
         Pedido pedido = buscarCompra(id);
         if (pedido.getEstado() == EstadoPedido.X) {
-            throw new BusinessException("No se puede pagar una compra anulada");
+            throw new BusinessException("compras.no.pagar.anulada");
         }
         if (Boolean.TRUE.equals(pedido.getPagada())) {
-            throw new BusinessException("La compra N.º %d ya está pagada".formatted(pedido.getNumero()));
+            throw new BusinessException("compras.ya.pagada", pedido.getNumero());
         }
         validarLineas(lineas, pedido.getTotal());
 
@@ -184,21 +183,15 @@ public class CompraService {
         Dinero suma = Dinero.cero(total.moneda());
         for (RegistroPagoRequest.LineaPago linea : lineas) {
             if (!METODOS_HABILITADOS.contains(linea.tipoPago())) {
-                throw new BusinessException(
-                        "Medio de pago no permitido: %s. Solo se aceptan Efectivo y Transferencia."
-                                .formatted(linea.tipoPago()));
+                throw new BusinessException("pago.medio.no.permitido", linea.tipoPago());
             }
             if (!vistos.add(linea.tipoPago())) {
-                throw new BusinessException(
-                        "El método %s aparece más de una vez; combiná los montos en una sola línea."
-                                .formatted(linea.tipoPago()));
+                throw new BusinessException("pago.medio.repetido", linea.tipoPago());
             }
             suma = suma.mas(Dinero.de(linea.monto(), total.moneda()));
         }
         if (suma.compareTo(total) != 0) {
-            throw new BusinessException(
-                    "La suma de los pagos (%s) no coincide con el total de la compra (%s)."
-                            .formatted(suma.plano(), total.plano()));
+            throw new BusinessException("compras.pagos.no.suman.total", suma.plano(), total.plano());
         }
     }
 
@@ -206,8 +199,7 @@ public class CompraService {
     public CompraResumenResponse anular(Long id) {
         Pedido pedido = buscarCompra(id);
         if (pedido.getEstado() != EstadoPedido.P) {
-            throw new BusinessException("Solo se puede anular una compra Pendiente (actual: %s)"
-                    .formatted(pedido.getEstado()));
+            throw new BusinessException("compras.solo.anular.pendiente", pedido.getEstado());
         }
         pedido.setEstado(EstadoPedido.X);
         return CompraResumenResponse.from(pedidoRepository.save(pedido));
@@ -221,9 +213,9 @@ public class CompraService {
 
     private Pedido buscarCompra(Long id) {
         Pedido pedido = pedidoRepository.findWithDetallesById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Compra", id));
+                .orElseThrow(() -> new ResourceNotFoundException("compras.no.encontrada", id));
         if (pedido.getTipo() != TipoPedido.Compra) {
-            throw new BusinessException("El pedido N.º %d no es una compra".formatted(pedido.getNumero()));
+            throw new BusinessException("compras.pedido.no.es.compra", pedido.getNumero());
         }
         return pedido;
     }

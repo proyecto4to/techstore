@@ -16,10 +16,10 @@ import java.util.List;
  */
 public record EmitirNotaCreditoRequest(
         @NotBlank @Size(max = 255) String motivo,
-        @NotEmpty(message = "Debe indicar al menos un producto a devolver") @Valid List<ItemDevolucion> items) {
+        @NotEmpty(message = "{validacion.devolucion.producto.obligatorio}") @Valid List<ItemDevolucion> items) {
 
     public record ItemDevolucion(
             @NotNull Long productoId,
-            @NotNull @Min(value = 1, message = "La cantidad a devolver debe ser al menos 1") Integer cantidad) {
+            @NotNull @Min(value = 1, message = "{validacion.cantidad.devolver.minima}") Integer cantidad) {
     }
 }

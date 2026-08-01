@@ -55,7 +55,7 @@ public class DocumentoElectronicoService {
         } catch (BusinessException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new BusinessException("No se pudo generar el documento electrónico: " + ex.getMessage());
+            throw new BusinessException("sifen.documento.fallo", ex.getMessage());
         }
     }
 

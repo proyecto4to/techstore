@@ -12,8 +12,8 @@ import jakarta.validation.constraints.Size;
  * application.properties.
  */
 public record EmpresaRequest(
-        @NotBlank(message = "El nombre o razón social es obligatorio") @Size(max = 255) String nombre,
-        @NotBlank(message = "El RUC es obligatorio") @Size(max = 20) String ruc,
+        @NotBlank(message = "{validacion.empresa.nombre.obligatorio}") @Size(max = 255) String nombre,
+        @NotBlank(message = "{validacion.ruc.obligatorio}") @Size(max = 20) String ruc,
         @Size(max = 255) String direccion,
         @Size(max = 100) String ciudad,
         @Size(max = 50) String telefono,
@@ -21,14 +21,14 @@ public record EmpresaRequest(
         @Size(max = 20) String timbrado,
         @Size(max = 100) String timbradoVigencia,
         @Pattern(regexp = "|\\d{4}-\\d{2}-\\d{2}",
-                message = "La fecha de inicio del timbrado va en formato AAAA-MM-DD")
+                message = "{validacion.timbrado.fecha.formato}")
         String timbradoInicioVigencia,
-        @Min(value = 1, message = "1 = persona física, 2 = persona jurídica")
-        @Max(value = 2, message = "1 = persona física, 2 = persona jurídica")
+        @Min(value = 1, message = "{validacion.tipo.contribuyente}")
+        @Max(value = 2, message = "{validacion.tipo.contribuyente}")
         Integer tipoContribuyente,
-        @Pattern(regexp = "|\\d{3}", message = "El establecimiento son 3 dígitos (ej. 001)")
+        @Pattern(regexp = "|\\d{3}", message = "{validacion.establecimiento.formato}")
         String establecimiento,
-        @Pattern(regexp = "|\\d{3}", message = "El punto de expedición son 3 dígitos (ej. 001)")
+        @Pattern(regexp = "|\\d{3}", message = "{validacion.punto.expedicion.formato}")
         String puntoExpedicion,
         @Size(max = 10) String actividadCodigo,
         @Size(max = 5) String departamentoCodigo,

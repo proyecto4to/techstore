@@ -46,8 +46,7 @@ public class LoginRateLimiter {
             LocalDateTime ahora = LocalDateTime.now();
             if (ahora.isBefore(bloqueo)) {
                 long minutos = Math.max(1, Duration.between(ahora, bloqueo).toMinutes() + 1);
-                throw new TooManyAttemptsException(
-                        "Demasiados intentos fallidos. Probá de nuevo en " + minutos + " minuto(s).");
+                throw new TooManyAttemptsException("usuarios.demasiados.intentos", minutos);
             }
         });
     }

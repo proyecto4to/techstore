@@ -16,12 +16,12 @@ import java.util.List;
  * Opcionalmente se factura a un RUC en vez de a consumidor final.
  */
 public record RegistroPagoRequest(
-        @NotEmpty(message = "Debe indicar al menos un método de pago") @Valid List<LineaPago> lineas,
+        @NotEmpty(message = "{validacion.metodo.pago.obligatorio}") @Valid List<LineaPago> lineas,
         @Valid Receptor receptor) {
 
     public record LineaPago(
             @NotNull TipoPago tipoPago,
-            @NotNull @DecimalMin(value = "0.01", message = "El monto debe ser mayor a cero") BigDecimal monto,
+            @NotNull @DecimalMin(value = "0.01", message = "{validacion.monto.positivo}") BigDecimal monto,
             @Size(max = 50) String numeroComprobante) {
     }
 
@@ -37,7 +37,7 @@ public record RegistroPagoRequest(
     public record Receptor(
             @Size(max = 20) String ruc,
             @Size(max = 255) String razonSocial,
-            @Email(message = "El correo del cliente no tiene un formato válido")
+            @Email(message = "{validacion.email.cliente.formato}")
             @Size(max = 255) String email,
             Boolean guardarEnCliente) {
     }

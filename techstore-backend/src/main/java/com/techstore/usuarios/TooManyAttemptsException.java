@@ -1,9 +1,11 @@
 package com.techstore.usuarios;
 
-/** Se superó el límite de intentos fallidos de login para un email (fuerza bruta). */
-public class TooManyAttemptsException extends RuntimeException {
+import com.techstore.comun.ExcepcionTraducible;
 
-    public TooManyAttemptsException(String mensaje) {
-        super(mensaje);
+/** Se superó el límite de intentos fallidos de login para un email (fuerza bruta). */
+public class TooManyAttemptsException extends ExcepcionTraducible {
+
+    public TooManyAttemptsException(String clave, Object... argumentos) {
+        super(clave, argumentos);
     }
 }

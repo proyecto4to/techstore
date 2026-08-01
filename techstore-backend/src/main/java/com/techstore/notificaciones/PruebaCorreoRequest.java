@@ -5,5 +5,5 @@ import jakarta.validation.constraints.NotBlank;
 
 /** Destinatario para el correo de prueba. */
 public record PruebaCorreoRequest(
-        @NotBlank @Email(message = "Correo de destino inválido") String destinatario) {
+        @NotBlank @Email(message = "{validacion.correo.destino.invalido}") String destinatario) {
 }

@@ -124,11 +124,11 @@ public class ProductoService {
     public ProductoResponse actualizarImagen(Long id, MultipartFile archivo) {
         Producto producto = buscarProducto(id);
         if (archivo == null || archivo.isEmpty()) {
-            throw new BusinessException("Seleccioná un archivo de imagen para subir");
+            throw new BusinessException("catalogo.imagen.vacia");
         }
         String extension = EXTENSIONES_PERMITIDAS.get(archivo.getContentType());
         if (extension == null) {
-            throw new BusinessException("La imagen debe ser JPG, PNG, WEBP o GIF");
+            throw new BusinessException("catalogo.imagen.formato.invalido");
         }
 
         try {
@@ -143,7 +143,7 @@ public class ProductoService {
             producto.setImagenUrl(PREFIJO_SUBIDA + nombreArchivo);
             return productoMapper.toResponse(productoRepository.save(producto));
         } catch (IOException ex) {
-            throw new BusinessException("No se pudo guardar la imagen: " + ex.getMessage());
+            throw new BusinessException("catalogo.imagen.no.guardada", ex.getMessage());
         }
     }
 
@@ -165,23 +165,23 @@ public class ProductoService {
 
     private Producto buscarProducto(Long id) {
         return productoRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Producto", id));
+                .orElseThrow(() -> new ResourceNotFoundException("catalogo.producto.no.encontrado", id));
     }
 
     private void aplicarRelaciones(Producto producto, ProductoRequest request) {
         Marca marca = null;
         if (request.marcaId() != null) {
             marca = marcaRepository.findById(request.marcaId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Marca", request.marcaId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("catalogo.marca.no.encontrada", request.marcaId()));
         }
         producto.setMarca(marca);
 
         Modelo modelo = null;
         if (request.modeloId() != null) {
             modelo = modeloRepository.findById(request.modeloId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Modelo", request.modeloId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("catalogo.modelo.no.encontrado", request.modeloId()));
             if (marca != null && !modelo.getMarca().getId().equals(marca.getId())) {
-                throw new BusinessException("El modelo indicado no pertenece a la marca seleccionada");
+                throw new BusinessException("catalogo.modelo.ajeno.a.marca");
             }
         }
         producto.setModelo(modelo);

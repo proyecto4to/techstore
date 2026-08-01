@@ -69,14 +69,13 @@ public class PagoService {
     @Transactional
     public PagoResponse registrarPago(Long pedidoId, RegistroPagoRequest request, String emailCajero) {
         Pedido pedido = pedidoRepository.findWithDetallesById(pedidoId)
-                .orElseThrow(() -> new ResourceNotFoundException("Pedido", pedidoId));
+                .orElseThrow(() -> new ResourceNotFoundException("ventas.pedido.no.encontrado", pedidoId));
 
         if (pedido.getEstado() != EstadoPedido.C) {
-            throw new BusinessException("Solo se puede cobrar un pedido Confirmado (actual: %s)"
-                    .formatted(pedido.getEstado()));
+            throw new BusinessException("facturacion.solo.cobrar.confirmado", pedido.getEstado());
         }
         if (pagoRepository.existsByPedidoId(pedidoId)) {
-            throw new BusinessException("El pedido N.º %d ya tiene un pago registrado".formatted(pedido.getNumero()));
+            throw new BusinessException("facturacion.pedido.ya.cobrado", pedido.getNumero());
         }
 
         validarLineas(request.lineas(), pedido.getTotal());
@@ -168,7 +167,7 @@ public class PagoService {
         }
         String motivo = RucParaguayo.motivoInvalidez(ruc);
         if (motivo != null) {
-            throw new BusinessException("El RUC '%s' no es válido: %s.".formatted(ruc, motivo));
+            throw new BusinessException("facturacion.ruc.invalido", ruc, motivo);
         }
 
         factura.setReceptorRuc(ruc);
@@ -193,21 +192,15 @@ public class PagoService {
         Dinero suma = Dinero.cero(total.moneda());
         for (RegistroPagoRequest.LineaPago linea : lineas) {
             if (!METODOS_HABILITADOS.contains(linea.tipoPago())) {
-                throw new BusinessException(
-                        "Método de pago no permitido: %s. Solo se aceptan Efectivo y Transferencia."
-                                .formatted(linea.tipoPago()));
+                throw new BusinessException("pago.medio.no.permitido", linea.tipoPago());
             }
             if (!metodosVistos.add(linea.tipoPago())) {
-                throw new BusinessException(
-                        "El método %s aparece más de una vez; combiná los montos en una sola línea."
-                                .formatted(linea.tipoPago()));
+                throw new BusinessException("pago.medio.repetido", linea.tipoPago());
             }
             suma = suma.mas(Dinero.de(linea.monto(), total.moneda()));
         }
         if (suma.compareTo(total) != 0) {
-            throw new BusinessException(
-                    "La suma de los pagos (%s) no coincide con el total del pedido (%s)."
-                            .formatted(suma.plano(), total.plano()));
+            throw new BusinessException("facturacion.pagos.no.suman.total", suma.plano(), total.plano());
         }
     }
 
@@ -220,7 +213,7 @@ public class PagoService {
     public FacturaResponse obtenerFactura(Long id) {
         return facturaRepository.findWithPedidoById(id)
                 .map(FacturaResponse::from)
-                .orElseThrow(() -> new ResourceNotFoundException("Factura", id));
+                .orElseThrow(() -> new ResourceNotFoundException("facturacion.factura.no.encontrada", id));
     }
 
     /** Número de factura + contenido PDF listos para descargar. */
@@ -241,7 +234,7 @@ public class PagoService {
     @Transactional(readOnly = true)
     public FacturaPdf generarPdfPorPedido(Long pedidoId, String emailSolicitante, boolean esAdminOCajero) {
         Factura factura = facturaRepository.findParaPdfByPedidoId(pedidoId)
-                .orElseThrow(() -> new BusinessException("El pedido aún no tiene factura emitida"));
+                .orElseThrow(() -> new BusinessException("facturacion.pedido.sin.factura"));
         if (!esAdminOCajero && !factura.getPedido().getUsuario().getEmail().equals(emailSolicitante)) {
             throw new AccessDeniedException("No puede descargar facturas de otro usuario");
         }

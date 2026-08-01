@@ -18,7 +18,7 @@ public record CompraRequest(
     public record ItemCompra(
             @NotNull Long productoId,
             @NotNull @Min(1) Integer cantidad,
-            @NotNull @DecimalMin(value = "0.01", message = "El costo unitario debe ser mayor a cero")
+            @NotNull @DecimalMin(value = "0.01", message = "{validacion.costo.positivo}")
             BigDecimal costoUnitario) {
     }
 }

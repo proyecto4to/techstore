@@ -55,9 +55,7 @@ public class CierreCajaService {
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
         aperturaCajaRepository.findAbiertaForUpdate().ifPresent(a -> {
-            throw new BusinessException(
-                    "La caja ya fue abierta el %s con %s. Cerrala antes de abrir un turno nuevo."
-                            .formatted(a.getFechaApertura(), a.getSaldoInicial()));
+            throw new BusinessException("caja.ya.abierta", a.getFechaApertura(), a.getSaldoInicial());
         });
 
         AperturaCaja apertura = new AperturaCaja();
@@ -102,8 +100,7 @@ public class CierreCajaService {
 
         // Bloquea el turno: dos cierres simultáneos no pueden arquear lo mismo dos veces.
         AperturaCaja apertura = aperturaCajaRepository.findAbiertaForUpdate()
-                .orElseThrow(() -> new BusinessException(
-                        "No hay una caja abierta. Abrí la caja indicando el efectivo inicial antes de cerrarla."));
+                .orElseThrow(() -> new BusinessException("caja.no.abierta"));
 
         Dinero saldoInicial = apertura.getSaldoInicial();
         Dinero efectivoContado = Dinero.de(request.efectivoContado(), apertura.getMoneda());

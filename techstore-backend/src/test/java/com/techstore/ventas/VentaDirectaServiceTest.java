@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -150,7 +151,11 @@ class VentaDirectaServiceTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> ventaDirectaService.vender(venta(9, "405000.00"), "cajero@techstore.py"));
 
-        assertTrue(ex.getMessage().contains("disponibles 8"));
+        // Se comprueban la clave y los argumentos, no el texto: el texto vive en
+        // messages.properties y cambia de idioma según quién pregunte.
+        assertEquals("catalogo.stock.insuficiente", ex.getClave());
+        assertArrayEquals(new Object[]{"Cable HDMI 2.0 2m", 8, 9}, ex.getArgumentos(),
+                "El mensaje tiene que decir cuántas unidades hay disponibles y cuántas se pidieron");
         assertEquals(10, cable.getStockReal());
         verify(pagoService, never()).registrarPago(any(), any(), any());
     }

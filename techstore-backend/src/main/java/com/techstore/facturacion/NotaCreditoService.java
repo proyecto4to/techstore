@@ -59,14 +59,13 @@ public class NotaCreditoService {
         Usuario emisor = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
         Pedido pedido = pedidoRepository.findWithDetallesById(pedidoId)
-                .orElseThrow(() -> new ResourceNotFoundException("Pedido", pedidoId));
+                .orElseThrow(() -> new ResourceNotFoundException("ventas.pedido.no.encontrado", pedidoId));
 
         if (pedido.getEstado() != EstadoPedido.G) {
-            throw new BusinessException(
-                    "Solo se puede devolver un pedido Pagado (actual: %s)".formatted(pedido.getEstado()));
+            throw new BusinessException("facturacion.solo.devolver.pagado", pedido.getEstado());
         }
         Factura factura = facturaRepository.findByPedidoId(pedidoId)
-                .orElseThrow(() -> new BusinessException("El pedido no tiene factura emitida"));
+                .orElseThrow(() -> new BusinessException("facturacion.pedido.sin.factura"));
 
         // Detalles del pedido indexados por producto, y lo ya devuelto en NCs previas.
         Map<Long, PedidoDetalle> detallesPedido = pedido.getDetalles().stream()
@@ -77,8 +76,7 @@ public class NotaCreditoService {
         Map<Long, Integer> aDevolver = new LinkedHashMap<>();
         for (EmitirNotaCreditoRequest.ItemDevolucion item : request.items()) {
             if (aDevolver.put(item.productoId(), item.cantidad()) != null) {
-                throw new BusinessException(
-                        "El producto %d aparece más de una vez en la devolución".formatted(item.productoId()));
+                throw new BusinessException("facturacion.producto.repetido.devolucion", item.productoId());
             }
         }
 
@@ -105,14 +103,11 @@ public class NotaCreditoService {
 
             PedidoDetalle detallePedido = detallesPedido.get(productoId);
             if (detallePedido == null) {
-                throw new BusinessException(
-                        "El producto %d no pertenece al pedido N.º %d".formatted(productoId, pedido.getNumero()));
+                throw new BusinessException("facturacion.producto.ajeno.al.pedido", productoId, pedido.getNumero());
             }
             int disponible = detallePedido.getCantidad() - yaDevuelto.getOrDefault(productoId, 0);
             if (cantidad > disponible) {
-                throw new BusinessException(
-                        "No se puede devolver %d de '%s': quedan %d por devolver"
-                                .formatted(cantidad, detallePedido.getProducto().getNombre(), disponible));
+                throw new BusinessException("facturacion.devolucion.excede.disponible", cantidad, detallePedido.getProducto().getNombre(), disponible);
             }
 
             Producto producto = detallePedido.getProducto();
@@ -182,7 +177,7 @@ public class NotaCreditoService {
     @Transactional(readOnly = true)
     public List<DevolucionItemResponse> disponibleParaDevolver(Long pedidoId) {
         Pedido pedido = pedidoRepository.findWithDetallesById(pedidoId)
-                .orElseThrow(() -> new ResourceNotFoundException("Pedido", pedidoId));
+                .orElseThrow(() -> new ResourceNotFoundException("ventas.pedido.no.encontrado", pedidoId));
         Map<Long, Integer> yaDevuelto = cargarYaDevuelto(pedidoId);
         return pedido.getDetalles().stream()
                 .map(detalle -> {
@@ -207,7 +202,7 @@ public class NotaCreditoService {
     @Transactional(readOnly = true)
     public NotaCreditoPdf generarPdf(Long id) {
         NotaCredito nc = notaCreditoRepository.findParaPdfById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Nota de crédito", id));
+                .orElseThrow(() -> new ResourceNotFoundException("facturacion.nota.credito.no.encontrada", id));
         return new NotaCreditoPdf(nc.getNumero(), facturaPdfService.generarNotaCredito(nc));
     }
 

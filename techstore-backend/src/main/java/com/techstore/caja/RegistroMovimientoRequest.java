@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 
 public record RegistroMovimientoRequest(
         @NotNull TipoMovimiento tipo,
-        @NotNull @DecimalMin(value = "1", message = "El monto debe ser mayor a cero") BigDecimal monto,
+        @NotNull @DecimalMin(value = "1", message = "{validacion.monto.positivo}") BigDecimal monto,
         @NotBlank @Size(max = 255) String concepto,
         @Size(max = 50) String referencia,
         com.techstore.facturacion.TipoPago medio) {

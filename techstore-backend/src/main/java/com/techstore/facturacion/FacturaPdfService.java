@@ -119,7 +119,7 @@ public class FacturaPdfService {
             documento.close();
             return salida.toByteArray();
         } catch (DocumentException | java.io.IOException ex) {
-            throw new BusinessException("No se pudo generar el PDF: " + ex.getMessage());
+            throw new BusinessException("documento.pdf.fallo", ex.getMessage());
         }
     }
 

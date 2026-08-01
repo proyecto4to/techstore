@@ -103,7 +103,7 @@ public class FirmaDigitalService {
 
             return serializar(doc);
         } catch (Exception ex) {
-            throw new BusinessException("No se pudo firmar el documento electrónico: " + ex.getMessage());
+            throw new BusinessException("sifen.firma.fallo", ex.getMessage());
         }
     }
 

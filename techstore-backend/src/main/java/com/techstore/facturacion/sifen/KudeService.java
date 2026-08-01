@@ -96,7 +96,7 @@ public class KudeService {
         } catch (BusinessException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new BusinessException("No se pudo generar el KuDE: " + ex.getMessage());
+            throw new BusinessException("sifen.kude.fallo", ex.getMessage());
         }
     }
 
@@ -382,7 +382,7 @@ public class KudeService {
                 .parse(new ByteArrayInputStream(xmlFirmado.getBytes(StandardCharsets.UTF_8)));
         var nodos = doc.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "DigestValue");
         if (nodos.getLength() == 0) {
-            throw new BusinessException("El XML no contiene firma (DigestValue)");
+            throw new BusinessException("sifen.xml.sin.firma");
         }
         return nodos.item(0).getTextContent().trim();
     }
