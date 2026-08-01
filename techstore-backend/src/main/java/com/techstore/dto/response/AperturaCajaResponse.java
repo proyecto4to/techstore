@@ -11,6 +11,7 @@ public record AperturaCajaResponse(
         Long id,
         Integer numero,
         LocalDateTime fechaApertura,
+        String moneda,
         BigDecimal saldoInicial,
         String usuario,
         String notas) {
@@ -21,13 +22,14 @@ public record AperturaCajaResponse(
                 a.getId(),
                 a.getNumero(),
                 a.getFechaApertura(),
-                a.getSaldoInicial(),
+                a.getMoneda().codigo(),
+                a.getSaldoInicial().monto(),
                 a.getUsuario().getNombre() + " " + a.getUsuario().getApellido(),
                 a.getNotas());
     }
 
     /** No hay turno abierto. */
     public static AperturaCajaResponse cerrada() {
-        return new AperturaCajaResponse(false, null, null, null, null, null, null);
+        return new AperturaCajaResponse(false, null, null, null, null, null, null, null);
     }
 }

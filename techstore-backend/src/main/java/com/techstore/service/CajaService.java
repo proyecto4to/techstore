@@ -10,6 +10,8 @@ import com.techstore.entity.TipoPago;
 import com.techstore.entity.Usuario;
 import com.techstore.repository.MovimientoCajaRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,7 +20,6 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,8 +42,10 @@ public class CajaService {
         Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
         TipoPago medio = request.medio() != null ? request.medio() : TipoPago.Efectivo;
+        // Un movimiento cargado a mano no declara moneda: se registra en la del sistema.
         MovimientoCaja movimiento = guardar(
-                request.tipo(), medio, request.monto(), request.concepto(), request.referencia(), usuario);
+                request.tipo(), medio, Dinero.de(request.monto(), Moneda.porDefecto()),
+                request.concepto(), request.referencia(), usuario);
 
         // Solo los movimientos cargados a mano: los automáticos ya quedan
         // explicados por la factura o la compra que los originó.
@@ -64,7 +67,7 @@ public class CajaService {
      */
     @Transactional
     public MovimientoCaja registrarIngresoAutomatico(
-            BigDecimal monto, String concepto, String referencia, Usuario usuario, TipoPago medio) {
+            Dinero monto, String concepto, String referencia, Usuario usuario, TipoPago medio) {
         return guardar(TipoMovimiento.Ingreso, medio, monto, concepto, referencia, usuario);
     }
 
@@ -75,7 +78,7 @@ public class CajaService {
      */
     @Transactional
     public MovimientoCaja registrarEgresoAutomatico(
-            BigDecimal monto, String concepto, String referencia, Usuario usuario) {
+            Dinero monto, String concepto, String referencia, Usuario usuario) {
         return registrarEgresoAutomatico(monto, concepto, referencia, usuario, TipoPago.Efectivo);
     }
 
@@ -86,17 +89,18 @@ public class CajaService {
      */
     @Transactional
     public MovimientoCaja registrarEgresoAutomatico(
-            BigDecimal monto, String concepto, String referencia, Usuario usuario, TipoPago medio) {
+            Dinero monto, String concepto, String referencia, Usuario usuario, TipoPago medio) {
         return guardar(TipoMovimiento.Egreso, medio != null ? medio : TipoPago.Efectivo,
                 monto, concepto, referencia, usuario);
     }
 
-    private MovimientoCaja guardar(TipoMovimiento tipo, TipoPago medio, BigDecimal monto,
+    private MovimientoCaja guardar(TipoMovimiento tipo, TipoPago medio, Dinero monto,
                                    String concepto, String referencia, Usuario usuario) {
         MovimientoCaja movimiento = new MovimientoCaja();
         movimiento.setNumero(autonumeradorService.siguiente(ENTIDAD_CAJA));
         movimiento.setTipo(tipo);
         movimiento.setMedio(medio);
+        movimiento.setMoneda(monto.moneda());
         movimiento.setMonto(monto);
         movimiento.setConcepto(concepto);
         movimiento.setReferencia(referencia);
@@ -126,8 +130,16 @@ public class CajaService {
                 total(TipoMovimiento.Egreso, TipoPago.Transferencia, rango));
     }
 
-    private BigDecimal total(TipoMovimiento tipo, TipoPago medio, LocalDateTime[] rango) {
-        return movimientoCajaRepository.totalPorTipoYMedioEntre(tipo, medio, rango[0], rango[1]);
+    /**
+     * Suma los movimientos del período. La consulta agrega sin distinguir moneda,
+     * lo cual es correcto mientras haya una sola: el día que se opere en otra hay
+     * que agrupar por {@code moneda} y devolver un total por cada una, porque un
+     * arqueo no puede sumar guaraníes con dólares.
+     */
+    private Dinero total(TipoMovimiento tipo, TipoPago medio, LocalDateTime[] rango) {
+        return Dinero.deONulo(
+                movimientoCajaRepository.totalPorTipoYMedioEntre(tipo, medio, rango[0], rango[1]),
+                Moneda.porDefecto());
     }
 
     @Transactional(readOnly = true)

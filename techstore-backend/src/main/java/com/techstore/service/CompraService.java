@@ -24,7 +24,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -82,21 +83,25 @@ public class CompraService {
         pedido.setProveedor(proveedor);
         pedido.setNotas(request.notas());
         pedido.setNumero(autonumeradorService.siguiente(ENTIDAD_PEDIDO));
+        // La compra no declara moneda: se factura en la del sistema.
+        pedido.setMoneda(Moneda.porDefecto());
 
-        BigDecimal total = BigDecimal.ZERO;
+        Dinero total = Dinero.cero(pedido.getMoneda());
         for (CompraRequest.ItemCompra item : items.values()) {
             Producto producto = productos.get(item.productoId());
             if (producto == null) {
                 throw new ResourceNotFoundException("Producto", item.productoId());
             }
+            Dinero costoUnitario = Dinero.de(item.costoUnitario(), pedido.getMoneda());
             PedidoDetalle detalle = new PedidoDetalle();
             detalle.setProducto(producto);
             detalle.setCantidad(item.cantidad());
-            detalle.setPrecioUnitario(item.costoUnitario());
-            detalle.setSubtotal(item.costoUnitario().multiply(BigDecimal.valueOf(item.cantidad())));
             detalle.setIvaAplicado(producto.getIva());
+            // Se agrega antes de cargarle importes: la moneda del detalle es la del pedido.
             pedido.agregarDetalle(detalle);
-            total = total.add(detalle.getSubtotal());
+            detalle.setPrecioUnitario(costoUnitario);
+            detalle.setSubtotal(costoUnitario.por(item.cantidad()));
+            total = total.mas(detalle.getSubtotal());
         }
 
         pedido.setTotal(total);
@@ -163,7 +168,7 @@ public class CompraService {
 
         for (RegistroPagoRequest.LineaPago linea : lineas) {
             cajaService.registrarEgresoAutomatico(
-                    linea.monto(),
+                    Dinero.de(linea.monto(), pedido.getMoneda()),
                     "Pago a proveedor %s — Compra N.º %d (%s)"
                             .formatted(proveedor, pedido.getNumero(), linea.tipoPago()),
                     "COMPRA-" + pedido.getNumero(),
@@ -175,9 +180,9 @@ public class CompraService {
     }
 
     /** Mismas reglas que el cobro de una venta: solo efectivo/transferencia, sin repetir y sumando el total. */
-    private void validarLineas(List<RegistroPagoRequest.LineaPago> lineas, BigDecimal total) {
+    private void validarLineas(List<RegistroPagoRequest.LineaPago> lineas, Dinero total) {
         Set<TipoPago> vistos = new HashSet<>();
-        BigDecimal suma = BigDecimal.ZERO;
+        Dinero suma = Dinero.cero(total.moneda());
         for (RegistroPagoRequest.LineaPago linea : lineas) {
             if (!METODOS_HABILITADOS.contains(linea.tipoPago())) {
                 throw new BusinessException(
@@ -189,12 +194,12 @@ public class CompraService {
                         "El método %s aparece más de una vez; combiná los montos en una sola línea."
                                 .formatted(linea.tipoPago()));
             }
-            suma = suma.add(linea.monto());
+            suma = suma.mas(Dinero.de(linea.monto(), total.moneda()));
         }
         if (suma.compareTo(total) != 0) {
             throw new BusinessException(
                     "La suma de los pagos (%s) no coincide con el total de la compra (%s)."
-                            .formatted(suma.toPlainString(), total.toPlainString()));
+                            .formatted(suma.plano(), total.plano()));
         }
     }
 

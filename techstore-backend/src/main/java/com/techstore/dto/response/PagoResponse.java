@@ -9,6 +9,7 @@ import java.util.List;
 
 public record PagoResponse(
         Integer pedidoNumero,
+        String moneda,
         BigDecimal total,
         LocalDateTime fecha,
         List<LineaPagada> lineas,
@@ -24,7 +25,7 @@ public record PagoResponse(
             return new LineaPagada(
                     pago.getNumero(),
                     pago.getTipoPago().name(),
-                    pago.getMonto(),
+                    pago.getMonto().monto(),
                     pago.getNumeroComprobante());
         }
     }
@@ -33,7 +34,8 @@ public record PagoResponse(
         Pago primero = pagos.get(0);
         return new PagoResponse(
                 primero.getPedido().getNumero(),
-                factura.getTotal(),
+                factura.getMoneda().codigo(),
+                factura.getTotal().monto(),
                 primero.getFecha(),
                 pagos.stream().map(LineaPagada::from).toList(),
                 FacturaResponse.from(factura));

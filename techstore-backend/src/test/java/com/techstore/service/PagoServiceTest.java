@@ -20,6 +20,8 @@ import com.techstore.repository.FacturaRepository;
 import com.techstore.repository.PagoRepository;
 import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -116,7 +118,7 @@ class PagoServiceTest {
         Producto cpu = new Producto();
         cpu.setId(1L);
         cpu.setNombre("Intel Core i9");
-        cpu.setPrecio(new BigDecimal("2500000.00"));
+        cpu.setPrecio(Dinero.de(2_500_000, Moneda.PYG));
         cpu.setIva(BigDecimal.TEN);
 
         pedido = new Pedido();
@@ -128,11 +130,11 @@ class PagoServiceTest {
         PedidoDetalle detalle = new PedidoDetalle();
         detalle.setProducto(cpu);
         detalle.setCantidad(1);
-        detalle.setPrecioUnitario(cpu.getPrecio());
-        detalle.setSubtotal(cpu.getPrecio());
         detalle.setIvaAplicado(BigDecimal.TEN);
         pedido.agregarDetalle(detalle);
-        pedido.setTotal(new BigDecimal("2500000.00"));
+        detalle.setPrecioUnitario(cpu.getPrecio());
+        detalle.setSubtotal(cpu.getPrecio());
+        pedido.setTotal(Dinero.de(2_500_000, Moneda.PYG));
     }
 
     private void prepararPagoFeliz() {
@@ -158,19 +160,22 @@ class PagoServiceTest {
         PagoResponse response = pagoService.registrarPago(10L, todoEfectivo(), "cajero@techstore.py");
 
         assertEquals(7, response.pedidoNumero());
-        assertEquals(new BigDecimal("2500000.00"), response.total());
+        assertEquals(new BigDecimal("2500000"), response.total());
+        assertEquals("PYG", response.moneda());
         assertEquals(1, response.lineas().size());
         assertEquals("Efectivo", response.lineas().get(0).tipoPago());
-        // IVA 10% incluido: 2.500.000 * 10/110 = 227.272,73
+        // IVA 10% incluido: 2.500.000 × 10 ÷ 110 = 227.272,72… -> 227.273.
+        // Se redondea a guaraníes enteros porque la moneda no tiene centavos; es
+        // el mismo número que imprime el KuDE, que antes no coincidía con este.
         assertEquals("001-001-0000001", response.factura().numero());
-        assertEquals(new BigDecimal("227272.73"), response.factura().iva());
-        assertEquals(new BigDecimal("2272727.27"), response.factura().subtotal());
+        assertEquals(new BigDecimal("227273"), response.factura().iva());
+        assertEquals(new BigDecimal("2272727"), response.factura().subtotal());
         assertEquals(EstadoFactura.Pagada.name(), response.factura().estado());
         assertEquals(EstadoPedido.G, pedido.getEstado());
         // "FAC" adelante: facturas y notas de crédito comparten el formato del
         // número, así que la referencia sola no alcanza para saber cuál es cuál.
         verify(cajaService).registrarIngresoAutomatico(
-                eq(new BigDecimal("2500000.00")), eq("Cobro pedido N.º 7 (Efectivo)"),
+                eq(Dinero.de(2_500_000, Moneda.PYG)), eq("Cobro pedido N.º 7 (Efectivo)"),
                 eq("FAC 001-001-0000001"), eq(cajero), eq(TipoPago.Efectivo));
     }
 
@@ -292,13 +297,13 @@ class PagoServiceTest {
                 "cajero@techstore.py");
 
         assertEquals(2, response.lineas().size());
-        assertEquals(new BigDecimal("2500000.00"), response.total());
+        assertEquals(new BigDecimal("2500000"), response.total());
         verify(pagoRepository, times(2)).save(any(Pago.class));
         verify(cajaService).registrarIngresoAutomatico(
-                eq(new BigDecimal("1000000.00")), eq("Cobro pedido N.º 7 (Efectivo)"), any(), eq(cajero),
+                eq(Dinero.de(1_000_000, Moneda.PYG)), eq("Cobro pedido N.º 7 (Efectivo)"), any(), eq(cajero),
                 eq(TipoPago.Efectivo));
         verify(cajaService).registrarIngresoAutomatico(
-                eq(new BigDecimal("1500000.00")), eq("Cobro pedido N.º 7 (Transferencia)"), any(), eq(cajero),
+                eq(Dinero.de(1_500_000, Moneda.PYG)), eq("Cobro pedido N.º 7 (Transferencia)"), any(), eq(cajero),
                 eq(TipoPago.Transferencia));
     }
 
@@ -373,6 +378,6 @@ class PagoServiceTest {
                 "cajero@techstore.py");
 
         assertEquals(BigDecimal.ZERO, response.factura().iva());
-        assertEquals(new BigDecimal("2500000.00"), response.factura().subtotal());
+        assertEquals(new BigDecimal("2500000"), response.factura().subtotal());
     }
 }

@@ -15,6 +15,8 @@ import com.techstore.exception.BusinessException;
 import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.ProductoRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -76,7 +78,7 @@ class VentaDirectaServiceTest {
         cable = new Producto();
         cable.setId(32L);
         cable.setNombre("Cable HDMI 2.0 2m");
-        cable.setPrecio(new BigDecimal("45000.00"));
+        cable.setPrecio(Dinero.de(45_000, Moneda.PYG));
         cable.setIva(BigDecimal.TEN);
         cable.setActivo(true);
         cable.setStockReal(10);
@@ -114,7 +116,7 @@ class VentaDirectaServiceTest {
         assertEquals(EstadoPedido.C, pedido.getEstado());
         assertEquals(TipoPedido.Venta, pedido.getTipo());
         assertEquals(cajero, pedido.getUsuario());
-        assertEquals(new BigDecimal("135000.00"), pedido.getTotal());
+        assertEquals(Dinero.de(135_000, Moneda.PYG), pedido.getTotal());
         // La mercadería sale ya: baja el stock real y no toca lo comprometido.
         assertEquals(7, cable.getStockReal());
         assertEquals(2, cable.getStockComprometido());

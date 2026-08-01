@@ -18,6 +18,8 @@ import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.ProductoRepository;
 import com.techstore.repository.ProveedorRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -92,7 +94,7 @@ class CompraServiceTest {
         gpu = new Producto();
         gpu.setId(2L);
         gpu.setNombre("NVIDIA RTX 4090");
-        gpu.setPrecio(new BigDecimal("3500000.00"));
+        gpu.setPrecio(Dinero.de(3_500_000, Moneda.PYG));
         gpu.setIva(BigDecimal.TEN);
         gpu.setStockReal(1);
         gpu.setStockComprometido(0);
@@ -139,10 +141,10 @@ class CompraServiceTest {
         PedidoDetalle detalle = new PedidoDetalle();
         detalle.setProducto(gpu);
         detalle.setCantidad(5);
-        detalle.setPrecioUnitario(new BigDecimal("2800000"));
-        detalle.setSubtotal(new BigDecimal("14000000"));
         detalle.setIvaAplicado(BigDecimal.TEN);
         pedido.agregarDetalle(detalle);
+        detalle.setPrecioUnitario(Dinero.de(2_800_000, Moneda.PYG));
+        detalle.setSubtotal(Dinero.de(14_000_000, Moneda.PYG));
         pedido.setTotal(detalle.getSubtotal());
         return pedido;
     }
@@ -197,7 +199,8 @@ class CompraServiceTest {
         assertTrue(compra.pagada());
         // El pago al proveedor sale como egreso de caja con el medio elegido.
         verify(cajaService).registrarEgresoAutomatico(
-                eq(new BigDecimal("14000000")), any(), eq("COMPRA-10"), eq(admin), eq(TipoPago.Transferencia));
+                eq(Dinero.de(14_000_000, Moneda.PYG)), any(), eq("COMPRA-10"), eq(admin),
+                eq(TipoPago.Transferencia));
     }
 
     @Test
@@ -214,9 +217,10 @@ class CompraServiceTest {
 
         // Dos egresos separados: el cierre concilia el cajón aparte del banco.
         verify(cajaService).registrarEgresoAutomatico(
-                eq(new BigDecimal("4000000")), any(), eq("COMPRA-10"), eq(admin), eq(TipoPago.Efectivo));
+                eq(Dinero.de(4_000_000, Moneda.PYG)), any(), eq("COMPRA-10"), eq(admin), eq(TipoPago.Efectivo));
         verify(cajaService).registrarEgresoAutomatico(
-                eq(new BigDecimal("10000000")), any(), eq("COMPRA-10"), eq(admin), eq(TipoPago.Transferencia));
+                eq(Dinero.de(10_000_000, Moneda.PYG)), any(), eq("COMPRA-10"), eq(admin),
+                eq(TipoPago.Transferencia));
     }
 
     @Test

@@ -16,13 +16,14 @@ import com.techstore.repository.AperturaCajaRepository;
 import com.techstore.repository.CierreCajaRepository;
 import com.techstore.repository.MovimientoCajaRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -64,20 +65,21 @@ public class CierreCajaService {
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
         aperturaCajaRepository.findAbiertaForUpdate().ifPresent(a -> {
             throw new BusinessException(
-                    "La caja ya fue abierta el %s con Gs. %s. Cerrala antes de abrir un turno nuevo."
-                            .formatted(a.getFechaApertura(), a.getSaldoInicial().toPlainString()));
+                    "La caja ya fue abierta el %s con %s. Cerrala antes de abrir un turno nuevo."
+                            .formatted(a.getFechaApertura(), a.getSaldoInicial()));
         });
 
         AperturaCaja apertura = new AperturaCaja();
         apertura.setNumero(autonumeradorService.siguiente(ENTIDAD_APERTURA));
         apertura.setFechaApertura(LocalDateTime.now());
         apertura.setUsuario(usuario);
-        apertura.setSaldoInicial(request.saldoInicial());
+        // La apertura no declara moneda: el cajón es el de la moneda del sistema.
+        apertura.setSaldoInicial(Dinero.de(request.saldoInicial(), Moneda.porDefecto()));
         apertura.setNotas(request.notas());
         AperturaCaja guardada = aperturaCajaRepository.save(apertura);
 
         auditoriaService.registrar("AperturaCaja", guardada.getId(), AuditoriaService.Accion.Abrir,
-                "Abrió la caja con Gs. " + guardada.getSaldoInicial().toPlainString(),
+                "Abrió la caja con " + guardada.getSaldoInicial(),
                 AuditoriaService.Cambios.nuevo()
                         .valor("numero", guardada.getNumero())
                         .valor("saldoInicial", guardada.getSaldoInicial()));
@@ -88,12 +90,18 @@ public class CierreCajaService {
     @Transactional(readOnly = true)
     public PreviewCierreResponse preview() {
         LocalDateTime desde = inicioTurno();
-        BigDecimal saldoInicial = aperturaCajaRepository.findByCierreIsNull()
+        Dinero saldoInicial = aperturaCajaRepository.findByCierreIsNull()
                 .map(AperturaCaja::getSaldoInicial)
-                .orElse(BigDecimal.ZERO);
+                .orElseGet(() -> Dinero.cero(Moneda.porDefecto()));
         Totales t = calcularPendiente(saldoInicial);
-        return new PreviewCierreResponse(desde, saldoInicial, t.ingresosEfectivo, t.egresosEfectivo,
-                t.ingresosTransferencia, t.egresosTransferencia, t.efectivoTeorico());
+        return new PreviewCierreResponse(desde,
+                saldoInicial.moneda().codigo(),
+                saldoInicial.monto(),
+                t.ingresosEfectivo.monto(),
+                t.egresosEfectivo.monto(),
+                t.ingresosTransferencia.monto(),
+                t.egresosTransferencia.monto(),
+                t.efectivoTeorico().monto());
     }
 
     @Transactional
@@ -106,23 +114,27 @@ public class CierreCajaService {
                 .orElseThrow(() -> new BusinessException(
                         "No hay una caja abierta. Abrí la caja indicando el efectivo inicial antes de cerrarla."));
 
-        BigDecimal saldoInicial = apertura.getSaldoInicial();
+        Dinero saldoInicial = apertura.getSaldoInicial();
+        Dinero efectivoContado = Dinero.de(request.efectivoContado(), apertura.getMoneda());
         CierreCaja cierre = new CierreCaja();
         cierre.setNumero(autonumeradorService.siguiente(ENTIDAD_CIERRE));
         cierre.setFechaDesde(inicioTurno());
         cierre.setFechaCierre(LocalDateTime.now());
         cierre.setUsuario(usuario);
+        // El arqueo se hace en la moneda con la que se abrió el turno.
+        cierre.setMoneda(apertura.getMoneda());
         cierre.setSaldoInicial(saldoInicial);
-        cierre.setEfectivoContado(request.efectivoContado());
+        cierre.setEfectivoContado(efectivoContado);
         cierre.setNotas(request.notas());
         // Totales provisorios: las columnas son NOT NULL y recién se conocen
         // después de reclamar los movimientos.
-        cierre.setIngresosEfectivo(BigDecimal.ZERO);
-        cierre.setEgresosEfectivo(BigDecimal.ZERO);
-        cierre.setIngresosTransferencia(BigDecimal.ZERO);
-        cierre.setEgresosTransferencia(BigDecimal.ZERO);
+        Dinero cero = Dinero.cero(apertura.getMoneda());
+        cierre.setIngresosEfectivo(cero);
+        cierre.setEgresosEfectivo(cero);
+        cierre.setIngresosTransferencia(cero);
+        cierre.setEgresosTransferencia(cero);
         cierre.setEfectivoTeorico(saldoInicial);
-        cierre.setDiferencia(request.efectivoContado().subtract(saldoInicial));
+        cierre.setDiferencia(efectivoContado.menos(saldoInicial));
         CierreCaja guardado = cierreCajaRepository.saveAndFlush(cierre);
 
         // Primero se reclaman los pendientes y después se suma lo reclamado: así lo
@@ -135,7 +147,7 @@ public class CierreCajaService {
         guardado.setIngresosTransferencia(t.ingresosTransferencia);
         guardado.setEgresosTransferencia(t.egresosTransferencia);
         guardado.setEfectivoTeorico(t.efectivoTeorico());
-        guardado.setDiferencia(request.efectivoContado().subtract(t.efectivoTeorico()));
+        guardado.setDiferencia(efectivoContado.menos(t.efectivoTeorico()));
 
         apertura.setCierre(guardado);
         aperturaCajaRepository.save(apertura);
@@ -143,10 +155,10 @@ public class CierreCajaService {
         // La diferencia del arqueo es el dato que uno va a querer poder rastrear
         // meses después, así que queda registrada aparte del propio cierre.
         auditoriaService.registrar("CierreCaja", guardado.getId(), AuditoriaService.Accion.Cerrar,
-                "Cerró la caja: contó Gs. %s contra Gs. %s teóricos (diferencia Gs. %s)".formatted(
-                        guardado.getEfectivoContado().toPlainString(),
-                        guardado.getEfectivoTeorico().toPlainString(),
-                        guardado.getDiferencia().toPlainString()),
+                "Cerró la caja: contó %s contra %s teóricos (diferencia %s)".formatted(
+                        guardado.getEfectivoContado(),
+                        guardado.getEfectivoTeorico(),
+                        guardado.getDiferencia()),
                 AuditoriaService.Cambios.nuevo()
                         .valor("numero", guardado.getNumero())
                         .valor("saldoInicial", guardado.getSaldoInicial())
@@ -168,33 +180,46 @@ public class CierreCajaService {
                 .orElse(ORIGEN);
     }
 
-    /** Totales de lo que todavía no arqueó ningún cierre. */
-    private Totales calcularPendiente(BigDecimal saldoInicial) {
+    /**
+     * Totales de lo que todavía no arqueó ningún cierre.
+     *
+     * <p>Las consultas suman sin distinguir moneda, lo cual vale mientras haya
+     * una sola. Con dos, un arqueo tendría que hacerse por moneda: no se puede
+     * contar un cajón con guaraníes y dólares en un único total.
+     */
+    private Totales calcularPendiente(Dinero saldoInicial) {
+        Moneda moneda = saldoInicial.moneda();
         return new Totales(saldoInicial,
-                movimientoCajaRepository.totalPendientePorTipoYMedio(TipoMovimiento.Ingreso, TipoPago.Efectivo),
-                movimientoCajaRepository.totalPendientePorTipoYMedio(TipoMovimiento.Egreso, TipoPago.Efectivo),
-                movimientoCajaRepository.totalPendientePorTipoYMedio(TipoMovimiento.Ingreso, TipoPago.Transferencia),
-                movimientoCajaRepository.totalPendientePorTipoYMedio(TipoMovimiento.Egreso, TipoPago.Transferencia));
+                pendiente(TipoMovimiento.Ingreso, TipoPago.Efectivo, moneda),
+                pendiente(TipoMovimiento.Egreso, TipoPago.Efectivo, moneda),
+                pendiente(TipoMovimiento.Ingreso, TipoPago.Transferencia, moneda),
+                pendiente(TipoMovimiento.Egreso, TipoPago.Transferencia, moneda));
+    }
+
+    private Dinero pendiente(TipoMovimiento tipo, TipoPago medio, Moneda moneda) {
+        return Dinero.deONulo(movimientoCajaRepository.totalPendientePorTipoYMedio(tipo, medio), moneda);
     }
 
     /** Totales de lo que quedó asignado a un cierre. */
-    private Totales calcularDeCierre(BigDecimal saldoInicial, Long cierreId) {
+    private Totales calcularDeCierre(Dinero saldoInicial, Long cierreId) {
+        Moneda moneda = saldoInicial.moneda();
         return new Totales(saldoInicial,
-                movimientoCajaRepository.totalDeCierrePorTipoYMedio(
-                        TipoMovimiento.Ingreso, TipoPago.Efectivo, cierreId),
-                movimientoCajaRepository.totalDeCierrePorTipoYMedio(
-                        TipoMovimiento.Egreso, TipoPago.Efectivo, cierreId),
-                movimientoCajaRepository.totalDeCierrePorTipoYMedio(
-                        TipoMovimiento.Ingreso, TipoPago.Transferencia, cierreId),
-                movimientoCajaRepository.totalDeCierrePorTipoYMedio(
-                        TipoMovimiento.Egreso, TipoPago.Transferencia, cierreId));
+                deCierre(TipoMovimiento.Ingreso, TipoPago.Efectivo, cierreId, moneda),
+                deCierre(TipoMovimiento.Egreso, TipoPago.Efectivo, cierreId, moneda),
+                deCierre(TipoMovimiento.Ingreso, TipoPago.Transferencia, cierreId, moneda),
+                deCierre(TipoMovimiento.Egreso, TipoPago.Transferencia, cierreId, moneda));
     }
 
-    private record Totales(BigDecimal saldoInicial, BigDecimal ingresosEfectivo, BigDecimal egresosEfectivo,
-                           BigDecimal ingresosTransferencia, BigDecimal egresosTransferencia) {
+    private Dinero deCierre(TipoMovimiento tipo, TipoPago medio, Long cierreId, Moneda moneda) {
+        return Dinero.deONulo(
+                movimientoCajaRepository.totalDeCierrePorTipoYMedio(tipo, medio, cierreId), moneda);
+    }
+
+    private record Totales(Dinero saldoInicial, Dinero ingresosEfectivo, Dinero egresosEfectivo,
+                           Dinero ingresosTransferencia, Dinero egresosTransferencia) {
         /** Lo que debería haber en el cajón: con lo que se abrió, más lo que entró, menos lo que salió. */
-        BigDecimal efectivoTeorico() {
-            return saldoInicial.add(ingresosEfectivo).subtract(egresosEfectivo);
+        Dinero efectivoTeorico() {
+            return saldoInicial.mas(ingresosEfectivo).menos(egresosEfectivo);
         }
     }
 }

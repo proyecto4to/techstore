@@ -10,6 +10,8 @@ import com.techstore.entity.Producto;
 import com.techstore.entity.Rol;
 import com.techstore.entity.TipoPedido;
 import com.techstore.entity.Usuario;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -51,7 +53,7 @@ class FacturaPdfServiceTest {
 
         Producto producto = new Producto();
         producto.setNombre("NVIDIA RTX 4090");
-        producto.setPrecio(new BigDecimal("3500000.00"));
+        producto.setPrecio(Dinero.de(3_500_000, Moneda.PYG));
         producto.setIva(BigDecimal.TEN);
 
         Pedido pedido = new Pedido();
@@ -62,10 +64,10 @@ class FacturaPdfServiceTest {
         PedidoDetalle detalle = new PedidoDetalle();
         detalle.setProducto(producto);
         detalle.setCantidad(1);
-        detalle.setPrecioUnitario(producto.getPrecio());
-        detalle.setSubtotal(producto.getPrecio());
         detalle.setIvaAplicado(BigDecimal.TEN);
         pedido.agregarDetalle(detalle);
+        detalle.setPrecioUnitario(producto.getPrecio());
+        detalle.setSubtotal(producto.getPrecio());
         pedido.setTotal(producto.getPrecio());
 
         Factura factura = new Factura();
@@ -73,9 +75,10 @@ class FacturaPdfServiceTest {
         factura.setTipo("CONTADO");
         factura.setPedido(pedido);
         factura.setFecha(LocalDateTime.of(2026, 7, 17, 10, 30));
-        factura.setSubtotal(new BigDecimal("3181818.18"));
-        factura.setIva(new BigDecimal("318181.82"));
-        factura.setTotal(new BigDecimal("3500000.00"));
+        // 3.500.000 × 10 ÷ 110 = 318.181,81… -> 318.182 en guaraníes enteros.
+        factura.setSubtotal(Dinero.de(3_181_818, Moneda.PYG));
+        factura.setIva(Dinero.de(318_182, Moneda.PYG));
+        factura.setTotal(Dinero.de(3_500_000, Moneda.PYG));
         factura.setEstado(EstadoFactura.Pagada);
         factura.setUsuario(cliente);
         return factura;

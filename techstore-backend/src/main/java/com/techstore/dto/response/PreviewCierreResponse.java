@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
  */
 public record PreviewCierreResponse(
         LocalDateTime desde,
+        String moneda,
         BigDecimal saldoInicial,
         BigDecimal ingresosEfectivo,
         BigDecimal egresosEfectivo,

@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -60,7 +61,7 @@ class MigracionesIT {
             }
         }
         assertTrue(fallidas.isEmpty(), "Migraciones fallidas: " + fallidas);
-        assertEquals(24, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
+        assertEquals(25, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
     }
 
     @Test
@@ -99,6 +100,27 @@ class MigracionesIT {
         assertEquals("YES", nullable("audit_log", "entidad_id"));
         assertTrue(existeColumna("audit_log", "usuario_email"));
         assertTrue(existeColumna("intento_login", "bloqueado_hasta"));
+    }
+
+    @Test
+    @DisplayName("V25 dejó la moneda en cada documento con dinero")
+    void monedaPorDocumento() throws SQLException {
+        // Las tablas que guardan importes llevan su moneda; las de detalle no,
+        // porque heredan la del documento padre.
+        List<String> conMoneda = List.of("productos", "pedidos", "facturas", "notas_credito",
+                "pagos", "movimiento_caja", "cierres_caja", "aperturas_caja");
+        for (String tabla : conMoneda) {
+            assertTrue(existeColumna(tabla, "moneda"), "Falta la columna moneda en " + tabla);
+            assertEquals("NO", nullable(tabla, "moneda"), "La moneda de " + tabla + " admite nulo");
+        }
+        assertFalse(existeColumna("pedido_detalles", "moneda"),
+                "Un detalle no tiene moneda propia: es la de su pedido");
+        assertFalse(existeColumna("nota_credito_detalles", "moneda"),
+                "Un detalle no tiene moneda propia: es la de su nota de crédito");
+
+        // Todo lo que ya existía es en guaraníes.
+        assertEquals(0, contar("SELECT count(*) FROM productos WHERE moneda <> 'PYG'"),
+                "Quedaron productos en una moneda que no es la del backfill");
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
 import com.techstore.service.EmpresaConfigService;
+import com.techstore.util.Dinero;
 import com.techstore.util.RucParaguayo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,7 +21,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 
 /**
@@ -37,7 +37,6 @@ public class DocumentoElectronicoService {
     private static final String TIPO_DOC_FE = "01"; // Factura electrónica
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final DateTimeFormatter D = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final BigDecimal CIEN = BigDecimal.valueOf(100);
 
     private final EmpresaConfigService empresaConfig;
 
@@ -111,8 +110,8 @@ public class DocumentoElectronicoService {
         hijo(doc, gOpeCom, "dDesTipTra", "Venta de mercadería");
         hijo(doc, gOpeCom, "iTImp", "1");
         hijo(doc, gOpeCom, "dDesTImp", "IVA");
-        hijo(doc, gOpeCom, "cMoneOpe", "PYG");
-        hijo(doc, gOpeCom, "dDesMoneOpe", "Guaraní");
+        hijo(doc, gOpeCom, "cMoneOpe", factura.getMoneda().codigo());
+        hijo(doc, gOpeCom, "dDesMoneOpe", factura.getMoneda().nombre());
 
         agregarEmisor(doc, gDat);
         agregarReceptor(doc, gDat, factura);
@@ -130,8 +129,8 @@ public class DocumentoElectronicoService {
         hijo(doc, gPaConEIni, "iTiPago", "1");
         hijo(doc, gPaConEIni, "dDesTiPag", "Efectivo");
         hijo(doc, gPaConEIni, "dMonTiPag", plano(factura.getTotal()));
-        hijo(doc, gPaConEIni, "cMoneTiPag", "PYG");
-        hijo(doc, gPaConEIni, "dDMoneTiPag", "Guaraní");
+        hijo(doc, gPaConEIni, "cMoneTiPag", factura.getMoneda().codigo());
+        hijo(doc, gPaConEIni, "dDMoneTiPag", factura.getMoneda().nombre());
 
         for (PedidoDetalle detalle : factura.getPedido().getDetalles()) {
             agregarItem(doc, gDtip, detalle);
@@ -196,11 +195,9 @@ public class DocumentoElectronicoService {
 
     private void agregarItem(Document doc, Element gDtip, PedidoDetalle detalle) {
         BigDecimal tasa = detalle.getIvaAplicado() == null ? BigDecimal.ZERO : detalle.getIvaAplicado();
-        BigDecimal subtotal = detalle.getSubtotal();
-        BigDecimal iva = tasa.signum() > 0
-                ? subtotal.multiply(tasa).divide(CIEN.add(tasa), 2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
-        BigDecimal baseGravada = subtotal.subtract(iva);
+        Dinero subtotal = detalle.getSubtotal();
+        Dinero iva = subtotal.ivaIncluido(tasa);
+        Dinero baseGravada = subtotal.menos(iva);
 
         Element g = hijo(doc, gDtip, "gCamItem", null);
         hijo(doc, g, "dCodInt", String.valueOf(detalle.getProducto().getId()));
@@ -225,22 +222,21 @@ public class DocumentoElectronicoService {
     }
 
     private void agregarTotales(Document doc, Element de, Factura factura) {
-        BigDecimal iva10 = BigDecimal.ZERO;
-        BigDecimal iva5 = BigDecimal.ZERO;
-        BigDecimal grav10 = BigDecimal.ZERO;
-        BigDecimal grav5 = BigDecimal.ZERO;
-        BigDecimal exentas = BigDecimal.ZERO;
+        Dinero grav10 = Dinero.cero(factura.getMoneda());
+        Dinero grav5 = Dinero.cero(factura.getMoneda());
+        Dinero exentas = Dinero.cero(factura.getMoneda());
         for (PedidoDetalle d : factura.getPedido().getDetalles()) {
             int tasa = d.getIvaAplicado() == null ? 0 : d.getIvaAplicado().intValue();
-            BigDecimal monto = d.getSubtotal();
+            Dinero monto = d.getSubtotal();
             switch (tasa) {
-                case 10 -> grav10 = grav10.add(monto);
-                case 5 -> grav5 = grav5.add(monto);
-                default -> exentas = exentas.add(monto);
+                case 10 -> grav10 = grav10.mas(monto);
+                case 5 -> grav5 = grav5.mas(monto);
+                default -> exentas = exentas.mas(monto);
             }
         }
-        iva10 = grav10.multiply(BigDecimal.TEN).divide(BigDecimal.valueOf(110), 2, RoundingMode.HALF_UP);
-        iva5 = grav5.multiply(BigDecimal.valueOf(5)).divide(BigDecimal.valueOf(105), 2, RoundingMode.HALF_UP);
+        // El mismo cálculo que guarda la factura y que imprime el KuDE.
+        Dinero iva10 = grav10.ivaIncluido(BigDecimal.TEN);
+        Dinero iva5 = grav5.ivaIncluido(BigDecimal.valueOf(5));
 
         Element g = hijo(doc, de, "gTotSub", null);
         hijo(doc, g, "dSubExe", plano(exentas));
@@ -250,7 +246,7 @@ public class DocumentoElectronicoService {
         hijo(doc, g, "dTotGralOpe", plano(factura.getTotal()));
         hijo(doc, g, "dIVA5", plano(iva5));
         hijo(doc, g, "dIVA10", plano(iva10));
-        hijo(doc, g, "dTotIVA", plano(iva5.add(iva10)));
+        hijo(doc, g, "dTotIVA", plano(iva5.mas(iva10)));
     }
 
     private static int numeroCorrelativo(Factura factura) {
@@ -269,8 +265,8 @@ public class DocumentoElectronicoService {
         return e;
     }
 
-    private static String plano(BigDecimal valor) {
-        return valor.stripTrailingZeros().toPlainString();
+    private static String plano(Dinero valor) {
+        return valor.monto().stripTrailingZeros().toPlainString();
     }
 
     private static String serializar(Document doc) throws Exception {

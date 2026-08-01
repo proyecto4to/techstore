@@ -25,7 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.math.BigDecimal;
+import com.techstore.util.Dinero;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -95,7 +95,7 @@ public class ProductoService {
 
         // Los valores anteriores se copian ANTES de aplicar el request: después
         // el objeto ya viene modificado y no habría con qué comparar.
-        BigDecimal precioAnterior = producto.getPrecio();
+        Dinero precioAnterior = producto.getPrecio();
         Integer stockAnterior = producto.getStockReal();
         Integer minimoAnterior = producto.getStockMinimo();
         String nombreAnterior = producto.getNombre();

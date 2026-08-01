@@ -12,6 +12,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.TenantId;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -27,7 +30,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Pago {
+public class Pago implements ConMoneda {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -49,6 +52,14 @@ public class Pago {
     @JoinColumn(name = "pedido_id", nullable = false)
     private Pedido pedido;
 
+    /** Moneda con la que se pagó. */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(columnDefinition = "moneda", nullable = false)
+    private Moneda moneda = Moneda.porDefecto();
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal monto;
 
@@ -69,4 +80,12 @@ public class Pago {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    public Dinero getMonto() {
+        return importe(monto);
+    }
+
+    public void setMonto(Dinero importe) {
+        this.monto = monto(importe);
+    }
 }

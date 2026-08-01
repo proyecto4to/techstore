@@ -28,8 +28,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
+import com.techstore.util.Dinero;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,7 +47,6 @@ import java.util.stream.Collectors;
 public class NotaCreditoService {
 
     private static final String ENTIDAD_NC = "NOTACREDITO";
-    private static final BigDecimal CIEN = BigDecimal.valueOf(100);
 
     private final NotaCreditoRepository notaCreditoRepository;
     private final NotaCreditoDetalleRepository notaCreditoDetalleRepository;
@@ -93,6 +91,8 @@ public class NotaCreditoService {
         productoRepository.findAllForUpdate(aDevolver.keySet());
 
         NotaCredito nc = new NotaCredito();
+        // La nota acredita una factura: va en la misma moneda que ella.
+        nc.setMoneda(factura.getMoneda());
         // Mismo prefijo que las facturas: sale de los datos de la empresa.
         EmpresaProperties empresa = empresaConfig.actual();
         nc.setNumero("%s-%s-%07d".formatted(
@@ -103,8 +103,8 @@ public class NotaCreditoService {
         nc.setMotivo(request.motivo().trim());
         nc.setUsuario(emisor);
 
-        BigDecimal totalNc = BigDecimal.ZERO;
-        BigDecimal ivaNc = BigDecimal.ZERO;
+        Dinero totalNc = Dinero.cero(nc.getMoneda());
+        Dinero ivaNc = Dinero.cero(nc.getMoneda());
         for (Map.Entry<Long, Integer> entrada : aDevolver.entrySet()) {
             Long productoId = entrada.getKey();
             int cantidad = entrada.getValue();
@@ -124,22 +124,23 @@ public class NotaCreditoService {
             Producto producto = detallePedido.getProducto();
             producto.setStockReal((producto.getStockReal() == null ? 0 : producto.getStockReal()) + cantidad);
 
-            BigDecimal subtotal = detallePedido.getPrecioUnitario().multiply(BigDecimal.valueOf(cantidad));
+            Dinero subtotal = detallePedido.getPrecioUnitario().por(cantidad);
             NotaCreditoDetalle detalleNc = new NotaCreditoDetalle();
             detalleNc.setProducto(producto);
             detalleNc.setCantidad(cantidad);
+            detalleNc.setIvaAplicado(detallePedido.getIvaAplicado());
+            // Se agrega antes de cargarle importes: la moneda del detalle es la de la nota.
+            nc.agregarDetalle(detalleNc);
             detalleNc.setPrecioUnitario(detallePedido.getPrecioUnitario());
             detalleNc.setSubtotal(subtotal);
-            detalleNc.setIvaAplicado(detallePedido.getIvaAplicado());
-            nc.agregarDetalle(detalleNc);
 
-            totalNc = totalNc.add(subtotal);
-            ivaNc = ivaNc.add(ivaIncluido(subtotal, detallePedido.getIvaAplicado()));
+            totalNc = totalNc.mas(subtotal);
+            ivaNc = ivaNc.mas(subtotal.ivaIncluido(detallePedido.getIvaAplicado()));
         }
 
         nc.setTotal(totalNc);
         nc.setIva(ivaNc);
-        nc.setSubtotal(totalNc.subtract(ivaNc));
+        nc.setSubtotal(totalNc.menos(ivaNc));
         nc = notaCreditoRepository.save(nc);
 
         // ¿El pedido quedó completamente devuelto tras esta NC?
@@ -164,8 +165,8 @@ public class NotaCreditoService {
                 emisor);
 
         auditoriaService.registrar("NotaCredito", nc.getId(), AuditoriaService.Accion.Devolver,
-                "Nota de crédito %s por Gs. %s sobre la factura %s".formatted(
-                        nc.getNumero(), totalNc.toPlainString(), factura.getNumero()),
+                "Nota de crédito %s por %s sobre la factura %s".formatted(
+                        nc.getNumero(), totalNc, factura.getNumero()),
                 AuditoriaService.Cambios.nuevo()
                         .valor("notaCredito", nc.getNumero())
                         .valor("factura", factura.getNumero())
@@ -199,7 +200,8 @@ public class NotaCreditoService {
                             comprado,
                             devuelto,
                             comprado - devuelto,
-                            detalle.getPrecioUnitario());
+                            detalle.getMoneda().codigo(),
+                            detalle.getPrecioUnitario().monto());
                 })
                 .toList();
     }
@@ -223,10 +225,4 @@ public class NotaCreditoService {
         return mapa;
     }
 
-    private static BigDecimal ivaIncluido(BigDecimal monto, BigDecimal tasa) {
-        if (tasa == null || tasa.signum() <= 0) {
-            return BigDecimal.ZERO;
-        }
-        return monto.multiply(tasa).divide(CIEN.add(tasa), 2, RoundingMode.HALF_UP);
-    }
 }

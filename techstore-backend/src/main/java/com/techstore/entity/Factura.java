@@ -12,6 +12,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.TenantId;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -28,7 +31,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Factura {
+public class Factura implements ConMoneda {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -81,12 +84,28 @@ public class Factura {
 
     private LocalDateTime fecha = LocalDateTime.now();
 
+    /**
+     * Moneda de la factura, congelada al emitirla. Si alguna vez se factura en
+     * otra moneda hay que fijarla antes que los importes: los setters exigen que
+     * cada importe venga en la moneda del documento.
+     */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(columnDefinition = "moneda", nullable = false)
+    private Moneda moneda = Moneda.porDefecto();
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal subtotal;
 
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal iva;
 
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal total;
 
@@ -106,4 +125,28 @@ public class Factura {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    public Dinero getSubtotal() {
+        return importe(subtotal);
+    }
+
+    public void setSubtotal(Dinero subtotal) {
+        this.subtotal = monto(subtotal);
+    }
+
+    public Dinero getIva() {
+        return importe(iva);
+    }
+
+    public void setIva(Dinero iva) {
+        this.iva = monto(iva);
+    }
+
+    public Dinero getTotal() {
+        return importe(total);
+    }
+
+    public void setTotal(Dinero total) {
+        this.total = monto(total);
+    }
 }

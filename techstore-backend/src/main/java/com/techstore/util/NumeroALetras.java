@@ -29,6 +29,28 @@ public final class NumeroALetras {
     }
 
     /**
+     * El importe en letras para el documento impreso, nombrando su moneda.
+     * Ej.: {@code Gs. 4.700.000} → "guaraníes cuatro millones setecientos mil".
+     *
+     * <p>La parte fraccionaria solo aparece si la moneda tiene decimales: el
+     * guaraní no los tiene, así que nunca sale un "con 00/100" que no significa
+     * nada.
+     */
+    public static String enLetras(Dinero importe) {
+        if (importe.moneda() == Moneda.PYG) {
+            return enGuaranies(importe.monto());
+        }
+        String letras = convertir(importe.monto().longValue());
+        String resultado = importe.moneda().nombrePlural().toLowerCase() + " " + letras;
+        int centimos = importe.monto().remainder(BigDecimal.ONE)
+                .movePointRight(importe.moneda().decimales()).abs().intValue();
+        if (centimos > 0) {
+            resultado += " con " + String.format("%02d", centimos) + "/100";
+        }
+        return resultado;
+    }
+
+    /**
      * Ej.: 4.700.000 → "guaraníes cuatro millones setecientos mil".
      * Si el monto tiene céntimos, se agregan como fracción: "... con 27/100".
      */

@@ -14,6 +14,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.TenantId;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -32,7 +35,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Pedido {
+public class Pedido implements ConMoneda {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -69,6 +72,14 @@ public class Pedido {
 
     private LocalDateTime fecha = LocalDateTime.now();
 
+    /** Moneda del pedido. Sus detalles heredan esta, no tienen una propia. */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(columnDefinition = "moneda", nullable = false)
+    private Moneda moneda = Moneda.porDefecto();
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(precision = 15, scale = 2)
     private BigDecimal total = BigDecimal.ZERO;
 
@@ -97,5 +108,13 @@ public class Pedido {
     public void agregarDetalle(PedidoDetalle detalle) {
         detalle.setPedido(this);
         detalles.add(detalle);
+    }
+
+    public Dinero getTotal() {
+        return importe(total);
+    }
+
+    public void setTotal(Dinero total) {
+        this.total = monto(total);
     }
 }

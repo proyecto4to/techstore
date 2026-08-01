@@ -12,6 +12,7 @@ public record NotaCreditoResponse(
         String facturaNumero,
         Integer pedidoNumero,
         String motivo,
+        String moneda,
         BigDecimal subtotal,
         BigDecimal iva,
         BigDecimal total,
@@ -36,9 +37,10 @@ public record NotaCreditoResponse(
                 nc.getFactura().getNumero(),
                 nc.getPedido().getNumero(),
                 nc.getMotivo(),
-                nc.getSubtotal(),
-                nc.getIva(),
-                nc.getTotal(),
+                nc.getMoneda().codigo(),
+                nc.getSubtotal().monto(),
+                nc.getIva().monto(),
+                nc.getTotal().monto(),
                 devueltoTotal,
                 nc.getFecha(),
                 nc.getUsuario().getEmail(),
@@ -46,8 +48,8 @@ public record NotaCreditoResponse(
                         .map(d -> new DetalleResponse(
                                 d.getProducto().getNombre(),
                                 d.getCantidad(),
-                                d.getPrecioUnitario(),
-                                d.getSubtotal()))
+                                d.getPrecioUnitario().monto(),
+                                d.getSubtotal().monto()))
                         .toList());
     }
 }

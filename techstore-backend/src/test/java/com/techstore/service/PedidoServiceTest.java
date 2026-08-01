@@ -17,6 +17,8 @@ import com.techstore.mapper.PedidoMapperImpl;
 import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.ProductoRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -91,7 +93,7 @@ class PedidoServiceTest {
         Producto p = new Producto();
         p.setId(id);
         p.setNombre(nombre);
-        p.setPrecio(new BigDecimal(precio));
+        p.setPrecio(Dinero.de(new BigDecimal(precio), Moneda.PYG));
         p.setIva(BigDecimal.TEN);
         p.setStockReal(stockReal);
         p.setStockComprometido(comprometido);
@@ -116,7 +118,8 @@ class PedidoServiceTest {
         assertEquals(1, response.numero());
         assertEquals(EstadoPedido.P.name(), response.estado());
         assertEquals(TipoPedido.Venta.name(), response.tipo());
-        assertEquals(new BigDecimal("8500000.00"), response.total());
+        assertEquals(new BigDecimal("8500000"), response.total());
+        assertEquals("PYG", response.moneda());
         assertEquals(2, response.detalles().size());
         assertEquals(2, cpu.getStockComprometido());
         assertEquals(2, gpu.getStockComprometido());
@@ -175,10 +178,10 @@ class PedidoServiceTest {
         PedidoDetalle detalle = new PedidoDetalle();
         detalle.setProducto(producto);
         detalle.setCantidad(cantidad);
-        detalle.setPrecioUnitario(producto.getPrecio());
-        detalle.setSubtotal(producto.getPrecio().multiply(BigDecimal.valueOf(cantidad)));
         detalle.setIvaAplicado(producto.getIva());
         pedido.agregarDetalle(detalle);
+        detalle.setPrecioUnitario(producto.getPrecio());
+        detalle.setSubtotal(producto.getPrecio().por(cantidad));
         pedido.setTotal(detalle.getSubtotal());
         return pedido;
     }

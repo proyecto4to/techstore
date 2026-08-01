@@ -32,4 +32,21 @@ class NumeroALetrasTest {
         assertEquals("guaraníes doscientos mil con 50/100",
                 NumeroALetras.enGuaranies(new BigDecimal("200000.50")));
     }
+
+    @Test
+    void nombraLaMonedaEnPluralYNoEnSingular() {
+        // El documento impreso dice "guaraníes cuatro millones", no "guaraní
+        // cuatro millones": el nombre acompaña al importe, no a la moneda.
+        assertEquals("guaraníes cuatro millones setecientos mil",
+                NumeroALetras.enLetras(Dinero.de(4_700_000, Moneda.PYG)));
+        assertEquals("dólares estadounidenses cien",
+                NumeroALetras.enLetras(Dinero.de(100, Moneda.USD)));
+    }
+
+    @Test
+    void unImporteEnGuaraniesNoLlevaFraccion() {
+        // El guaraní no tiene centavos, así que nunca aparece un "con 00/100".
+        assertEquals("guaraníes doscientos mil",
+                NumeroALetras.enLetras(Dinero.de(200_000, Moneda.PYG)));
+    }
 }

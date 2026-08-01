@@ -66,7 +66,7 @@ class AislamientoTenantIT {
     private Producto nuevoProducto(String nombre) {
         Producto p = new Producto();
         p.setNombre(nombre);
-        p.setPrecio(new BigDecimal("1000.00"));
+        p.setPrecio(com.techstore.util.Dinero.de(1_000, com.techstore.util.Moneda.PYG));
         p.setStockReal(5);
         p.setStockComprometido(0);
         p.setStockMinimo(0);

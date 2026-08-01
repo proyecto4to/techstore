@@ -17,6 +17,7 @@ import com.techstore.entity.Factura;
 import com.techstore.entity.NotaCredito;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
+import com.techstore.util.Dinero;
 import com.techstore.util.LogoPdf;
 import com.techstore.util.NumeroALetras;
 import org.springframework.stereotype.Service;
@@ -24,7 +25,6 @@ import org.springframework.stereotype.Service;
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -53,8 +53,8 @@ public class FacturaPdfService {
     private static final Font F_TOTAL = new Font(Font.HELVETICA, 11, Font.BOLD, NEGRO);
 
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final BigDecimal ONCE = BigDecimal.valueOf(11);
-    private static final BigDecimal VEINTIUNO = BigDecimal.valueOf(21);
+    private static final BigDecimal TASA_5 = BigDecimal.valueOf(5);
+    private static final BigDecimal TASA_10 = BigDecimal.TEN;
 
     private final EmpresaConfigService empresaConfig;
     private final NumberFormat formatoNumero;
@@ -72,8 +72,8 @@ public class FacturaPdfService {
     }
 
     /** Una línea imprimible de la factura o nota de crédito. */
-    private record ItemPdf(int cantidad, String nombre, BigDecimal precioUnitario,
-                           BigDecimal subtotal, int tasaIva) {
+    private record ItemPdf(int cantidad, String nombre, Dinero precioUnitario,
+                           Dinero subtotal, int tasaIva) {
     }
 
     public byte[] generar(Factura factura) {
@@ -99,7 +99,7 @@ public class FacturaPdfService {
 
     private byte[] render(Factura factura, String tituloDoc, String numeroDoc,
                           java.time.LocalDateTime fecha, String referencia, String etiquetaTotal,
-                          List<ItemPdf> items, BigDecimal total) {
+                          List<ItemPdf> items, Dinero total) {
         try (ByteArrayOutputStream salida = new ByteArrayOutputStream()) {
             Document documento = new Document(PageSize.A4, 36, 36, 36, 36);
             PdfWriter.getInstance(documento, salida);
@@ -211,7 +211,7 @@ public class FacturaPdfService {
         documento.add(datos);
     }
 
-    private void agregarItems(Document documento, List<ItemPdf> items, BigDecimal total,
+    private void agregarItems(Document documento, List<ItemPdf> items, Dinero total,
                               String etiquetaTotal) throws DocumentException {
         PdfPTable tabla = new PdfPTable(new float[]{9, 33, 14, 14, 14, 16});
         tabla.setWidthPercentage(100);
@@ -227,13 +227,13 @@ public class FacturaPdfService {
             tabla.addCell(celda);
         }
 
-        BigDecimal exentas = BigDecimal.ZERO;
-        BigDecimal gravadas5 = BigDecimal.ZERO;
-        BigDecimal gravadas10 = BigDecimal.ZERO;
+        Dinero exentas = Dinero.cero(total.moneda());
+        Dinero gravadas5 = Dinero.cero(total.moneda());
+        Dinero gravadas10 = Dinero.cero(total.moneda());
 
         for (ItemPdf item : items) {
             int tasa = item.tasaIva();
-            BigDecimal monto = item.subtotal();
+            Dinero monto = item.subtotal();
 
             tabla.addCell(celdaItem(String.valueOf(item.cantidad()), Element.ALIGN_CENTER));
             tabla.addCell(celdaItem(item.nombre(), Element.ALIGN_LEFT));
@@ -243,9 +243,9 @@ public class FacturaPdfService {
             tabla.addCell(celdaItem(tasa == 10 ? numero(monto) : "", Element.ALIGN_RIGHT));
 
             switch (tasa) {
-                case 5 -> gravadas5 = gravadas5.add(monto);
-                case 10 -> gravadas10 = gravadas10.add(monto);
-                default -> exentas = exentas.add(monto);
+                case 5 -> gravadas5 = gravadas5.mas(monto);
+                case 10 -> gravadas10 = gravadas10.mas(monto);
+                default -> exentas = exentas.mas(monto);
             }
         }
 
@@ -256,7 +256,7 @@ public class FacturaPdfService {
         subtotales.setBorderColor(GRIS_BORDE);
         subtotales.setBackgroundColor(GRIS_FONDO);
         tabla.addCell(subtotales);
-        for (BigDecimal columna : new BigDecimal[]{exentas, gravadas5, gravadas10}) {
+        for (Dinero columna : new Dinero[]{exentas, gravadas5, gravadas10}) {
             PdfPCell celda = new PdfPCell(new Phrase(numero(columna), F_NEGRITA));
             celda.setHorizontalAlignment(Element.ALIGN_RIGHT);
             celda.setPadding(6);
@@ -271,7 +271,8 @@ public class FacturaPdfService {
         celdaEtiquetaTotal.setPadding(7);
         celdaEtiquetaTotal.setBorderColor(GRIS_BORDE);
         tabla.addCell(celdaEtiquetaTotal);
-        PdfPCell valorTotal = new PdfPCell(new Phrase("Gs. " + numero(total), F_TOTAL));
+        PdfPCell valorTotal = new PdfPCell(
+                new Phrase(total.moneda().simbolo() + " " + numero(total), F_TOTAL));
         valorTotal.setColspan(3);
         valorTotal.setHorizontalAlignment(Element.ALIGN_RIGHT);
         valorTotal.setPadding(7);
@@ -280,18 +281,20 @@ public class FacturaPdfService {
 
         PdfPCell enLetras = new PdfPCell(new Phrase(
                 etiquetaTotal.replace(":", "") + " (EN LETRAS): "
-                        + capitalizar(NumeroALetras.enGuaranies(total)) + ".-", F_NORMAL));
+                        + capitalizar(NumeroALetras.enLetras(total)) + ".-", F_NORMAL));
         enLetras.setColspan(6);
         enLetras.setPadding(6);
         enLetras.setBorderColor(GRIS_BORDE);
         tabla.addCell(enLetras);
 
-        BigDecimal iva5 = gravadas5.divide(VEINTIUNO, 0, RoundingMode.HALF_UP);
-        BigDecimal iva10 = gravadas10.divide(ONCE, 0, RoundingMode.HALF_UP);
+        // El mismo cálculo que usa el cobro para guardar el IVA de la factura, así
+        // el impuesto impreso y el guardado no pueden discrepar.
+        Dinero iva5 = gravadas5.ivaIncluido(TASA_5);
+        Dinero iva10 = gravadas10.ivaIncluido(TASA_10);
         PdfPCell liquidacion = new PdfPCell(new Phrase(
                 "LIQUIDACIÓN DEL IVA:   (5%) " + numero(iva5)
                         + "   (10%) " + numero(iva10)
-                        + "   TOTAL IVA: " + numero(iva5.add(iva10)), F_NORMAL));
+                        + "   TOTAL IVA: " + numero(iva5.mas(iva10)), F_NORMAL));
         liquidacion.setColspan(6);
         liquidacion.setPadding(6);
         liquidacion.setBorderColor(GRIS_BORDE);
@@ -322,8 +325,8 @@ public class FacturaPdfService {
         return celda;
     }
 
-    private String numero(BigDecimal valor) {
-        return formatoNumero.format(valor);
+    private String numero(Dinero valor) {
+        return formatoNumero.format(valor.monto());
     }
 
     private static String capitalizar(String texto) {

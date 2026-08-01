@@ -2,6 +2,8 @@ package com.techstore.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -10,11 +12,16 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.TenantId;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -24,7 +31,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Producto {
+public class Producto implements ConMoneda {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -45,9 +52,21 @@ public class Producto {
     @Column(columnDefinition = "text")
     private String descripcion;
 
+    /** Moneda del precio de lista. */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(columnDefinition = "moneda", nullable = false)
+    private Moneda moneda = Moneda.porDefecto();
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal precio;
 
+    /**
+     * Tasa de IVA en porcentaje (10, 5 o 0). No es dinero: es el porcentaje con
+     * el que se calcula el impuesto contenido en el precio.
+     */
     @Column(precision = 3)
     private BigDecimal iva = BigDecimal.TEN;
 
@@ -84,6 +103,14 @@ public class Producto {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    public Dinero getPrecio() {
+        return importe(precio);
+    }
+
+    public void setPrecio(Dinero precio) {
+        this.precio = monto(precio);
+    }
 
     public Integer getStockDisponible() {
         int real = stockReal == null ? 0 : stockReal;

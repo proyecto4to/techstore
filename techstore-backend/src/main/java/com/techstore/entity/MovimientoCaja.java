@@ -12,6 +12,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.TenantId;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -27,7 +30,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
-public class MovimientoCaja {
+public class MovimientoCaja implements ConMoneda {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -55,6 +58,14 @@ public class MovimientoCaja {
     @Column(nullable = false, columnDefinition = "tipo_pago")
     private TipoPago medio = TipoPago.Efectivo;
 
+    /** Moneda del movimiento: un arqueo solo puede sumar movimientos de una misma. */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(columnDefinition = "moneda", nullable = false)
+    private Moneda moneda = Moneda.porDefecto();
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal monto;
 
@@ -81,4 +92,12 @@ public class MovimientoCaja {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    public Dinero getMonto() {
+        return importe(monto);
+    }
+
+    public void setMonto(Dinero importe) {
+        this.monto = monto(importe);
+    }
 }

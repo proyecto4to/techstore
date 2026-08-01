@@ -10,6 +10,7 @@ public record PedidoResponse(
         String tipo,
         String estado,
         LocalDateTime fecha,
+        String moneda,
         BigDecimal total,
         String notas,
         String usuarioEmail,

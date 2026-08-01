@@ -17,6 +17,8 @@ import com.techstore.mapper.PedidoMapper;
 import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.ProductoRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -24,7 +26,6 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -67,8 +68,10 @@ public class PedidoService {
         pedido.setUsuario(usuario);
         pedido.setNotas(request.notas());
         pedido.setNumero(autonumeradorService.siguiente(ENTIDAD_PEDIDO));
+        // La moneda del pedido es la del catálogo; los detalles heredan la suya de acá.
+        pedido.setMoneda(Moneda.porDefecto());
 
-        BigDecimal total = BigDecimal.ZERO;
+        Dinero total = Dinero.cero(pedido.getMoneda());
         for (Map.Entry<Long, Integer> entrada : cantidades.entrySet()) {
             Producto producto = productos.get(entrada.getKey());
             if (producto == null) {
@@ -88,12 +91,13 @@ public class PedidoService {
             PedidoDetalle detalle = new PedidoDetalle();
             detalle.setProducto(producto);
             detalle.setCantidad(cantidad);
-            detalle.setPrecioUnitario(producto.getPrecio());
-            detalle.setSubtotal(producto.getPrecio().multiply(BigDecimal.valueOf(cantidad)));
             detalle.setIvaAplicado(producto.getIva());
+            // Se agrega antes de cargarle importes: la moneda del detalle es la del pedido.
             pedido.agregarDetalle(detalle);
+            detalle.setPrecioUnitario(producto.getPrecio());
+            detalle.setSubtotal(producto.getPrecio().por(cantidad));
 
-            total = total.add(detalle.getSubtotal());
+            total = total.mas(detalle.getSubtotal());
         }
 
         pedido.setTotal(total);
@@ -110,7 +114,7 @@ public class PedidoService {
                 cliente.getNombre(),
                 "Tu pedido N.º " + pedido.getNumero() + " quedó en estado Pendiente y el stock reservado "
                         + "a tu nombre. Cuando lo confirmemos y cobremos, te enviaremos la factura por este medio.",
-                "Total: Gs. " + pedido.getTotal().toPlainString(),
+                "Total: " + pedido.getTotal(),
                 "VER MIS PEDIDOS",
                 emailTemplateService.url("/pedidos"));
         correoService.enviar(

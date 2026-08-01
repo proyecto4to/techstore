@@ -22,6 +22,7 @@ import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.UsuarioRepository;
 import com.techstore.sifen.CodigoControl;
 import com.techstore.sifen.FacturaElectronicaService;
+import com.techstore.util.Dinero;
 import com.techstore.util.RucParaguayo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +32,6 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -47,7 +47,6 @@ public class PagoService {
     private static final String ENTIDAD_PAGO = "PAGO";
     private static final String ENTIDAD_FACTURA = "FACTURA";
     private static final String TIPO_FACTURA_CONTADO = "CONTADO";
-    private static final BigDecimal CIEN = BigDecimal.valueOf(100);
 
     /** Métodos de pago habilitados; Tarjeta y Cheque quedan fuera de uso. */
     private static final Set<TipoPago> METODOS_HABILITADOS =
@@ -95,16 +94,18 @@ public class PagoService {
             Pago pago = new Pago();
             pago.setNumero(autonumeradorService.siguiente(ENTIDAD_PAGO));
             pago.setPedido(pedido);
-            pago.setMonto(linea.monto());
+            pago.setMoneda(pedido.getMoneda());
+            pago.setMonto(Dinero.de(linea.monto(), pedido.getMoneda()));
             pago.setTipoPago(linea.tipoPago());
             pago.setNumeroComprobante(linea.numeroComprobante());
             pago.setUsuario(cajero);
             pagos.add(pagoRepository.save(pago));
         }
 
-        BigDecimal iva = calcularIvaIncluido(pedido);
+        Dinero iva = calcularIvaIncluido(pedido);
 
         Factura factura = new Factura();
+        factura.setMoneda(pedido.getMoneda());
         // El prefijo sale de los datos del emisor: tiene que coincidir con el que
         // el CDC arma con el establecimiento y el punto de expedición.
         EmpresaProperties emisor = empresaConfig.actual();
@@ -115,7 +116,7 @@ public class PagoService {
         factura.setCodigoSeguridad(CodigoControl.generarCodigoSeguridad());
         factura.setTipo(TIPO_FACTURA_CONTADO);
         factura.setPedido(pedido);
-        factura.setSubtotal(pedido.getTotal().subtract(iva));
+        factura.setSubtotal(pedido.getTotal().menos(iva));
         factura.setIva(iva);
         factura.setTotal(pedido.getTotal());
         factura.setEstado(EstadoFactura.Pagada);
@@ -192,9 +193,9 @@ public class PagoService {
         return cliente.getNombre() + " " + cliente.getApellido();
     }
 
-    private void validarLineas(List<RegistroPagoRequest.LineaPago> lineas, BigDecimal total) {
+    private void validarLineas(List<RegistroPagoRequest.LineaPago> lineas, Dinero total) {
         Set<TipoPago> metodosVistos = new HashSet<>();
-        BigDecimal suma = BigDecimal.ZERO;
+        Dinero suma = Dinero.cero(total.moneda());
         for (RegistroPagoRequest.LineaPago linea : lineas) {
             if (!METODOS_HABILITADOS.contains(linea.tipoPago())) {
                 throw new BusinessException(
@@ -206,12 +207,12 @@ public class PagoService {
                         "El método %s aparece más de una vez; combiná los montos en una sola línea."
                                 .formatted(linea.tipoPago()));
             }
-            suma = suma.add(linea.monto());
+            suma = suma.mas(Dinero.de(linea.monto(), total.moneda()));
         }
         if (suma.compareTo(total) != 0) {
             throw new BusinessException(
                     "La suma de los pagos (%s) no coincide con el total del pedido (%s)."
-                            .formatted(suma.toPlainString(), total.toPlainString()));
+                            .formatted(suma.plano(), total.plano()));
         }
     }
 
@@ -284,7 +285,7 @@ public class PagoService {
                 nombre,
                 "Adjuntamos la factura " + factura.getNumero() + " correspondiente a tu compra "
                         + "(pedido N.º " + pedido.getNumero() + ").",
-                "Total: Gs. " + factura.getTotal().toPlainString(),
+                "Total: " + factura.getTotal(),
                 aReceptor ? null : "VER MIS PEDIDOS",
                 aReceptor ? null : emailTemplateService.url("/pedidos"));
         correoService.enviar(
@@ -298,15 +299,15 @@ public class PagoService {
                 "factura-" + factura.getNumero() + ".pdf");
     }
 
-    private BigDecimal calcularIvaIncluido(Pedido pedido) {
-        BigDecimal iva = BigDecimal.ZERO;
+    /**
+     * El IVA contenido en el pedido, sumado detalle por detalle porque cada uno
+     * puede tener su propia tasa. El cálculo y el redondeo los hace {@link Dinero}
+     * según la moneda: es el mismo que usan la nota de crédito y el KuDE.
+     */
+    private Dinero calcularIvaIncluido(Pedido pedido) {
+        Dinero iva = Dinero.cero(pedido.getMoneda());
         for (PedidoDetalle detalle : pedido.getDetalles()) {
-            BigDecimal tasa = detalle.getIvaAplicado() == null ? BigDecimal.ZERO : detalle.getIvaAplicado();
-            if (tasa.signum() > 0) {
-                iva = iva.add(detalle.getSubtotal()
-                        .multiply(tasa)
-                        .divide(CIEN.add(tasa), 2, RoundingMode.HALF_UP));
-            }
+            iva = iva.mas(detalle.getSubtotal().ivaIncluido(detalle.getIvaAplicado()));
         }
         return iva;
     }

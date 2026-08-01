@@ -7,6 +7,7 @@ public record ProductoResponse(
         Long id,
         String nombre,
         String descripcion,
+        String moneda,
         BigDecimal precio,
         Integer iva,
         Integer stockReal,

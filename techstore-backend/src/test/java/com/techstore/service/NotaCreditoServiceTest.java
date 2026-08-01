@@ -21,6 +21,8 @@ import com.techstore.repository.NotaCreditoRepository;
 import com.techstore.repository.PedidoRepository;
 import com.techstore.repository.ProductoRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -114,18 +116,18 @@ class NotaCreditoServiceTest {
         pedido.setTipo(TipoPedido.Venta);
         pedido.setEstado(EstadoPedido.G);
         pedido.setUsuario(cajero);
-        pedido.agregarDetalle(detalle(ram, 2));
-        pedido.agregarDetalle(detalle(ssd, 1));
-        pedido.setTotal(new BigDecimal("2200000.00"));
+        agregarDetalle(pedido, ram, 2);
+        agregarDetalle(pedido, ssd, 1);
+        pedido.setTotal(Dinero.de(2_200_000, Moneda.PYG));
 
         factura = new Factura();
         factura.setId(7L);
         factura.setNumero("001-001-0000002");
         factura.setTipo("CONTADO");
         factura.setPedido(pedido);
-        factura.setSubtotal(new BigDecimal("2000000.00"));
-        factura.setIva(new BigDecimal("200000.00"));
-        factura.setTotal(new BigDecimal("2200000.00"));
+        factura.setSubtotal(Dinero.de(2_000_000, Moneda.PYG));
+        factura.setIva(Dinero.de(200_000, Moneda.PYG));
+        factura.setTotal(Dinero.de(2_200_000, Moneda.PYG));
         factura.setEstado(EstadoFactura.Pagada);
         factura.setUsuario(cajero);
     }
@@ -134,20 +136,25 @@ class NotaCreditoServiceTest {
         Producto p = new Producto();
         p.setId(id);
         p.setNombre(nombre);
-        p.setPrecio(new BigDecimal(precio));
+        p.setPrecio(Dinero.de(new BigDecimal(precio), Moneda.PYG));
         p.setIva(BigDecimal.TEN);
         p.setStockReal(stock);
         p.setStockComprometido(0);
         return p;
     }
 
-    private PedidoDetalle detalle(Producto producto, int cantidad) {
+    /**
+     * El detalle se agrega al pedido antes de cargarle importes: la moneda del
+     * detalle es la del pedido, así que sin padre no sabe en qué moneda está.
+     */
+    private PedidoDetalle agregarDetalle(Pedido pedido, Producto producto, int cantidad) {
         PedidoDetalle d = new PedidoDetalle();
         d.setProducto(producto);
         d.setCantidad(cantidad);
-        d.setPrecioUnitario(producto.getPrecio());
-        d.setSubtotal(producto.getPrecio().multiply(BigDecimal.valueOf(cantidad)));
         d.setIvaAplicado(BigDecimal.TEN);
+        pedido.agregarDetalle(d);
+        d.setPrecioUnitario(producto.getPrecio());
+        d.setSubtotal(producto.getPrecio().por(cantidad));
         return d;
     }
 
@@ -175,7 +182,7 @@ class NotaCreditoServiceTest {
         NotaCreditoResponse nc = notaCreditoService.emitir(3L,
                 req("Una vino fallada", new ItemDevolucion(4L, 1)), "cajero@techstore.py");
 
-        assertEquals(new BigDecimal("800000.00"), nc.total());
+        assertEquals(new BigDecimal("800000"), nc.total());
         assertEquals(1, nc.detalles().size());
         assertEquals(10, ram.getStockReal()); // 9 + 1 devuelta
         assertEquals(15, ssd.getStockReal()); // el SSD no se tocó
@@ -185,7 +192,7 @@ class NotaCreditoServiceTest {
         // "NC" adelante: sin el prefijo esta referencia sería idéntica a la de
         // una factura distinta, porque los numeradores son independientes.
         verify(cajaService).registrarEgresoAutomatico(
-                eq(new BigDecimal("800000.00")), eq("Devolución pedido N.º 3"),
+                eq(Dinero.de(800_000, Moneda.PYG)), eq("Devolución pedido N.º 3"),
                 eq("NC 001-001-0000001"), eq(cajero));
     }
 
@@ -197,7 +204,7 @@ class NotaCreditoServiceTest {
                 req("Se arrepintió", new ItemDevolucion(4L, 2), new ItemDevolucion(3L, 1)),
                 "cajero@techstore.py");
 
-        assertEquals(new BigDecimal("2200000.00"), nc.total());
+        assertEquals(new BigDecimal("2200000"), nc.total());
         assertEquals(2, nc.detalles().size());
         assertEquals(11, ram.getStockReal()); // 9 + 2
         assertEquals(16, ssd.getStockReal()); // 15 + 1
@@ -263,17 +270,18 @@ class NotaCreditoServiceTest {
         nc.setFactura(factura);
         nc.setPedido(pedido);
         nc.setMotivo("Producto fallado");
-        nc.setSubtotal(new BigDecimal("727272.73"));
-        nc.setIva(new BigDecimal("72727.27"));
-        nc.setTotal(new BigDecimal("800000.00"));
+        // 800.000 × 10 ÷ 110 = 72.727,27… -> 72.727 en guaraníes enteros.
+        nc.setSubtotal(Dinero.de(727_273, Moneda.PYG));
+        nc.setIva(Dinero.de(72_727, Moneda.PYG));
+        nc.setTotal(Dinero.de(800_000, Moneda.PYG));
         nc.setUsuario(cajero);
         com.techstore.entity.NotaCreditoDetalle d = new com.techstore.entity.NotaCreditoDetalle();
         d.setProducto(ram);
         d.setCantidad(1);
-        d.setPrecioUnitario(ram.getPrecio());
-        d.setSubtotal(ram.getPrecio());
         d.setIvaAplicado(BigDecimal.TEN);
         nc.agregarDetalle(d);
+        d.setPrecioUnitario(ram.getPrecio());
+        d.setSubtotal(ram.getPrecio());
         when(notaCreditoRepository.findParaPdfById(1L)).thenReturn(Optional.of(nc));
 
         NotaCreditoService.NotaCreditoPdf pdf = notaCreditoService.generarPdf(1L);

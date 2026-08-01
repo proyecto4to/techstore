@@ -11,11 +11,18 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import org.hibernate.annotations.TenantId;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -27,7 +34,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-public class NotaCredito {
+public class NotaCredito implements ConMoneda {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -59,12 +66,24 @@ public class NotaCredito {
     @Column(nullable = false, length = 255)
     private String motivo;
 
+    /** La misma moneda que la factura que se está acreditando. */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(columnDefinition = "moneda", nullable = false)
+    private Moneda moneda = Moneda.porDefecto();
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal subtotal;
 
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal iva;
 
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal total;
 
@@ -81,5 +100,29 @@ public class NotaCredito {
     public void agregarDetalle(NotaCreditoDetalle detalle) {
         detalle.setNotaCredito(this);
         detalles.add(detalle);
+    }
+
+    public Dinero getSubtotal() {
+        return importe(subtotal);
+    }
+
+    public void setSubtotal(Dinero subtotal) {
+        this.subtotal = monto(subtotal);
+    }
+
+    public Dinero getIva() {
+        return importe(iva);
+    }
+
+    public void setIva(Dinero iva) {
+        this.iva = monto(iva);
+    }
+
+    public Dinero getTotal() {
+        return importe(total);
+    }
+
+    public void setTotal(Dinero total) {
+        this.total = monto(total);
     }
 }

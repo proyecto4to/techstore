@@ -16,6 +16,8 @@ import com.techstore.repository.AperturaCajaRepository;
 import com.techstore.repository.CierreCajaRepository;
 import com.techstore.repository.MovimientoCajaRepository;
 import com.techstore.repository.UsuarioRepository;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -110,7 +112,7 @@ class CierreCajaServiceTest {
         apertura.setId(1L);
         apertura.setNumero(1);
         apertura.setUsuario(cajero);
-        apertura.setSaldoInicial(new BigDecimal(saldoInicial));
+        apertura.setSaldoInicial(Dinero.de(new BigDecimal(saldoInicial), Moneda.PYG));
         return apertura;
     }
 

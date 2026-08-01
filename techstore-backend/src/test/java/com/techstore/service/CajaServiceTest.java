@@ -83,7 +83,8 @@ class CajaServiceTest {
         when(movimientoCajaRepository.save(any(MovimientoCaja.class))).thenAnswer(inv -> inv.getArgument(0));
 
         MovimientoCaja movimiento = cajaService.registrarIngresoAutomatico(
-                new BigDecimal("4700000.00"), "Cobro pedido N.º 1", "001-001-0000001", cajero,
+                com.techstore.util.Dinero.de(4_700_000, com.techstore.util.Moneda.PYG),
+                "Cobro pedido N.º 1", "001-001-0000001", cajero,
                 com.techstore.entity.TipoPago.Transferencia);
 
         assertEquals(TipoMovimiento.Ingreso, movimiento.getTipo());

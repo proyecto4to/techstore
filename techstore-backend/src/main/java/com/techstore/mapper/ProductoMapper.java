@@ -9,7 +9,7 @@ import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
 @Mapper(componentModel = "spring")
-public interface ProductoMapper {
+public interface ProductoMapper extends DineroMapper {
 
     @Mapping(target = "stockDisponible", expression = "java(producto.getStockDisponible())")
     @Mapping(target = "necesitaReposicion", expression = "java(producto.necesitaReposicion())")

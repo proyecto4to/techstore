@@ -11,6 +11,7 @@ public record CompraResumenResponse(
         String estado,
         boolean pagada,
         LocalDateTime fecha,
+        String moneda,
         BigDecimal total,
         String proveedorRazonSocial,
         String usuarioEmail) {
@@ -22,7 +23,8 @@ public record CompraResumenResponse(
                 pedido.getEstado().name(),
                 Boolean.TRUE.equals(pedido.getPagada()),
                 pedido.getFecha(),
-                pedido.getTotal(),
+                pedido.getMoneda().codigo(),
+                pedido.getTotal().monto(),
                 pedido.getProveedor() == null ? null : pedido.getProveedor().getRazonSocial(),
                 pedido.getUsuario().getEmail());
     }

@@ -8,7 +8,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
-public interface PedidoMapper {
+public interface PedidoMapper extends DineroMapper {
 
     @Mapping(target = "usuarioEmail", source = "usuario.email")
     PedidoResponse toResponse(Pedido pedido);

@@ -19,7 +19,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
+import com.techstore.util.Dinero;
+import com.techstore.util.Moneda;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -68,8 +69,10 @@ public class VentaDirectaService {
         pedido.setUsuario(cajero);
         pedido.setNumero(autonumeradorService.siguiente(ENTIDAD_PEDIDO));
         pedido.setNotas(notasDeVenta(request.notas()));
+        // La moneda del pedido es la del catálogo; los detalles heredan la suya de acá.
+        pedido.setMoneda(Moneda.porDefecto());
 
-        BigDecimal total = BigDecimal.ZERO;
+        Dinero total = Dinero.cero(pedido.getMoneda());
         for (Map.Entry<Long, Integer> entrada : cantidades.entrySet()) {
             Producto producto = productos.get(entrada.getKey());
             if (producto == null) {
@@ -91,12 +94,13 @@ public class VentaDirectaService {
             PedidoDetalle detalle = new PedidoDetalle();
             detalle.setProducto(producto);
             detalle.setCantidad(cantidad);
-            detalle.setPrecioUnitario(producto.getPrecio());
-            detalle.setSubtotal(producto.getPrecio().multiply(BigDecimal.valueOf(cantidad)));
             detalle.setIvaAplicado(producto.getIva());
+            // Se agrega antes de cargarle importes: la moneda del detalle es la del pedido.
             pedido.agregarDetalle(detalle);
+            detalle.setPrecioUnitario(producto.getPrecio());
+            detalle.setSubtotal(producto.getPrecio().por(cantidad));
 
-            total = total.add(detalle.getSubtotal());
+            total = total.mas(detalle.getSubtotal());
         }
 
         pedido.setTotal(total);

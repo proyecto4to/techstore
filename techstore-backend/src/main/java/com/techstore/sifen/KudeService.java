@@ -21,6 +21,7 @@ import com.techstore.entity.PedidoDetalle;
 import com.techstore.entity.Usuario;
 import com.techstore.exception.BusinessException;
 import com.techstore.service.EmpresaConfigService;
+import com.techstore.util.Dinero;
 import com.techstore.util.LogoPdf;
 import com.techstore.util.NumeroALetras;
 import com.techstore.util.RucParaguayo;
@@ -59,9 +60,8 @@ public class KudeService {
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final DateTimeFormatter FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
     private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final BigDecimal CIEN = BigDecimal.valueOf(100);
-    private static final BigDecimal ONCE = BigDecimal.valueOf(11);
-    private static final BigDecimal VEINTIUNO = BigDecimal.valueOf(21);
+    private static final BigDecimal TASA_5 = BigDecimal.valueOf(5);
+    private static final BigDecimal TASA_10 = BigDecimal.TEN;
 
     private static final Color NEGRO = new Color(20, 20, 20);
     private static final Color GRIS = new Color(120, 120, 120);
@@ -102,7 +102,7 @@ public class KudeService {
     }
 
     private String construirUrlQr(Factura factura, String cdc, String digestValue) throws Exception {
-        BigDecimal iva = ivaTotal(factura);
+        Dinero iva = ivaTotal(factura);
         String fechaHex = hex(factura.getFecha().format(DT));
         String digestHex = hex(digestValue);
         long items = factura.getPedido().getDetalles().size();
@@ -202,7 +202,8 @@ public class KudeService {
         izq.addElement(new Paragraph(
                 "Condición de venta:   Contado [" + (contado ? "X" : " ") + "]   Crédito [" + (contado ? " " : "X") + "]",
                 F_NORMAL));
-        izq.addElement(new Paragraph("Moneda: PYG (Guaraní)", F_NORMAL));
+        izq.addElement(new Paragraph("Moneda: %s (%s)".formatted(
+                factura.getMoneda().codigo(), factura.getMoneda().nombre()), F_NORMAL));
         izq.addElement(new Paragraph("Tipo de cambio: —", F_NORMAL));
         izq.addElement(new Paragraph("Tipo de transacción: Venta de mercadería", F_NORMAL));
         tabla.addCell(izq);
@@ -244,12 +245,12 @@ public class KudeService {
             tabla.addCell(c);
         }
 
-        BigDecimal exentas = BigDecimal.ZERO;
-        BigDecimal grav5 = BigDecimal.ZERO;
-        BigDecimal grav10 = BigDecimal.ZERO;
+        Dinero exentas = Dinero.cero(factura.getMoneda());
+        Dinero grav5 = Dinero.cero(factura.getMoneda());
+        Dinero grav10 = Dinero.cero(factura.getMoneda());
         for (PedidoDetalle d : factura.getPedido().getDetalles()) {
             int tasa = d.getIvaAplicado() == null ? 0 : d.getIvaAplicado().intValue();
-            BigDecimal monto = d.getSubtotal();
+            Dinero monto = d.getSubtotal();
 
             tabla.addCell(celda(String.format("%04d", d.getProducto().getId()), Element.ALIGN_CENTER));
             tabla.addCell(celda(d.getProducto().getNombre(), Element.ALIGN_LEFT));
@@ -262,9 +263,9 @@ public class KudeService {
             tabla.addCell(celda(tasa == 10 ? gs(monto) : "", Element.ALIGN_RIGHT));
 
             switch (tasa) {
-                case 5 -> grav5 = grav5.add(monto);
-                case 10 -> grav10 = grav10.add(monto);
-                default -> exentas = exentas.add(monto);
+                case 5 -> grav5 = grav5.mas(monto);
+                case 10 -> grav10 = grav10.mas(monto);
+                default -> exentas = exentas.mas(monto);
             }
         }
 
@@ -275,7 +276,7 @@ public class KudeService {
         etiqueta.setBorderColor(GRIS);
         etiqueta.setBackgroundColor(GRIS_FONDO);
         tabla.addCell(etiqueta);
-        for (BigDecimal col : new BigDecimal[]{exentas, grav5, grav10}) {
+        for (Dinero col : new Dinero[]{exentas, grav5, grav10}) {
             PdfPCell c = new PdfPCell(new Phrase(gs(col), F_NEGRITA));
             c.setHorizontalAlignment(Element.ALIGN_RIGHT);
             c.setPadding(4);
@@ -289,29 +290,32 @@ public class KudeService {
 
     /** Totales de la operación, importe en letras y liquidación del IVA. */
     private PdfPTable totales(Factura factura) {
-        BigDecimal grav5 = BigDecimal.ZERO;
-        BigDecimal grav10 = BigDecimal.ZERO;
+        Dinero grav5 = Dinero.cero(factura.getMoneda());
+        Dinero grav10 = Dinero.cero(factura.getMoneda());
         for (PedidoDetalle d : factura.getPedido().getDetalles()) {
             int tasa = d.getIvaAplicado() == null ? 0 : d.getIvaAplicado().intValue();
             switch (tasa) {
-                case 5 -> grav5 = grav5.add(d.getSubtotal());
-                case 10 -> grav10 = grav10.add(d.getSubtotal());
+                case 5 -> grav5 = grav5.mas(d.getSubtotal());
+                case 10 -> grav10 = grav10.mas(d.getSubtotal());
                 default -> { }
             }
         }
-        BigDecimal iva5 = grav5.signum() == 0 ? BigDecimal.ZERO : grav5.divide(VEINTIUNO, 0, RoundingMode.HALF_UP);
-        BigDecimal iva10 = grav10.signum() == 0 ? BigDecimal.ZERO : grav10.divide(ONCE, 0, RoundingMode.HALF_UP);
+        Dinero iva5 = grav5.ivaIncluido(TASA_5);
+        Dinero iva10 = grav10.ivaIncluido(TASA_10);
 
         PdfPTable tabla = new PdfPTable(1);
         tabla.setWidthPercentage(100);
 
-        tabla.addCell(lineaTotal("TOTAL DE LA OPERACIÓN:   Gs. " + gs(factura.getTotal()), F_NEGRITA));
+        tabla.addCell(lineaTotal("TOTAL DE LA OPERACIÓN:   %s %s"
+                .formatted(factura.getMoneda().simbolo(), gs(factura.getTotal())), F_NEGRITA));
         tabla.addCell(lineaTotal(
-                "TOTAL EN GUARANÍES (EN LETRAS): " + capitalizar(NumeroALetras.enGuaranies(factura.getTotal())) + ".-",
+                "TOTAL EN %s (EN LETRAS): %s.-".formatted(
+                        factura.getMoneda().nombrePlural().toUpperCase(),
+                        capitalizar(NumeroALetras.enLetras(factura.getTotal()))),
                 F_NORMAL));
         tabla.addCell(lineaTotal(
                 "LIQUIDACIÓN DEL IVA:   (5%) " + gs(iva5) + "     (10%) " + gs(iva10)
-                        + "     TOTAL IVA: " + gs(iva5.add(iva10)), F_NORMAL));
+                        + "     TOTAL IVA: " + gs(iva5.mas(iva10)), F_NORMAL));
         return tabla;
     }
 
@@ -350,13 +354,16 @@ public class KudeService {
 
     // ---- utilitarios ----
 
-    private BigDecimal ivaTotal(Factura factura) {
-        BigDecimal iva = BigDecimal.ZERO;
+    /**
+     * El IVA que va en el QR. Antes se calculaba acá con dos decimales mientras
+     * la liquidación impresa más abajo lo hacía con cero, así que el mismo
+     * documento podía declarar dos IVA distintos. Ahora los dos salen de
+     * {@link Dinero#ivaIncluido}.
+     */
+    private Dinero ivaTotal(Factura factura) {
+        Dinero iva = Dinero.cero(factura.getMoneda());
         for (PedidoDetalle d : factura.getPedido().getDetalles()) {
-            BigDecimal tasa = d.getIvaAplicado() == null ? BigDecimal.ZERO : d.getIvaAplicado();
-            if (tasa.signum() > 0) {
-                iva = iva.add(d.getSubtotal().multiply(tasa).divide(CIEN.add(tasa), 2, RoundingMode.HALF_UP));
-            }
+            iva = iva.mas(d.getSubtotal().ivaIncluido(d.getIvaAplicado()));
         }
         return iva;
     }
@@ -421,12 +428,12 @@ public class KudeService {
         return sb.toString();
     }
 
-    private String plano(BigDecimal valor) {
-        return valor.stripTrailingZeros().toPlainString();
+    private String plano(Dinero valor) {
+        return valor.monto().stripTrailingZeros().toPlainString();
     }
 
-    private String gs(BigDecimal valor) {
-        return formato.format(valor);
+    private String gs(Dinero valor) {
+        return formato.format(valor.monto());
     }
 
     private static String capitalizar(String texto) {

@@ -14,5 +14,6 @@ public record DevolucionItemResponse(
         int comprado,
         int devuelto,
         int disponible,
+        String moneda,
         BigDecimal precioUnitario) {
 }
