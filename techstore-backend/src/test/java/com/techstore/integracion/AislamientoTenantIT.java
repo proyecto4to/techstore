@@ -1,8 +1,8 @@
 package com.techstore.integracion;
 
-import com.techstore.entity.Producto;
-import com.techstore.repository.ProductoRepository;
-import com.techstore.tenant.TenantContext;
+import com.techstore.catalogo.Producto;
+import com.techstore.catalogo.ProductoRepository;
+import com.techstore.comun.tenant.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,14 +12,13 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-import javax.sql.DataSource;
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Optional;
+import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -66,7 +65,7 @@ class AislamientoTenantIT {
     private Producto nuevoProducto(String nombre) {
         Producto p = new Producto();
         p.setNombre(nombre);
-        p.setPrecio(com.techstore.util.Dinero.de(1_000, com.techstore.util.Moneda.PYG));
+        p.setPrecio(com.techstore.comun.Dinero.de(1_000, com.techstore.comun.Moneda.PYG));
         p.setStockReal(5);
         p.setStockComprometido(0);
         p.setStockMinimo(0);

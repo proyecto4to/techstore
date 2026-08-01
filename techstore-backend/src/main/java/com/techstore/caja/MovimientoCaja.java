@@ -1,0 +1,106 @@
+package com.techstore.caja;
+
+import com.techstore.comun.ConMoneda;
+import com.techstore.comun.Dinero;
+import com.techstore.comun.Moneda;
+import com.techstore.facturacion.TipoPago;
+import com.techstore.usuarios.Usuario;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.TenantId;
+import org.hibernate.type.SqlTypes;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "movimiento_caja")
+@Getter
+@Setter
+@NoArgsConstructor
+public class MovimientoCaja implements ConMoneda {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    /**
+     * Empresa duena de la fila. Hibernate lo completa al insertar y lo agrega al
+     * WHERE de cada consulta, asi el aislamiento no depende de que nadie se
+     * olvide de filtrar.
+     */
+    @TenantId
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
+
+    @Column(nullable = false, unique = true)
+    private Integer numero;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(nullable = false, columnDefinition = "tipo_movimiento")
+    private TipoMovimiento tipo;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(nullable = false, columnDefinition = "tipo_pago")
+    private TipoPago medio = TipoPago.Efectivo;
+
+    /** Moneda del movimiento: un arqueo solo puede sumar movimientos de una misma. */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(columnDefinition = "moneda", nullable = false)
+    private Moneda moneda = Moneda.porDefecto();
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal monto;
+
+    @Column(nullable = false, length = 255)
+    private String concepto;
+
+    @Column(length = 50)
+    private String referencia;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "usuario_id", nullable = false)
+    private Usuario usuario;
+
+    private LocalDateTime fecha = LocalDateTime.now();
+
+    /**
+     * Cierre de caja que arqueó este movimiento. Mientras sea nulo el movimiento
+     * está pendiente y lo va a tomar el próximo cierre, sin importar su fecha.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cierre_id")
+    private CierreCaja cierre;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    public Dinero getMonto() {
+        return importe(monto);
+    }
+
+    public void setMonto(Dinero importe) {
+        this.monto = monto(importe);
+    }
+}
