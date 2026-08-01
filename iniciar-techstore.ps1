@@ -75,6 +75,25 @@ else { Write-Host ' lista' -ForegroundColor Green }
 # conexiones, asi que este dump es de un estado sano.
 & (Join-Path $root 'backup-techstore.ps1')
 
+# La aplicacion corre con un rol SIN privilegios de administrador: asi las
+# politicas de Row Level Security se le aplican de verdad, y una eventual
+# inyeccion SQL no llega al sistema operativo.
+# Flyway se queda con el rol administrador, que necesita para crear y alterar
+# tablas y para ver todas las empresas al migrar.
+# Va DESPUES del respaldo a proposito: backup-techstore.ps1 vuelve a cargar
+# secrets.local.ps1 y dejaria SPRING_DATASOURCE_PASSWORD con la clave del
+# administrador mientras el usuario ya es techstore_app.
+# Si todavia no se corrio configurar-rol-app.ps1, todo sigue como antes.
+if ($env:APP_DB_PASSWORD) {
+    $env:FLYWAY_DB_USERNAME = if ($env:SPRING_DATASOURCE_USERNAME) { $env:SPRING_DATASOURCE_USERNAME } else { 'techstore_user' }
+    $env:FLYWAY_DB_PASSWORD = $env:SPRING_DATASOURCE_PASSWORD
+    $env:SPRING_DATASOURCE_USERNAME = 'techstore_app'
+    $env:SPRING_DATASOURCE_PASSWORD = $env:APP_DB_PASSWORD
+    Write-Host '  [base] La app conecta como techstore_app (sin superusuario); Flyway migra como administrador.' -ForegroundColor Green
+} else {
+    Write-Host '  [base] AVISO: la app conecta como superusuario. Corre configurar-rol-app.ps1 para cerrarlo.' -ForegroundColor Yellow
+}
+
 # 2) Backend
 if (-not (Test-Url 'http://localhost:8080/actuator/health')) {
     Write-Host '  [2/3] Iniciando backend (Spring Boot)...' -NoNewline
@@ -93,10 +112,10 @@ if (-not (Test-Url 'http://localhost:8080/actuator/health')) {
         -ArgumentList '-jar', 'target\techstore-backend-1.0.0.jar' `
         -WorkingDirectory "$root\techstore-backend" -WindowStyle Minimized
     $intentos = 0
-    while (-not (Test-Url 'http://localhost:8080/actuator/health') -and $intentos -lt 40) {
+    while (-not (Test-Url 'http://localhost:8080/actuator/health') -and $intentos -lt 70) {
         Start-Sleep -Seconds 3; $intentos++
     }
-    if ($intentos -ge 40) { Write-Host ' NO RESPONDE (ver consola de java)' -ForegroundColor Red }
+    if ($intentos -ge 70) { Write-Host ' NO RESPONDE (ver consola de java)' -ForegroundColor Red }
     else { Write-Host ' listo' -ForegroundColor Green }
 } else {
     Write-Host '  [2/3] Backend ya estaba corriendo' -ForegroundColor Green
