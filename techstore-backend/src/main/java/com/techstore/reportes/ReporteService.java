@@ -1,6 +1,9 @@
 package com.techstore.reportes;
 
+import com.techstore.catalogo.Producto;
 import com.techstore.catalogo.ProductoRepository;
+import com.techstore.catalogo.PuntoDeReposicion;
+import com.techstore.catalogo.ReposicionService;
 import com.techstore.facturacion.EstadoFactura;
 import com.techstore.facturacion.FacturaRepository;
 import com.techstore.ventas.EstadoPedido;
@@ -17,6 +20,7 @@ import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +37,7 @@ public class ReporteService {
     private final PedidoRepository pedidoRepository;
     private final PedidoDetalleRepository pedidoDetalleRepository;
     private final ProductoRepository productoRepository;
+    private final ReposicionService reposicionService;
     private final ReportePdfService reportePdfService;
 
     @Transactional(readOnly = true)
@@ -80,9 +85,18 @@ public class ReporteService {
      */
     @Transactional(readOnly = true)
     public List<StockBajoResponse> stockBajo(int umbral, int limite) {
-        return productoRepository.necesitanReposicion(umbral).stream()
+        // La consulta trae un candidato amplio con el umbral viejo; el punto de
+        // reposición real lo decide el historial de cada producto, así que el
+        // filtro fino se hace acá. Traer de más y descartar es más barato que
+        // calcular el punto de todo el catálogo.
+        List<Producto> candidatos = productoRepository.necesitanReposicion(umbral);
+        Map<Long, PuntoDeReposicion> puntos = reposicionService.calcularTodos(candidatos);
+
+        return candidatos.stream()
+                .map(p -> Map.entry(p, puntos.get(p.getId())))
+                .filter(e -> e.getValue().alcanzadoCon(e.getKey().getStockDisponible()))
                 .limit(limite)
-                .map(StockBajoResponse::from)
+                .map(e -> StockBajoResponse.from(e.getKey(), e.getValue()))
                 .toList();
     }
 

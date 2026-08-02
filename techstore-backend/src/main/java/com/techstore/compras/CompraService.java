@@ -133,6 +133,9 @@ public class CompraService {
             producto.registrarCosto(detalle.getPrecioUnitario(), ahora);
         }
 
+        // Queda registrado cuándo llegó: sin esa fecha no se puede medir cuánto
+        // tarda un proveedor, y el punto de reposición depende de eso.
+        pedido.setFechaRecepcion(ahora);
         pedido.setEstado(EstadoPedido.C);
         return CompraResumenResponse.from(pedidoRepository.save(pedido));
     }

@@ -75,6 +75,14 @@ public class Pedido implements ConMoneda {
 
     private LocalDateTime fecha = LocalDateTime.now();
 
+    /**
+     * Cuándo llegó la mercadería de una compra. Nulo en ventas y en compras
+     * pendientes. La diferencia contra {@link #fecha} es lo que tardó el
+     * proveedor, y de ahí sale el punto de reposición.
+     */
+    @Column(name = "fecha_recepcion")
+    private LocalDateTime fechaRecepcion;
+
     /** Moneda del pedido. Sus detalles heredan esta, no tienen una propia. */
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)

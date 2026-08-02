@@ -2,6 +2,7 @@ package com.techstore.reportes;
 
 import com.techstore.catalogo.Marca;
 import com.techstore.catalogo.Producto;
+import com.techstore.catalogo.PuntoDeReposicion;
 import com.techstore.catalogo.ProductoRepository;
 import com.techstore.facturacion.EstadoFactura;
 import com.techstore.facturacion.FacturaRepository;
@@ -21,8 +22,10 @@ import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
@@ -47,12 +50,16 @@ class ReporteServiceTest {
     @Mock
     private ReportePdfService reportePdfService;
 
+    @Mock
+    private com.techstore.catalogo.ReposicionService reposicionService;
+
     private ReporteService reporteService;
 
     @BeforeEach
     void setUp() {
         reporteService = new ReporteService(
-                facturaRepository, pedidoRepository, pedidoDetalleRepository, productoRepository, reportePdfService);
+                facturaRepository, pedidoRepository, pedidoDetalleRepository, productoRepository,
+                reposicionService, reportePdfService);
     }
 
     @Test
@@ -129,6 +136,9 @@ class ReporteServiceTest {
         // productos que no tienen un mínimo propio, y el límite lo recorta el
         // servicio en vez de la consulta.
         when(productoRepository.necesitanReposicion(5)).thenReturn(List.of(gpu));
+        // Sin historial de ventas el punto de reposición es el mínimo manual.
+        when(reposicionService.calcularTodos(List.of(gpu)))
+                .thenReturn(Map.of(2L, PuntoDeReposicion.manual(Producto.UMBRAL_POR_DEFECTO)));
 
         List<StockBajoResponse> resultado = reporteService.stockBajo(5, 20);
 
@@ -137,5 +147,23 @@ class ReporteServiceTest {
         assertEquals("NVIDIA", resultado.get(0).marca());
         assertEquals(1, resultado.get(0).stockDisponible());
         assertEquals(Producto.UMBRAL_POR_DEFECTO, resultado.get(0).umbral());
+        assertFalse(resultado.get(0).umbralCalculado(), "Sin ventas no hay nada que calcular");
+    }
+
+    @Test
+    void elQueTodaviaNoLlegoASuPuntoDeReposicionSeDescarta() {
+        Producto cable = new Producto();
+        cable.setId(3L);
+        cable.setNombre("Cable HDMI");
+        cable.setStockReal(40);
+        cable.setStockComprometido(0);
+        // La consulta lo trae por el umbral general, pero su punto real es 12:
+        // con 40 disponibles todavía no hay que pedir. El filtro fino lo hace
+        // el servicio, no la consulta.
+        when(productoRepository.necesitanReposicion(5)).thenReturn(List.of(cable));
+        when(reposicionService.calcularTodos(List.of(cable)))
+                .thenReturn(Map.of(3L, new PuntoDeReposicion(12, 0.8, 10, true)));
+
+        assertEquals(List.of(), reporteService.stockBajo(5, 20));
     }
 }
