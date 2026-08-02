@@ -9,6 +9,13 @@ public record ProductoResponse(
         String descripcion,
         String moneda,
         BigDecimal precio,
+        /** Costo de la última compra recibida; nulo mientras no se haya comprado. */
+        BigDecimal costo,
+        LocalDateTime costoActualizadoEn,
+        /** Precio sin IVA menos costo: lo que deja la venta. Nulo si no hay costo. */
+        BigDecimal margen,
+        /** Si desaparece de la tienda al quedarse sin stock. */
+        Boolean ocultarSinStock,
         Integer iva,
         Integer stockReal,
         Integer stockComprometido,

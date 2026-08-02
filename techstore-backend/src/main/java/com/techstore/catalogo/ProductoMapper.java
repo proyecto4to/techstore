@@ -11,6 +11,7 @@ public interface ProductoMapper extends DineroMapper {
 
     @Mapping(target = "stockDisponible", expression = "java(producto.getStockDisponible())")
     @Mapping(target = "necesitaReposicion", expression = "java(producto.necesitaReposicion())")
+    @Mapping(target = "margen", expression = "java(aMonto(producto.getMargen()))")
     ProductoResponse toResponse(Producto producto);
 
     @Mapping(target = "id", ignore = true)
@@ -19,6 +20,13 @@ public interface ProductoMapper extends DineroMapper {
     @Mapping(target = "stockComprometido", ignore = true)
     // Sin stockMinimo el producto no avisa, que es como venían los existentes.
     @Mapping(target = "stockMinimo", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    // El costo no se carga a mano: sale de la última compra recibida.
+    @Mapping(target = "costo", ignore = true)
+    @Mapping(target = "costoActualizadoEn", ignore = true)
+    // Con defaultValue y no ignorándolo: si el request no lo trae, MapStruct
+    // escribiría null encima del valor por defecto de la entidad y el INSERT
+    // fallaría contra el NOT NULL de la columna.
+    @Mapping(target = "ocultarSinStock", source = "ocultarSinStock", defaultValue = "true")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     Producto toEntity(ProductoRequest request);
@@ -29,8 +37,11 @@ public interface ProductoMapper extends DineroMapper {
     @Mapping(target = "stockComprometido", ignore = true)
     // Sin stockMinimo el producto no avisa, que es como venían los existentes.
     @Mapping(target = "stockMinimo", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "costo", ignore = true)
+    @Mapping(target = "costoActualizadoEn", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "activo", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "ocultarSinStock", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void updateEntity(ProductoRequest request, @MappingTarget Producto producto);
 }

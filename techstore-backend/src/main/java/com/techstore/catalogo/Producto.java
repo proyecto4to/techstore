@@ -65,6 +65,28 @@ public class Producto implements ConMoneda {
     private BigDecimal precio;
 
     /**
+     * Costo unitario de la última compra recibida. Nulo mientras no se haya
+     * comprado nunca: se deja nulo en vez de cero porque un costo de cero diría
+     * que el producto es gratis y daría márgenes del 100%.
+     */
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @Column(precision = 12, scale = 2)
+    private BigDecimal costo;
+
+    /** Cuándo se recibió esa compra. Un costo sin fecha no se puede interpretar. */
+    @Column(name = "costo_actualizado_en")
+    private LocalDateTime costoActualizadoEn;
+
+    /**
+     * Si el producto desaparece de la tienda cuando se queda sin stock. Es por
+     * producto y no una regla global: algo que se fabrica a pedido puede querer
+     * mostrarse igual.
+     */
+    @Column(name = "ocultar_sin_stock", nullable = false)
+    private Boolean ocultarSinStock = true;
+
+    /**
      * Tasa de IVA en porcentaje (10, 5 o 0). No es dinero: es el porcentaje con
      * el que se calcula el impuesto contenido en el precio.
      */
@@ -111,6 +133,41 @@ public class Producto implements ConMoneda {
 
     public void setPrecio(Dinero precio) {
         this.precio = monto(precio);
+    }
+
+    /** Costo de la última compra, o {@code null} si nunca se compró. */
+    public Dinero getCosto() {
+        return costo == null ? null : importe(costo);
+    }
+
+    /**
+     * Deja el costo de la última compra recibida, con su fecha. Los dos juntos
+     * porque un costo sin fecha no se puede interpretar.
+     */
+    public void registrarCosto(Dinero costo, LocalDateTime cuando) {
+        this.costo = monto(costo);
+        this.costoActualizadoEn = cuando;
+    }
+
+    /**
+     * Si hoy corresponde mostrarlo en la tienda. Se mide contra el stock
+     * disponible y no el real: lo comprometido por pedidos pendientes ya está
+     * vendido, aunque siga en el depósito.
+     */
+    public boolean visibleEnTienda() {
+        if (!Boolean.TRUE.equals(activo)) {
+            return false;
+        }
+        return !Boolean.TRUE.equals(ocultarSinStock) || getStockDisponible() > 0;
+    }
+
+    /**
+     * Cuánto deja la venta sobre el costo, o {@code null} si todavía no se
+     * compró nunca. Sobre el precio sin IVA: el impuesto no es ganancia.
+     */
+    public Dinero getMargen() {
+        Dinero costoActual = getCosto();
+        return costoActual == null ? null : getPrecio().sinIva(iva).menos(costoActual);
     }
 
     public Integer getStockDisponible() {

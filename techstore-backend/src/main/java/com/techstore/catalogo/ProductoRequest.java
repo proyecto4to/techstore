@@ -20,5 +20,7 @@ public record ProductoRequest(
         Long marcaId,
         Long modeloId,
         @Size(max = 500) String imagenUrl,
-        Boolean activo) {
+        Boolean activo,
+        /** Si desaparece de la tienda al quedarse sin stock. Nulo deja el valor actual. */
+        Boolean ocultarSinStock) {
 }

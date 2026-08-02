@@ -25,6 +25,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -122,10 +123,14 @@ public class CompraService {
         productoRepository.findAllForUpdate(pedido.getDetalles().stream()
                 .map(detalle -> detalle.getProducto().getId())
                 .collect(Collectors.toSet()));
+        LocalDateTime ahora = LocalDateTime.now();
         for (PedidoDetalle detalle : pedido.getDetalles()) {
             Producto producto = detalle.getProducto();
             int stockActual = producto.getStockReal() == null ? 0 : producto.getStockReal();
             producto.setStockReal(stockActual + detalle.getCantidad());
+            // El costo se actualiza al recibir y no al crear la compra: hasta que
+            // la mercadería no llegó, ese precio es una intención, no un costo.
+            producto.registrarCosto(detalle.getPrecioUnitario(), ahora);
         }
 
         pedido.setEstado(EstadoPedido.C);
