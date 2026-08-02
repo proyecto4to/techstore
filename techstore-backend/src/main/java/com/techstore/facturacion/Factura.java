@@ -78,6 +78,17 @@ public class Factura implements ConMoneda {
     @Column(name = "receptor_email", length = 255)
     private String receptorEmail;
 
+    /**
+     * Dirección y teléfono del receptor, congelados al emitir como el resto de
+     * sus datos. Nulos cuando no se informaron: el KuDE entonces no imprime esas
+     * líneas, en vez de dejar una raya que no dice nada.
+     */
+    @Column(name = "receptor_direccion", length = 255)
+    private String receptorDireccion;
+
+    @Column(name = "receptor_telefono", length = 20)
+    private String receptorTelefono;
+
     @Column(nullable = false, length = 10)
     private String tipo;
 

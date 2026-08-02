@@ -100,9 +100,13 @@ public class PagoService {
 
         Factura factura = new Factura();
         factura.setMoneda(pedido.getMoneda());
-        // El prefijo sale de los datos del emisor: tiene que coincidir con el que
+        // Se exige el emisor completo antes de tomar el número: una factura con
+        // el timbrado o la dirección en blanco no sirve, y para cuando se viera
+        // el hueco el correlativo ya estaría consumido.
+        //
+        // El prefijo sale de estos mismos datos: tiene que coincidir con el que
         // el CDC arma con el establecimiento y el punto de expedición.
-        EmpresaProperties emisor = empresaConfig.actual();
+        EmpresaProperties emisor = empresaConfig.actualParaFacturar();
         factura.setNumero("%s-%s-%07d".formatted(
                 emisor.establecimiento(), emisor.puntoExpedicion(),
                 autonumeradorService.siguiente(ENTIDAD_FACTURA)));
@@ -156,6 +160,10 @@ public class PagoService {
                 ? null
                 : receptor.email().trim();
         factura.setReceptorEmail(email);
+        // La dirección y el teléfono también son independientes del RUC, y
+        // opcionales: quedan nulos si no se informaron.
+        factura.setReceptorDireccion(receptor == null ? null : limpio(receptor.direccion()));
+        factura.setReceptorTelefono(receptor == null ? null : limpio(receptor.telefono()));
 
         if (ruc == null) {
             // Sin RUC en el cobro: se cae al de la cuenta del cliente, si tiene.
@@ -178,6 +186,11 @@ public class PagoService {
             cliente.setRazonSocial(factura.getReceptorNombre());
             usuarioRepository.save(cliente);
         }
+    }
+
+    /** Texto recortado, o nulo si venía vacío: un dato en blanco no es un dato. */
+    private static String limpio(String valor) {
+        return valor == null || valor.isBlank() ? null : valor.trim();
     }
 
     private static String nombreReceptor(String razonSocial, Usuario cliente) {

@@ -86,7 +86,8 @@ public class NotaCreditoService {
         // La nota acredita una factura: va en la misma moneda que ella.
         nc.setMoneda(factura.getMoneda());
         // Mismo prefijo que las facturas: sale de los datos de la empresa.
-        EmpresaProperties empresa = empresaConfig.actual();
+        // Una nota de credito tambien es documento fiscal: mismos datos exigidos.
+        EmpresaProperties empresa = empresaConfig.actualParaFacturar();
         nc.setNumero("%s-%s-%07d".formatted(
                 empresa.establecimiento(), empresa.puntoExpedicion(),
                 autonumeradorService.siguiente(ENTIDAD_NC)));

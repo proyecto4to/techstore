@@ -26,6 +26,14 @@ public class EmpresaController {
         return empresaConfigService.actual();
     }
 
+    @GetMapping("/pendientes")
+    @Operation(summary = "Qué datos del emisor faltan para poder facturar",
+            description = "El panel lo consulta para avisar antes de vender, en vez de que el aviso "
+                    + "llegue como un error en medio de un cobro.")
+    public DatosEmisorPendientesResponse pendientes() {
+        return empresaConfigService.pendientes();
+    }
+
     @PutMapping
     @Operation(summary = "Editar los datos del emisor",
             description = "Los campos que se manden vacíos vuelven al valor de application.properties. "

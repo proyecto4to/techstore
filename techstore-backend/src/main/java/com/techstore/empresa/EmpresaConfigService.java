@@ -1,9 +1,13 @@
 package com.techstore.empresa;
 
 import com.techstore.auditoria.AuditoriaService;
+import com.techstore.comun.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Datos del emisor (los que salen en la factura y en el Documento Electrónico),
@@ -36,6 +40,37 @@ public class EmpresaConfigService {
             cache = vigente;
         }
         return vigente;
+    }
+
+    /**
+     * Los mismos datos, pero exigiendo que estén completos. Lo usa la emisión:
+     * una factura con el timbrado o la dirección en blanco no sirve, y el
+     * problema recién se vería en el papel, con el número ya consumido.
+     */
+    @Transactional(readOnly = true)
+    public EmpresaProperties actualParaFacturar() {
+        EmpresaProperties emisor = actual();
+        List<String> faltantes = new ArrayList<>(DatosDelEmisor.faltantes(emisor));
+        if (DatosDelEmisor.faltaTipoContribuyente(emisor)) {
+            faltantes.add("Tipo de contribuyente");
+        }
+        if (!faltantes.isEmpty()) {
+            throw new BusinessException("empresa.datos.incompletos", String.join(", ", faltantes));
+        }
+        return emisor;
+    }
+
+    /** Qué falta cargar para poder facturar. Vacío = está todo. */
+    @Transactional(readOnly = true)
+    public DatosEmisorPendientesResponse pendientes() {
+        EmpresaProperties emisor = actual();
+        List<String> etiquetas = new ArrayList<>(DatosDelEmisor.faltantes(emisor));
+        List<String> campos = new ArrayList<>(DatosDelEmisor.camposFaltantes(emisor));
+        if (DatosDelEmisor.faltaTipoContribuyente(emisor)) {
+            etiquetas.add("Tipo de contribuyente");
+            campos.add("tipoContribuyente");
+        }
+        return new DatosEmisorPendientesResponse(etiquetas.isEmpty(), etiquetas, campos);
     }
 
     @Transactional

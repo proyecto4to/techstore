@@ -192,7 +192,7 @@ class PagoServiceTest {
                 10L,
                 new RegistroPagoRequest(
                         List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
-                        new RegistroPagoRequest.Receptor("80012345-0", "Empresa Cliente SA", null, false)),
+                        new RegistroPagoRequest.Receptor("80012345-0", "Empresa Cliente SA", null, null, null, false)),
                 "cajero@techstore.py");
 
         assertEquals("80012345-0", response.factura().receptorRuc());
@@ -209,7 +209,7 @@ class PagoServiceTest {
                 10L,
                 new RegistroPagoRequest(
                         List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
-                        new RegistroPagoRequest.Receptor(null, null, "mostrador@cliente.py", false)),
+                        new RegistroPagoRequest.Receptor(null, null, "mostrador@cliente.py", null, null, false)),
                 "cajero@techstore.py");
 
         // El correo se guarda en la factura (también alimenta el dEmailRec del DE)
@@ -242,7 +242,7 @@ class PagoServiceTest {
                 10L,
                 new RegistroPagoRequest(
                         List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
-                        new RegistroPagoRequest.Receptor("80012345-6", null, null, false)),
+                        new RegistroPagoRequest.Receptor("80012345-6", null, null, null, null, false)),
                 "cajero@techstore.py"));
         verify(facturaRepository, never()).save(any());
     }
@@ -255,7 +255,7 @@ class PagoServiceTest {
                 10L,
                 new RegistroPagoRequest(
                         List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
-                        new RegistroPagoRequest.Receptor("80012345-0", "Empresa Cliente SA", null, true)),
+                        new RegistroPagoRequest.Receptor("80012345-0", "Empresa Cliente SA", null, null, null, true)),
                 "cajero@techstore.py");
 
         assertEquals("80012345-0", cliente.getRuc());

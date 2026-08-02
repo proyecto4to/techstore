@@ -37,6 +37,10 @@ class FacturaPdfServiceTest {
     static EmpresaConfigService configConEmisor(EmpresaProperties emisor) {
         EmpresaConfigService config = mock(EmpresaConfigService.class);
         lenient().when(config.actual()).thenReturn(emisor);
+        // La emisión pide los datos por este otro método, que además exige que
+        // estén completos. Acá se da por bueno el emisor que arma el test: lo
+        // que se prueba es el documento, no la validación, que tiene el suyo.
+        lenient().when(config.actualParaFacturar()).thenReturn(emisor);
         return config;
     }
 

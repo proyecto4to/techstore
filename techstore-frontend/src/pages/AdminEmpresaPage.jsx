@@ -5,7 +5,7 @@ import { empresaService } from '../services/empresaService'
 import AdminTabs from '../components/admin/AdminTabs'
 
 const VACIO = {
-  nombre: '', ruc: '', direccion: '', ciudad: '', telefono: '', actividad: '',
+  nombre: '', ruc: '', direccion: '', ciudad: '', telefono: '', email: '', actividad: '',
   timbrado: '', timbradoVigencia: '', timbradoInicioVigencia: '',
   tipoContribuyente: 2, establecimiento: '', puntoExpedicion: '', actividadCodigo: '',
   departamentoCodigo: '', departamentoNombre: '', distritoCodigo: '', distritoNombre: '',
@@ -104,6 +104,8 @@ function AdminEmpresaPage() {
                 maxLength={100} />
               <Campo id="telefono" etiqueta="Teléfono" valor={form.telefono}
                 onChange={set('telefono')} maxLength={50} />
+              <Campo id="email" etiqueta="Correo electrónico" valor={form.email}
+                onChange={set('email')} maxLength={255} />
               <Campo id="actividad" etiqueta="Actividad económica" valor={form.actividad}
                 onChange={set('actividad')} maxLength={255} />
             </div>

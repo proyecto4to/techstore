@@ -188,6 +188,14 @@ public class DocumentoElectronicoService {
             hijo(doc, g, "dDVRec", String.valueOf(RucParaguayo.dv(ruc)));
             hijo(doc, g, "dNomRec", factura.getReceptorNombre());
         }
+        // Opcionales (D213, D214): solo van si se informaron. El manual los da
+        // como ocurrencia 0-1 y un elemento vacío sería peor que su ausencia.
+        if (factura.getReceptorDireccion() != null) {
+            hijo(doc, g, "dDirRec", factura.getReceptorDireccion());
+        }
+        if (factura.getReceptorTelefono() != null) {
+            hijo(doc, g, "dTelRec", factura.getReceptorTelefono());
+        }
         // El del receptor si se informó; si no, el del dueño del pedido.
         hijo(doc, g, "dEmailRec", factura.getReceptorEmail() != null
                 ? factura.getReceptorEmail()

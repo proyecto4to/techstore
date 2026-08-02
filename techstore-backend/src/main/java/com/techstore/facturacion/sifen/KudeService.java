@@ -235,9 +235,14 @@ public class KudeService {
         der.addElement(new Paragraph("Nombre o Razón Social: " + (rucReceptor == null
                 ? cliente.getNombre() + " " + cliente.getApellido()
                 : factura.getReceptorNombre()), F_NORMAL));
-        // La dirección y el teléfono del receptor todavía no se capturan en
-        // ningún lado, así que no se imprimen: antes salían como una raya fija,
-        // que ocupa lugar sin informar nada.
+        // Solo si se informaron: antes salían como una raya fija, que ocupa
+        // lugar sin decir nada. El manual los da como opcionales.
+        if (factura.getReceptorDireccion() != null) {
+            der.addElement(new Paragraph("Dirección: " + factura.getReceptorDireccion(), F_NORMAL));
+        }
+        if (factura.getReceptorTelefono() != null) {
+            der.addElement(new Paragraph("Teléfono: " + factura.getReceptorTelefono(), F_NORMAL));
+        }
         der.addElement(new Paragraph("Correo Electrónico: " + (factura.getReceptorEmail() != null
                 ? factura.getReceptorEmail()
                 : cliente.getEmail()), F_NORMAL));

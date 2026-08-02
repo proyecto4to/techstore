@@ -23,6 +23,8 @@ function CobroPanel({
   const [conRuc, setConRuc] = useState(Boolean(clienteRuc))
   const [ruc, setRuc] = useState(clienteRuc ?? '')
   const [razonSocial, setRazonSocial] = useState(clienteRazonSocial ?? '')
+  const [direccion, setDireccion] = useState('')
+  const [telefono, setTelefono] = useState('')
   const [guardarEnCliente, setGuardarEnCliente] = useState(false)
 
   const nEfectivo = Number(efectivo) || 0
@@ -48,7 +50,13 @@ function CobroPanel({
     // receptor null = factura a consumidor final (o pago a proveedor, que no factura)
     const receptor =
       pedirRuc && conRuc
-        ? { ruc: ruc.trim(), razonSocial: razonSocial.trim() || null, guardarEnCliente }
+        ? {
+            ruc: ruc.trim(),
+            razonSocial: razonSocial.trim() || null,
+            direccion: direccion.trim() || null,
+            telefono: telefono.trim() || null,
+            guardarEnCliente,
+          }
         : null
     onCobrar(lineas, receptor)
   }
@@ -163,6 +171,34 @@ function CobroPanel({
                 maxLength={255}
                 className="input w-64 py-1 text-sm"
                 placeholder="Nombre del cliente si se deja vacío"
+              />
+            </div>
+            {/* Opcionales: el manual del SIFEN no los exige para una venta
+                local. Si se cargan, salen impresos en la factura. */}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-text" htmlFor="cobro-direccion">
+                Dirección
+              </label>
+              <input
+                id="cobro-direccion"
+                value={direccion}
+                onChange={(e) => setDireccion(e.target.value)}
+                maxLength={255}
+                className="input w-64 py-1 text-sm"
+                placeholder="Opcional"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-text" htmlFor="cobro-telefono">
+                Teléfono
+              </label>
+              <input
+                id="cobro-telefono"
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+                maxLength={20}
+                className="input w-40 py-1 text-sm"
+                placeholder="Opcional"
               />
             </div>
             <label className="flex items-center gap-2 pb-1 text-xs text-neutral-secondary">

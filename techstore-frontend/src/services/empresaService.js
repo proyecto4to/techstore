@@ -10,4 +10,10 @@ export const empresaService = {
     const { data } = await api.put('/empresa', empresa)
     return data
   },
+
+  /** Qué falta cargar para poder facturar: { completo, faltantes, campos }. */
+  async pendientes() {
+    const { data } = await api.get('/empresa/pendientes')
+    return data
+  },
 }

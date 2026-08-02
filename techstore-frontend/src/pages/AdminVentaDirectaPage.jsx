@@ -4,6 +4,7 @@ import { Search, Plus, Trash2, Printer } from 'lucide-react'
 import { productoService } from '../services/productoService'
 import { ventaService } from '../services/ventaService'
 import { facturaService } from '../services/facturaService'
+import { empresaService } from '../services/empresaService'
 import { formatPrecio } from '../utils/format'
 import AdminTabs from '../components/admin/AdminTabs'
 import CobroPanel from '../components/admin/CobroPanel'
@@ -25,6 +26,14 @@ function AdminVentaDirectaPage() {
     queryKey: ['venta-directa-productos', busqueda],
     queryFn: () => productoService.listar({ search: busqueda, size: 8 }),
     placeholderData: keepPreviousData,
+  })
+
+  // Si a la empresa le faltan datos, la factura no se puede emitir. Se avisa
+  // acá arriba en vez de dejar que el error aparezca al final del cobro, con
+  // el cliente esperando en el mostrador.
+  const { data: pendientes } = useQuery({
+    queryKey: ['empresa-pendientes'],
+    queryFn: empresaService.pendientes,
   })
 
   // El descuento es por unidad, igual que lo guarda el sistema y lo pide el
@@ -135,6 +144,16 @@ function AdminVentaDirectaPage() {
         Para el cliente que viene a la tienda sin haber hecho un pedido por la web. Se descuenta el
         stock, se cobra y se emite la factura en un solo paso.
       </p>
+
+      {pendientes && !pendientes.completo && (
+        <div className="alerta-error" role="alert">
+          <p className="font-semibold">No se va a poder emitir la factura.</p>
+          <p className="mt-1 text-sm">
+            Faltan cargar estos datos de la empresa: {pendientes.faltantes.join(', ')}. Completalos en{' '}
+            <a href="/admin/empresa" className="underline">Admin → Empresa</a> antes de vender.
+          </p>
+        </div>
+      )}
 
       {error && <p className="alerta-error" role="alert">{error}</p>}
 

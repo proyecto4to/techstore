@@ -39,6 +39,14 @@ public record RegistroPagoRequest(
             @Size(max = 255) String razonSocial,
             @Email(message = "{validacion.email.cliente.formato}")
             @Size(max = 255) String email,
+            /**
+             * Opcionales, igual que en el documento electrónico: el manual los
+             * da como ocurrencia 0-1 y solo exige la dirección para exportación
+             * o nota de remisión. Si vienen, quedan congelados en la factura y
+             * salen impresos; si no, el KuDE no imprime esas líneas.
+             */
+            @Size(max = 255) String direccion,
+            @Size(max = 20) String telefono,
             Boolean guardarEnCliente) {
     }
 }
