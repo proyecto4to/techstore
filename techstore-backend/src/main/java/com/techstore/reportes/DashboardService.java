@@ -24,6 +24,8 @@ public class DashboardService {
 
     private static final int UMBRAL_STOCK = 5;
     private static final int TOP_STOCK = 5;
+    /** Cuántos productos más vendidos se muestran en el panel. */
+    private static final int TOP_PRODUCTOS = 5;
     private static final LocalDateTime ORIGEN = LocalDateTime.of(2000, 1, 1, 0, 0);
 
     private final FacturaRepository facturaRepository;
@@ -47,13 +49,30 @@ public class DashboardService {
         long pedidosPendientes = porEstado.getOrDefault(EstadoPedido.P, 0L);
         long pedidosPorCobrar = porEstado.getOrDefault(EstadoPedido.C, 0L);
 
-        List<StockBajoResponse> stockBajo = reporteService.stockBajo(UMBRAL_STOCK, TOP_STOCK);
-        long stockBajoCount = reporteService.stockBajo(UMBRAL_STOCK, 1000).size();
+        // Una sola pasada: calcular el punto de reposición cuesta dos consultas,
+        // y antes esto lo pedía dos veces para quedarse con el total y el top.
+        List<StockBajoResponse> aReponer = reporteService.stockBajo(UMBRAL_STOCK, 1000);
+        long sinCobertura = aReponer.stream()
+                .filter(p -> p.diasDeCobertura() != null && p.diasDeCobertura() <= 0)
+                .count();
+
+        // El mes en curso, para que el número del día no se lea aislado.
+        LocalDateTime inicioMes = LocalDate.now().withDayOfMonth(1).atStartOfDay();
+        BigDecimal ventasMes = facturaRepository.totalPorEstadoEntre(EstadoFactura.Pagada, inicioMes, finHoy);
+        long facturasMes = facturaRepository
+                .countByEstadoAndFechaGreaterThanEqualAndFechaLessThan(EstadoFactura.Pagada, inicioMes, finHoy);
+
+        List<TopProductoResponse> topProductosMes = reporteService
+                .ventas(inicioMes.toLocalDate(), LocalDate.now(), TOP_PRODUCTOS)
+                .topProductos();
 
         PreviewCierreResponse turno = cierreCajaService.preview();
 
         return new DashboardResponse(
-                ventasHoy, facturasHoy, pedidosPendientes, pedidosPorCobrar,
-                stockBajoCount, stockBajo, turno.efectivoTeorico(), turno.ingresosTransferencia());
+                ventasHoy, facturasHoy, ventasMes, facturasMes,
+                pedidosPendientes, pedidosPorCobrar,
+                aReponer.size(), aReponer.stream().limit(TOP_STOCK).toList(), sinCobertura,
+                topProductosMes,
+                turno.efectivoTeorico(), turno.ingresosTransferencia());
     }
 }

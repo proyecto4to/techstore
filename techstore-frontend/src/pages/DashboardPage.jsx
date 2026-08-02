@@ -55,7 +55,7 @@ function DashboardPage() {
               icono={<TrendingUp size={22} className="text-emerald-400" />}
               etiqueta="Ventas de hoy"
               valor={formatPrecio(data.ventasHoy)}
-              detalle={`${data.facturasHoy} factura${data.facturasHoy === 1 ? '' : 's'} emitida${data.facturasHoy === 1 ? '' : 's'}`}
+              detalle={`Este mes: ${formatPrecio(data.ventasMes)} · ${data.facturasMes} factura${data.facturasMes === 1 ? '' : 's'}`}
               acento="bg-emerald-400"
               to="/admin/reportes"
               accion="Ver reportes"
@@ -82,7 +82,13 @@ function DashboardPage() {
               icono={<AlertTriangle size={22} className="text-red-400" />}
               etiqueta="Stock bajo"
               valor={data.stockBajoCount}
-              detalle={data.stockBajoCount === 0 ? 'Todo con stock' : 'productos necesitan reposición'}
+              detalle={
+                data.stockBajoCount === 0
+                  ? 'Todo con stock'
+                  : data.sinCoberturaCount > 0
+                    ? `${data.sinCoberturaCount} ya sin cobertura`
+                    : 'productos necesitan reposición'
+              }
               acento="bg-red-400"
               to="/admin/compras"
               accion="Registrar compra"
@@ -101,7 +107,8 @@ function DashboardPage() {
                       <th>Producto</th>
                       <th>Marca</th>
                       <th>Disponible</th>
-                      <th>Avisa en</th>
+                      <th>Alcanza para</th>
+                      <th>Reponer en</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -120,7 +127,53 @@ function DashboardPage() {
                             {p.stockDisponible} {p.stockDisponible === 0 ? '— agotado' : ''}
                           </span>
                         </td>
-                        <td className="text-neutral-secondary">{p.umbral}</td>
+                        {/* Los días dicen más que las unidades: "quedan 3 días"
+                            se entiende sin saber cuánto se vende. */}
+                        <td className="text-neutral-secondary">
+                          {p.diasDeCobertura === null || p.diasDeCobertura === undefined ? (
+                            <span className="text-neutral-muted">sin datos de venta</span>
+                          ) : p.diasDeCobertura <= 0 ? (
+                            <span className="font-semibold text-red-400">se agotó</span>
+                          ) : (
+                            `${p.diasDeCobertura} día${p.diasDeCobertura === 1 ? '' : 's'}`
+                          )}
+                        </td>
+                        <td className="text-neutral-secondary">
+                          {p.umbral}
+                          {!p.umbralCalculado && (
+                            <span className="ml-1 text-xs text-neutral-muted" title="Mínimo cargado a mano: todavía no hay ventas para calcularlo">
+                              (manual)
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {data.topProductosMes.length > 0 && (
+            <div className="card mt-6">
+              <h3 className="mb-4 inline-flex items-center gap-2 text-lg font-semibold text-neutral-text">
+                <TrendingUp size={18} className="text-emerald-400" /> Más vendidos del mes
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="tabla-admin">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Unidades</th>
+                      <th>Facturado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.topProductosMes.map((p) => (
+                      <tr key={p.productoId}>
+                        <td className="font-medium text-neutral-text">{p.nombre}</td>
+                        <td className="text-neutral-secondary">{p.unidadesVendidas}</td>
+                        <td className="text-primary-300">{formatPrecio(p.montoVendido)}</td>
                       </tr>
                     ))}
                   </tbody>
