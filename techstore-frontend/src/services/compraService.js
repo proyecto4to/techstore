@@ -28,6 +28,15 @@ export const compraService = {
     return data
   },
 
+  /**
+   * Qué proveedor conviene para estos productos. No crea nada: devuelve la
+   * comparación para que la decisión la tome quien compra.
+   */
+  async comparar(items) {
+    const { data } = await api.post('/compras/comparar', { items })
+    return data
+  },
+
   async crear(compra) {
     const { data } = await api.post('/compras', compra)
     return data

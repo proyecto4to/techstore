@@ -6,6 +6,7 @@ import { productoService } from '../services/productoService'
 import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
 import AdminTabs from '../components/admin/AdminTabs'
+import ComparadorProveedores from '../components/admin/ComparadorProveedores'
 import PedidoDetallePanel from '../components/admin/PedidoDetallePanel'
 import CobroPanel from '../components/admin/CobroPanel'
 
@@ -249,6 +250,12 @@ function AdminComprasPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {items.length > 0 && (
+          <div className="mb-4 rounded-md border border-dark-border bg-dark-bg/50 p-4">
+            <ComparadorProveedores items={items} onElegir={(id) => setProveedorId(String(id))} />
           </div>
         )}
 
