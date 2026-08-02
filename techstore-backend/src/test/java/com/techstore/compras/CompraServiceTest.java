@@ -67,14 +67,17 @@ class CompraServiceTest {
 
     private CompraService compraService;
     private Usuario admin;
+    @Mock
+    private ProveedorProductoRepository proveedorProductoRepository;
+
     private Proveedor proveedor;
     private Producto gpu;
 
     @BeforeEach
     void setUp() {
         compraService = new CompraService(
-                pedidoRepository, productoRepository, proveedorRepository, usuarioRepository,
-                autonumeradorService, cajaService, auditoriaService);
+                pedidoRepository, productoRepository, proveedorRepository, proveedorProductoRepository,
+                usuarioRepository, autonumeradorService, cajaService, auditoriaService);
 
         Rol rol = new Rol();
         rol.setNombre("Admin");

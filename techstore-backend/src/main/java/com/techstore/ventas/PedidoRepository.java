@@ -39,4 +39,28 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 
     @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario"})
     Optional<Pedido> findWithDetallesById(Long id);
+
+    /**
+     * El historial de cada proveedor resumido en una fila: cuánto tarda en
+     * entregar y cuántas compras terminaron recibidas o anuladas. De acá salen
+     * la "rapidez" y la "fiabilidad" del comparador, calculadas en el momento
+     * en vez de guardadas, porque un número guardado envejece.
+     *
+     * <p>SQL nativo por la resta de timestamps, que HQL no sabe hacer. No pasa
+     * por el filtro de empresa de Hibernate, pero {@code pedidos} tiene Row
+     * Level Security: igual solo ve lo de la empresa en curso.
+     *
+     * @return filas {@code [proveedorId, díasPromedioEntrega|null, recibidas, anuladas]}
+     */
+    @Query(value = """
+            SELECT p.proveedor_id,
+                   AVG(EXTRACT(EPOCH FROM (p.fecha_recepcion - p.fecha)) / 86400.0)
+                       FILTER (WHERE p.fecha_recepcion IS NOT NULL),
+                   COUNT(*) FILTER (WHERE p.estado = 'C'),
+                   COUNT(*) FILTER (WHERE p.estado = 'X')
+            FROM pedidos p
+            WHERE p.tipo = 'Compra' AND p.proveedor_id IS NOT NULL
+            GROUP BY p.proveedor_id
+            """, nativeQuery = true)
+    List<Object[]> historialPorProveedor();
 }

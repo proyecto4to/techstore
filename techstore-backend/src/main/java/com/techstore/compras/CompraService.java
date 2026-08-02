@@ -50,6 +50,7 @@ public class CompraService {
     private final PedidoRepository pedidoRepository;
     private final ProductoRepository productoRepository;
     private final ProveedorRepository proveedorRepository;
+    private final ProveedorProductoRepository proveedorProductoRepository;
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
     private final CajaService cajaService;
@@ -131,6 +132,9 @@ public class CompraService {
             // El costo se actualiza al recibir y no al crear la compra: hasta que
             // la mercadería no llegó, ese precio es una intención, no un costo.
             producto.registrarCosto(detalle.getPrecioUnitario(), ahora);
+            // Y queda asentado que este proveedor tiene este producto a este
+            // precio: es lo que alimenta al comparador sin que nadie cargue nada.
+            registrarOferta(pedido.getProveedor(), producto, detalle.getPrecioUnitario(), ahora);
         }
 
         // Queda registrado cuándo llegó: sin esa fecha no se puede medir cuánto
@@ -138,6 +142,31 @@ public class CompraService {
         pedido.setFechaRecepcion(ahora);
         pedido.setEstado(EstadoPedido.C);
         return CompraResumenResponse.from(pedidoRepository.save(pedido));
+    }
+
+    /**
+     * Deja asentado que el proveedor ofrece el producto al precio que acaba de
+     * cobrar. Es la fuente automática del comparador: cada compra recibida
+     * actualiza la oferta, sin que nadie cargue nada a mano.
+     */
+    private void registrarOferta(Proveedor proveedor, Producto producto, Dinero precio, LocalDateTime cuando) {
+        if (proveedor == null) {
+            return;
+        }
+        ProveedorProducto oferta = proveedorProductoRepository
+                .findByProveedorIdAndProductoId(proveedor.getId(), producto.getId())
+                .orElseGet(() -> {
+                    ProveedorProducto nueva = new ProveedorProducto();
+                    nueva.setProveedor(proveedor);
+                    nueva.setProducto(producto);
+                    return nueva;
+                });
+        oferta.setMoneda(precio.moneda());
+        oferta.setPrecio(precio);
+        // Si nos acaba de entregar, lo tiene: una oferta apagada a mano revive.
+        oferta.setDisponible(true);
+        oferta.setActualizadoEn(cuando);
+        proveedorProductoRepository.save(oferta);
     }
 
     /**

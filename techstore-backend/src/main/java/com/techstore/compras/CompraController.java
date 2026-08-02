@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/compras")
 @RequiredArgsConstructor
@@ -29,6 +31,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class CompraController {
 
     private final CompraService compraService;
+    private final ComparadorProveedoresService comparadorService;
+
+    @PostMapping("/comparar")
+    @Operation(summary = "Comparar proveedores para una compra",
+            description = "Recibe productos y cantidades; devuelve qué proveedor tiene qué, a qué precio, "
+                    + "cuánto tarda y qué tan confiable viene siendo. No crea nada: la decisión es del usuario.")
+    public List<ComparacionProveedorResponse> comparar(@Valid @RequestBody CompararProveedoresRequest request) {
+        return comparadorService.comparar(request);
+    }
 
     @GetMapping
     @Operation(summary = "Listar compras")

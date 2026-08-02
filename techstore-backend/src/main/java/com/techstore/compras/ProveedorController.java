@@ -31,6 +31,7 @@ import java.util.List;
 public class ProveedorController {
 
     private final ProveedorService proveedorService;
+    private final OfertaService ofertaService;
 
     @GetMapping
     @Operation(summary = "Listar proveedores (paginado)")
@@ -62,5 +63,19 @@ public class ProveedorController {
     @Operation(summary = "Activar o desactivar proveedor")
     public ProveedorResponse cambiarActivo(@PathVariable Long id, @Valid @RequestBody CambioActivoRequest request) {
         return proveedorService.cambiarActivo(id, request.activo());
+    }
+
+    @GetMapping("/{id}/ofertas")
+    @Operation(summary = "Qué productos ofrece este proveedor y a qué precio")
+    public List<OfertaResponse> ofertas(@PathVariable Long id) {
+        return ofertaService.listar(id);
+    }
+
+    @PutMapping("/{id}/ofertas")
+    @Operation(summary = "Cargar o actualizar el precio de un producto para este proveedor",
+            description = "Normalmente esto se llena solo al recibir compras. Sirve para registrar una "
+                    + "cotización de un proveedor al que todavía no se le compró.")
+    public OfertaResponse guardarOferta(@PathVariable Long id, @Valid @RequestBody OfertaRequest request) {
+        return ofertaService.guardar(id, request);
     }
 }
