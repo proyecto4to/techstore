@@ -62,6 +62,18 @@ public class Usuario {
     @JoinColumn(name = "rol_id", nullable = false)
     private Rol rol;
 
+    /**
+     * Desde qué caja o sucursal emite este usuario. Así se detecta el punto de
+     * expedición al facturar: por quién factura, no por la máquina, que con
+     * DHCP o una notebook que se mueve cambiaría de dirección.
+     *
+     * <p>Nulo significa el punto por defecto de la empresa, que es como venían
+     * funcionando todos antes de que hubiera más de uno.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "punto_expedicion_id")
+    private com.techstore.empresa.PuntoExpedicion puntoExpedicion;
+
     private Boolean activo = true;
 
     @Column(name = "last_login")

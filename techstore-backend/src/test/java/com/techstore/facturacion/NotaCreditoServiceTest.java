@@ -90,6 +90,7 @@ class NotaCreditoServiceTest {
                 FacturaPdfServiceTest.configConEmisor(new EmpresaProperties(
                         "TechStore Paraguay", "80012345-0", null, null, null, null, null, "12345678", null,
                         2, "001", "001", null, null, null, null, null, null, null, "2026-01-01")),
+                puntoPorDefecto(),
                 auditoriaService);
 
         Rol rol = new Rol();
@@ -297,5 +298,21 @@ class NotaCreditoServiceTest {
 
         org.junit.jupiter.api.Assertions.assertTrue(pdf.contenido().length > 1500);
         assertEquals("001-001-0000001", pdf.numero());
+    }
+    /**
+     * Un servicio de puntos de expedición que siempre devuelve el punto por
+     * defecto 001-001, que es el que usaban las facturas antes de que hubiera
+     * varios. Así los números esperados en estos tests no cambian.
+     */
+    private static com.techstore.empresa.PuntoExpedicionService puntoPorDefecto() {
+        com.techstore.empresa.PuntoExpedicion punto = new com.techstore.empresa.PuntoExpedicion();
+        punto.setEstablecimiento("001");
+        punto.setPunto("001");
+        punto.setPorDefecto(true);
+        punto.setActivo(true);
+        var servicio = org.mockito.Mockito.mock(com.techstore.empresa.PuntoExpedicionService.class);
+        org.mockito.Mockito.lenient()
+                .when(servicio.delUsuario(org.mockito.ArgumentMatchers.any())).thenReturn(punto);
+        return servicio;
     }
 }

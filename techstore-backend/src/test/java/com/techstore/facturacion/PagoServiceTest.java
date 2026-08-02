@@ -83,10 +83,11 @@ class PagoServiceTest {
                 new com.techstore.empresa.EmpresaProperties(
                         "TechStore Paraguay", "80012345-0", null, null, null, null, null, "12345678", null,
                         2, "001", "001", null, null, null, null, null, null, null, "2026-01-01"));
+        var puntoExpedicionService = puntoPorDefecto();
         pagoService = new PagoService(
                 pagoRepository, facturaRepository, pedidoRepository, usuarioRepository,
                 autonumeradorService, cajaService, correoService, emailTemplateService,
-                empresaConfig, facturaElectronicaService);
+                empresaConfig, facturaElectronicaService, puntoExpedicionService);
 
         Rol rol = new Rol();
         rol.setId(2L);
@@ -375,5 +376,21 @@ class PagoServiceTest {
 
         assertEquals(BigDecimal.ZERO, response.factura().iva());
         assertEquals(new BigDecimal("2500000"), response.factura().subtotal());
+    }
+    /**
+     * Un servicio de puntos de expedición que siempre devuelve el punto por
+     * defecto 001-001, que es el que usaban las facturas antes de que hubiera
+     * varios. Así los números esperados en estos tests no cambian.
+     */
+    private static com.techstore.empresa.PuntoExpedicionService puntoPorDefecto() {
+        com.techstore.empresa.PuntoExpedicion punto = new com.techstore.empresa.PuntoExpedicion();
+        punto.setEstablecimiento("001");
+        punto.setPunto("001");
+        punto.setPorDefecto(true);
+        punto.setActivo(true);
+        var servicio = org.mockito.Mockito.mock(com.techstore.empresa.PuntoExpedicionService.class);
+        org.mockito.Mockito.lenient()
+                .when(servicio.delUsuario(org.mockito.ArgumentMatchers.any())).thenReturn(punto);
+        return servicio;
     }
 }

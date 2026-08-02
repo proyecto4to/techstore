@@ -9,6 +9,8 @@ import com.techstore.comun.ResourceNotFoundException;
 import com.techstore.comun.RucParaguayo;
 import com.techstore.empresa.EmpresaConfigService;
 import com.techstore.empresa.EmpresaProperties;
+import com.techstore.empresa.PuntoExpedicion;
+import com.techstore.empresa.PuntoExpedicionService;
 import com.techstore.facturacion.sifen.CodigoControl;
 import com.techstore.facturacion.sifen.FacturaElectronicaService;
 import com.techstore.notificaciones.CorreoService;
@@ -57,6 +59,7 @@ public class PagoService {
     private final EmailTemplateService emailTemplateService;
     private final EmpresaConfigService empresaConfig;
     private final FacturaElectronicaService facturaElectronicaService;
+    private final PuntoExpedicionService puntoExpedicionService;
 
     /**
      * Registra el cobro de un pedido confirmado y emite su factura en la
@@ -103,13 +106,14 @@ public class PagoService {
         // Se exige el emisor completo antes de tomar el número: una factura con
         // el timbrado o la dirección en blanco no sirve, y para cuando se viera
         // el hueco el correlativo ya estaría consumido.
-        //
-        // El prefijo sale de estos mismos datos: tiene que coincidir con el que
-        // el CDC arma con el establecimiento y el punto de expedición.
         EmpresaProperties emisor = empresaConfig.actualParaFacturar();
-        factura.setNumero("%s-%s-%07d".formatted(
-                emisor.establecimiento(), emisor.puntoExpedicion(),
-                autonumeradorService.siguiente(ENTIDAD_FACTURA)));
+        // Desde qué caja o sucursal se emite lo decide quién está cobrando.
+        // Cada punto lleva su propia serie: 001-001-0000001 y 001-002-0000001
+        // son dos documentos distintos y los dos válidos.
+        PuntoExpedicion punto = puntoExpedicionService.delUsuario(cajero);
+        factura.setNumero("%s-%07d".formatted(
+                punto.prefijo(),
+                autonumeradorService.siguiente(punto.autonumerador(ENTIDAD_FACTURA))));
         // Parte del CDC: se fija ahora para que el documento electrónico sea siempre el mismo.
         factura.setCodigoSeguridad(CodigoControl.generarCodigoSeguridad());
         factura.setTipo(TIPO_FACTURA_CONTADO);

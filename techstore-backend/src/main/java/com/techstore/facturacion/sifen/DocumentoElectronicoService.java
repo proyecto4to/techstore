@@ -61,8 +61,12 @@ public class DocumentoElectronicoService {
     }
 
     private DocumentoElectronico construir(Factura factura) throws Exception {
-        String establecimiento = empresa().establecimiento();
-        String puntoExpedicion = empresa().puntoExpedicion();
+        // Salen del número de la factura y no de la configuración: con varios
+        // puntos de expedición, el emisor ya no tiene "un" punto, y el CDC tiene
+        // que coincidir con el número que está impreso en el documento.
+        String[] partes = factura.getNumero().split("-");
+        String establecimiento = partes[0];
+        String puntoExpedicion = partes[1];
         // El número del CDC/timbrado usa 7 dígitos; tomamos el correlativo de la factura.
         String numeroDoc = String.format("%07d", numeroCorrelativo(factura));
         // Se fija al emitir la factura: si se regenerara acá, el CDC (y con él el QR y

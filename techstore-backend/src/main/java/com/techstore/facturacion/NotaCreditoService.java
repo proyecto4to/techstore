@@ -11,6 +11,8 @@ import com.techstore.comun.PageResponse;
 import com.techstore.comun.ResourceNotFoundException;
 import com.techstore.empresa.EmpresaConfigService;
 import com.techstore.empresa.EmpresaProperties;
+import com.techstore.empresa.PuntoExpedicion;
+import com.techstore.empresa.PuntoExpedicionService;
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
 import com.techstore.ventas.EstadoPedido;
@@ -52,6 +54,7 @@ public class NotaCreditoService {
     private final CajaService cajaService;
     private final FacturaPdfService facturaPdfService;
     private final EmpresaConfigService empresaConfig;
+    private final PuntoExpedicionService puntoExpedicionService;
     private final AuditoriaService auditoriaService;
 
     @Transactional
@@ -88,9 +91,11 @@ public class NotaCreditoService {
         // Mismo prefijo que las facturas: sale de los datos de la empresa.
         // Una nota de credito tambien es documento fiscal: mismos datos exigidos.
         EmpresaProperties empresa = empresaConfig.actualParaFacturar();
-        nc.setNumero("%s-%s-%07d".formatted(
-                empresa.establecimiento(), empresa.puntoExpedicion(),
-                autonumeradorService.siguiente(ENTIDAD_NC)));
+        // La nota sale del mismo punto que emite quien la hace, con su serie propia.
+        PuntoExpedicion punto = puntoExpedicionService.delUsuario(emisor);
+        nc.setNumero("%s-%07d".formatted(
+                punto.prefijo(),
+                autonumeradorService.siguiente(punto.autonumerador(ENTIDAD_NC))));
         nc.setFactura(factura);
         nc.setPedido(pedido);
         nc.setMotivo(request.motivo().trim());
