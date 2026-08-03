@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { Building2 } from 'lucide-react'
 import { empresaService } from '../services/empresaService'
 import AdminTabs from '../components/admin/AdminTabs'
+import PuntosExpedicion from '../components/admin/PuntosExpedicion'
 
 const VACIO = {
   nombre: '', ruc: '', direccion: '', ciudad: '', telefono: '', email: '', actividad: '',
@@ -150,7 +151,8 @@ function AdminEmpresaPage() {
               <Campo id="establecimiento" etiqueta="Establecimiento" valor={form.establecimiento}
                 onChange={set('establecimiento')} maxLength={3} placeholder="001" />
               <Campo id="puntoExpedicion" etiqueta="Punto de expedición" valor={form.puntoExpedicion}
-                onChange={set('puntoExpedicion')} maxLength={3} placeholder="001" />
+                onChange={set('puntoExpedicion')} maxLength={3} placeholder="001"
+                ayuda="Solo el valor por defecto. Las cajas se administran más abajo." />
               <Campo id="actividadCodigo" etiqueta="Código de actividad" valor={form.actividadCodigo}
                 onChange={set('actividadCodigo')} maxLength={10} placeholder="47411" />
               <Campo id="departamentoCodigo" etiqueta="Código de departamento"
@@ -173,6 +175,11 @@ function AdminEmpresaPage() {
           </button>
         </form>
       )}
+
+      {/* Fuera del formulario a propósito: se guarda solo, con su propia API. */}
+      <div className="mt-6">
+        <PuntosExpedicion />
+      </div>
     </div>
   )
 }

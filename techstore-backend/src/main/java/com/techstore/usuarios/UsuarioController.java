@@ -52,6 +52,15 @@ public class UsuarioController {
         return usuarioService.cambiarActivo(id, request.activo(), auth.getName());
     }
 
+    @PutMapping("/{id}/punto-expedicion")
+    @Operation(summary = "Asignar desde qué punto de expedición emite el usuario",
+            description = "Decide el prefijo y la serie de numeración de las facturas que emita. "
+                    + "Mandar el id en nulo lo devuelve al punto por defecto de la empresa.")
+    public UsuarioAdminResponse asignarPuntoExpedicion(
+            @PathVariable Long id, @Valid @RequestBody AsignarPuntoExpedicionRequest request) {
+        return usuarioService.asignarPuntoExpedicion(id, request.puntoExpedicionId());
+    }
+
     @PutMapping("/{id}/password")
     @Operation(summary = "Resetear la contraseña de un usuario")
     public UsuarioAdminResponse resetearPassword(

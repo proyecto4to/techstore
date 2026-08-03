@@ -2,6 +2,8 @@ package com.techstore.usuarios;
 
 import com.techstore.auditoria.AuditoriaService;
 import com.techstore.comun.BusinessException;
+import com.techstore.empresa.PuntoExpedicion;
+import com.techstore.empresa.PuntoExpedicionService;
 import com.techstore.notificaciones.CorreoService;
 import com.techstore.notificaciones.EmailTemplateService;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +17,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +43,9 @@ class UsuarioServiceTest {
     @Mock
     private AuditoriaService auditoriaService;
 
+    @Mock
+    private PuntoExpedicionService puntoExpedicionService;
+
     private UsuarioService usuarioService;
     private Rol rolCajero;
 
@@ -47,7 +53,7 @@ class UsuarioServiceTest {
     void setUp() {
         usuarioService = new UsuarioService(
                 usuarioRepository, rolRepository, encoder, correoService, emailTemplateService,
-                auditoriaService);
+                auditoriaService, puntoExpedicionService);
         rolCajero = new Rol();
         rolCajero.setId(2L);
         rolCajero.setNombre("Cajero");
@@ -112,5 +118,50 @@ class UsuarioServiceTest {
         UsuarioAdminResponse respuesta = usuarioService.cambiarActivo(9L, false, "admin@techstore.py");
 
         assertFalse(respuesta.activo());
+    }
+
+    private Usuario cajeroGuardado() {
+        Usuario cajero = new Usuario();
+        cajero.setId(9L);
+        cajero.setEmail("cajero@techstore.py");
+        cajero.setRol(rolCajero);
+        cajero.setActivo(true);
+        when(usuarioRepository.findById(9L)).thenReturn(Optional.of(cajero));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+        return cajero;
+    }
+
+    @Test
+    void asignaElPuntoDesdeElQueEmite() {
+        cajeroGuardado();
+        PuntoExpedicion caja2 = new PuntoExpedicion();
+        caja2.setId(2L);
+        caja2.setEstablecimiento("001");
+        caja2.setPunto("002");
+        caja2.setNombre("Caja 2");
+        when(puntoExpedicionService.porId(2L)).thenReturn(caja2);
+
+        UsuarioAdminResponse respuesta = usuarioService.asignarPuntoExpedicion(9L, 2L);
+
+        assertEquals(2L, respuesta.puntoExpedicionId());
+        assertEquals("001-002 · Caja 2", respuesta.puntoExpedicion());
+    }
+
+    @Test
+    void sinPuntoVuelveAlPorDefecto() {
+        // Nulo no es un dato faltante: es "emite desde el punto por defecto de
+        // la empresa", que es como funcionaban todos antes de que hubiera varios.
+        Usuario cajero = cajeroGuardado();
+        PuntoExpedicion caja2 = new PuntoExpedicion();
+        caja2.setId(2L);
+        caja2.setEstablecimiento("001");
+        caja2.setPunto("002");
+        caja2.setNombre("Caja 2");
+        cajero.setPuntoExpedicion(caja2);
+
+        UsuarioAdminResponse respuesta = usuarioService.asignarPuntoExpedicion(9L, null);
+
+        assertNull(respuesta.puntoExpedicionId());
+        assertNull(respuesta.puntoExpedicion());
     }
 }

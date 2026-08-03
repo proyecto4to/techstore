@@ -42,6 +42,17 @@ public class PuntoExpedicionService {
         return porDefecto();
     }
 
+    /** Para asignarle un punto a un usuario. Un punto inactivo no puede asignarse. */
+    @Transactional(readOnly = true)
+    public PuntoExpedicion porId(Long id) {
+        PuntoExpedicion punto = repo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("empresa.punto.expedicion.no.encontrado", id));
+        if (!Boolean.TRUE.equals(punto.getActivo())) {
+            throw new BusinessException("empresa.punto.expedicion.inactivo", punto.prefijo());
+        }
+        return punto;
+    }
+
     @Transactional(readOnly = true)
     public PuntoExpedicion porDefecto() {
         return repo.findByPorDefectoTrue()

@@ -16,6 +16,14 @@ export const usuarioService = {
     return data
   },
 
+  /** Desde qué punto emite. `null` = el punto por defecto de la empresa. */
+  async asignarPuntoExpedicion(id, puntoExpedicionId) {
+    const { data } = await api.put(`/usuarios/${id}/punto-expedicion`, {
+      puntoExpedicionId: puntoExpedicionId || null,
+    })
+    return data
+  },
+
   async resetearPassword(id, password) {
     const { data } = await api.put(`/usuarios/${id}/password`, { password })
     return data

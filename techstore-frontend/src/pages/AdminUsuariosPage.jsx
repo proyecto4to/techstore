@@ -2,8 +2,12 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { UserPlus, KeyRound } from 'lucide-react'
 import { usuarioService } from '../services/usuarioService'
+import { empresaService } from '../services/empresaService'
 import { useAuthStore } from '../store/authStore'
 import AdminTabs from '../components/admin/AdminTabs'
+
+/** Quiénes emiten documentos. Un Cliente nunca factura, así que no lleva punto. */
+const ROLES_QUE_EMITEN = ['Admin', 'Cajero']
 
 const FORM_VACIO = { nombre: '', apellido: '', email: '', password: '', rol: 'Cajero' }
 
@@ -27,6 +31,11 @@ function AdminUsuariosPage() {
     queryKey: ['admin-usuarios', page],
     queryFn: () => usuarioService.listar({ page }),
     placeholderData: keepPreviousData,
+  })
+
+  const { data: puntos = [] } = useQuery({
+    queryKey: ['puntos-expedicion'],
+    queryFn: () => empresaService.puntosExpedicion(),
   })
 
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ['admin-usuarios'] })
@@ -56,6 +65,21 @@ function AdminUsuariosPage() {
     onSuccess: (u) => {
       setError(null)
       setMensaje(`Usuario ${u.email} ${u.activo ? 'activado' : 'desactivado'}.`)
+      refrescar()
+    },
+    onError,
+  })
+
+  const puntoMutation = useMutation({
+    mutationFn: ({ id, puntoExpedicionId }) =>
+      usuarioService.asignarPuntoExpedicion(id, puntoExpedicionId),
+    onSuccess: (u) => {
+      setError(null)
+      setMensaje(
+        u.puntoExpedicion
+          ? `${u.email} emite desde ${u.puntoExpedicion}.`
+          : `${u.email} vuelve a emitir desde el punto por defecto.`,
+      )
       refrescar()
     },
     onError,
@@ -163,6 +187,7 @@ function AdminUsuariosPage() {
               <tr>
                 <th>Usuario</th>
                 <th>Rol</th>
+                <th>Emite desde</th>
                 <th>Estado</th>
                 <th>Último acceso</th>
                 <th>Acciones</th>
@@ -183,6 +208,36 @@ function AdminUsuariosPage() {
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${ESTILO_ROL[u.rol] ?? 'bg-dark-lighter text-neutral-secondary'}`}>
                         {u.rol}
                       </span>
+                    </td>
+                    <td>
+                      {ROLES_QUE_EMITEN.includes(u.rol) ? (
+                        <select
+                          aria-label={`Punto de expedición de ${u.email}`}
+                          value={u.puntoExpedicionId ?? ''}
+                          disabled={puntoMutation.isPending}
+                          onChange={(e) =>
+                            puntoMutation.mutate({
+                              id: u.id,
+                              puntoExpedicionId: e.target.value ? Number(e.target.value) : null,
+                            })
+                          }
+                          className="input w-52 py-1 text-sm"
+                        >
+                          <option value="">Punto por defecto</option>
+                          {puntos
+                            // Uno desactivado no se puede asignar, pero si alguien
+                            // ya lo tiene hay que mostrarlo o el select mentiría.
+                            .filter((p) => p.activo || p.id === u.puntoExpedicionId)
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.prefijo} · {p.nombre}
+                                {p.activo ? '' : ' (inactivo)'}
+                              </option>
+                            ))}
+                        </select>
+                      ) : (
+                        <span className="text-sm text-neutral-muted">—</span>
+                      )}
                     </td>
                     <td>
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${u.activo ? 'bg-emerald-400/20 text-emerald-400' : 'bg-red-400/20 text-red-400'}`}>

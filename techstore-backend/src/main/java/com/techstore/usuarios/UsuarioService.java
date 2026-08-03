@@ -4,6 +4,8 @@ import com.techstore.auditoria.AuditoriaService;
 import com.techstore.comun.BusinessException;
 import com.techstore.comun.PageResponse;
 import com.techstore.comun.ResourceNotFoundException;
+import com.techstore.empresa.PuntoExpedicion;
+import com.techstore.empresa.PuntoExpedicionService;
 import com.techstore.notificaciones.CorreoService;
 import com.techstore.notificaciones.EmailTemplateService;
 import com.techstore.notificaciones.TipoCorreo;
@@ -23,6 +25,7 @@ public class UsuarioService {
     private final CorreoService correoService;
     private final EmailTemplateService emailTemplateService;
     private final AuditoriaService auditoriaService;
+    private final PuntoExpedicionService puntoExpedicionService;
 
     @Transactional(readOnly = true)
     public PageResponse<UsuarioAdminResponse> listar(Pageable pageable) {
@@ -84,6 +87,36 @@ public class UsuarioService {
                     usuario.getEmail());
         }
         return respuesta;
+    }
+
+    /**
+     * Desde qué punto de expedición emite este usuario.
+     *
+     * <p>Es lo que decide el prefijo y la serie de numeración de las facturas
+     * que emita de acá en adelante, así que queda auditado. Nulo lo devuelve al
+     * punto por defecto de la empresa.
+     */
+    @Transactional
+    public UsuarioAdminResponse asignarPuntoExpedicion(Long id, Long puntoExpedicionId) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("usuarios.no.encontrado", id));
+
+        PuntoExpedicion anterior = usuario.getPuntoExpedicion();
+        PuntoExpedicion nuevo = puntoExpedicionId == null
+                ? null
+                : puntoExpedicionService.porId(puntoExpedicionId);
+        usuario.setPuntoExpedicion(nuevo);
+        UsuarioAdminResponse respuesta = UsuarioAdminResponse.from(usuarioRepository.save(usuario));
+
+        auditoriaService.registrar("Usuario", id, AuditoriaService.Accion.Editar,
+                "%s emite desde %s".formatted(usuario.getEmail(), etiqueta(nuevo)),
+                AuditoriaService.Cambios.nuevo()
+                        .de("puntoExpedicion", etiqueta(anterior), etiqueta(nuevo)));
+        return respuesta;
+    }
+
+    private static String etiqueta(PuntoExpedicion punto) {
+        return punto == null ? "el punto por defecto" : punto.prefijo();
     }
 
     @Transactional
