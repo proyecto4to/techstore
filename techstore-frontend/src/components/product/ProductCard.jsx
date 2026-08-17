@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { ShoppingCart, Check } from 'lucide-react'
 import { formatPrecio } from '../../utils/format'
 import { useCartStore } from '../../store/cartStore'
+import { productoDisponible } from '../../store/cartStore'
 
 const IMAGEN_DEFAULT = '/img/productos/default.svg'
 
 function ProductCard({ producto }) {
-  const disponible = producto.stockDisponible > 0
+  const disponible = productoDisponible(producto)
   const agregar = useCartStore((state) => state.agregar)
   const [agregado, setAgregado] = useState(false)
   const [imgError, setImgError] = useState(false)
@@ -69,7 +70,7 @@ function ProductCard({ producto }) {
               disponible ? 'bg-emerald-400/20 text-emerald-400' : 'bg-red-400/20 text-red-400'
             }`}
           >
-            {disponible ? `${producto.stockDisponible} en stock` : 'Agotado'}
+            {disponible ? 'Disponible' : 'Agotado'}
           </span>
         </div>
         <button

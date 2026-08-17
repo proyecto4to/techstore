@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, ShoppingCart, Check, Minus, Plus } from 'lucide-react'
 import { productoService } from '../services/productoService'
-import { useCartStore } from '../store/cartStore'
+import { maximoComprable, productoDisponible, useCartStore } from '../store/cartStore'
 import { formatPrecio } from '../utils/format'
 
 const IMAGEN_DEFAULT = '/img/productos/default.svg'
@@ -47,7 +47,8 @@ function ProductoDetallePage() {
     )
   }
 
-  const disponible = producto.stockDisponible > 0
+  const disponible = productoDisponible(producto)
+  const maximo = maximoComprable(producto)
   const src = !imgError && producto.imagenUrl ? producto.imagenUrl : IMAGEN_DEFAULT
 
   const handleAgregar = () => {
@@ -57,7 +58,7 @@ function ProductoDetallePage() {
   }
 
   const ajustarCantidad = (delta) =>
-    setCantidad((c) => Math.min(Math.max(1, c + delta), Math.max(1, producto.stockDisponible)))
+    setCantidad((c) => Math.min(Math.max(1, c + delta), Math.max(1, maximo)))
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -106,9 +107,7 @@ function ProductoDetallePage() {
                 disponible ? 'bg-emerald-400/20 text-emerald-400' : 'bg-red-400/20 text-red-400'
               }`}
             >
-              {disponible
-                ? `${producto.stockDisponible} unidades disponibles`
-                : 'Sin stock por el momento'}
+              {disponible ? 'Disponible para comprar' : 'Sin stock por el momento'}
             </p>
           </div>
 
@@ -128,7 +127,7 @@ function ProductoDetallePage() {
                 </span>
                 <button
                   onClick={() => ajustarCantidad(1)}
-                  disabled={cantidad >= producto.stockDisponible}
+                  disabled={cantidad >= maximo}
                   className="text-neutral-text hover:text-primary-300 disabled:opacity-40"
                   aria-label="Sumar cantidad"
                 >

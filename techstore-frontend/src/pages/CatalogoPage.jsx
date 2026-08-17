@@ -76,7 +76,7 @@ function CatalogoPage() {
       {isLoading && <p className="text-center text-neutral-muted">Cargando catálogo…</p>}
       {isError && (
         <p className="alerta-error text-center">
-          No se pudo cargar el catálogo. ¿Está corriendo la API en el puerto 8080?
+          No se pudo cargar el catálogo. ¿Está corriendo la API en el puerto 8090?
         </p>
       )}
 

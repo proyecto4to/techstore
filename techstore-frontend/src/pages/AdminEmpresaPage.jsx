@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Building2 } from 'lucide-react'
 import { empresaService } from '../services/empresaService'
 import AdminTabs from '../components/admin/AdminTabs'
@@ -10,7 +10,7 @@ const VACIO = {
   timbrado: '', timbradoVigencia: '', timbradoInicioVigencia: '',
   tipoContribuyente: 2, establecimiento: '', puntoExpedicion: '', actividadCodigo: '',
   departamentoCodigo: '', departamentoNombre: '', distritoCodigo: '', distritoNombre: '',
-  ciudadCodigo: '', ciudadNombre: '',
+  ciudadCodigo: '', ciudadNombre: '', identificacionSinNombre: '',
 }
 
 /** Un campo de texto del formulario, para no repetir el markup 19 veces. */
@@ -34,10 +34,15 @@ function AdminEmpresaPage() {
   const [form, setForm] = useState(VACIO)
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
+  const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error: errorCarga, refetch } = useQuery({
     queryKey: ['empresa'],
     queryFn: empresaService.actual,
+  })
+  const { data: pendientes } = useQuery({
+    queryKey: ['empresa-pendientes'],
+    queryFn: empresaService.pendientes,
   })
 
   useEffect(() => {
@@ -50,6 +55,7 @@ function AdminEmpresaPage() {
       setError(null)
       setForm({ ...VACIO, ...guardado })
       setMensaje('Datos guardados. Las facturas que emitas de ahora en más salen con estos datos.')
+      queryClient.invalidateQueries({ queryKey: ['empresa-pendientes'] })
     },
     onError: (err) => {
       setMensaje(null)
@@ -79,9 +85,22 @@ function AdminEmpresaPage() {
 
       {mensaje && <p className="alerta-ok" role="status">{mensaje}</p>}
       {error && <p className="alerta-error" role="alert">{error}</p>}
+      {pendientes && !pendientes.completo && (
+        <div className="alerta-error" role="alert">
+          <p className="font-semibold">La empresa todavía no está lista para emitir facturas.</p>
+          <p className="mt-1 text-sm">Falta completar: {pendientes.faltantes.join(', ')}.</p>
+        </div>
+      )}
 
       {isLoading ? (
         <p className="text-neutral-muted">Cargando…</p>
+      ) : isError ? (
+        <div className="alerta-error" role="alert">
+          <p>{errorCarga?.response?.data?.detail ?? 'No se pudieron cargar los datos actuales de la empresa.'}</p>
+          <button type="button" className="btn btn-secondary mt-3" onClick={() => refetch()}>
+            Reintentar
+          </button>
+        </div>
       ) : (
         <form
           onSubmit={(e) => {
@@ -167,6 +186,22 @@ function AdminEmpresaPage() {
                 onChange={set('ciudadCodigo')} maxLength={5} />
               <Campo id="ciudadNombre" etiqueta="Ciudad (SIFEN)" valor={form.ciudadNombre}
                 onChange={set('ciudadNombre')} maxLength={100} />
+            </div>
+          </div>
+
+          <div className="card">
+            <h2 className="mb-4 text-xl font-semibold text-neutral-text">
+              Registro de Comprobantes (DNIT)
+            </h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Campo
+                id="identificacionSinNombre"
+                etiqueta="Identificación para ventas a consumidor final"
+                valor={form.identificacionSinNombre}
+                onChange={set('identificacionSinNombre')}
+                maxLength={20}
+                ayuda="Qué número declarar como identificación del comprador cuando la venta sale sin RUC. La DNIT admite el tipo 15 (&quot;sin nombre&quot;) para esas ventas y entonces no pide el nombre, pero el número sigue siendo obligatorio. Consultalo con tu contador."
+              />
             </div>
           </div>
 

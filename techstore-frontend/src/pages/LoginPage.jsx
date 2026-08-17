@@ -4,6 +4,8 @@ import { authService } from '../services/authService'
 import { useAuthStore } from '../store/authStore'
 
 function LoginPage() {
+  const mostrarCredencialesDemo =
+    import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -91,10 +93,12 @@ function LoginPage() {
             </Link>
           </p>
 
-          <div className="text-center text-sm text-neutral-secondary">
-            <p>Credenciales de prueba:</p>
-            <p className="text-primary-300">admin@techstore.py / admin123</p>
-          </div>
+          {mostrarCredencialesDemo && (
+            <div className="text-center text-sm text-neutral-secondary">
+              <p>Credenciales de prueba:</p>
+              <p className="text-primary-300">admin@techstore.py / admin123</p>
+            </div>
+          )}
         </form>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { ChevronDown, ChevronUp, PackagePlus, Truck, Wallet } from 'lucide-react'
+import { ChevronDown, ChevronUp, PackagePlus, Receipt, Send, Truck, Wallet } from 'lucide-react'
 import { proveedorService, compraService } from '../services/compraService'
 import { productoService } from '../services/productoService'
 import { formatPrecio } from '../utils/format'
@@ -9,6 +9,8 @@ import AdminTabs from '../components/admin/AdminTabs'
 import ComparadorProveedores from '../components/admin/ComparadorProveedores'
 import PedidoDetallePanel from '../components/admin/PedidoDetallePanel'
 import CobroPanel from '../components/admin/CobroPanel'
+import ComprobanteCompraPanel from '../components/admin/ComprobanteCompraPanel'
+import EnviarPedidoPanel from '../components/admin/EnviarPedidoPanel'
 
 const PROVEEDOR_VACIO = { razonSocial: '', ruc: '', telefono: '', email: '' }
 
@@ -29,6 +31,8 @@ function AdminComprasPage() {
   const [mostrarNuevoProveedor, setMostrarNuevoProveedor] = useState(false)
   const [nuevoProveedor, setNuevoProveedor] = useState(PROVEEDOR_VACIO)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
+  const [comprobanteCompraId, setComprobanteCompraId] = useState(null)
+  const [envioCompraId, setEnvioCompraId] = useState(null)
   const [pagoCompraId, setPagoCompraId] = useState(null)
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
@@ -41,7 +45,7 @@ function AdminComprasPage() {
 
   const { data: productos } = useQuery({
     queryKey: ['productos-para-compra'],
-    queryFn: () => productoService.listar({ size: 100, incluirInactivos: true }),
+    queryFn: () => productoService.listarAdmin({ size: 100, incluirInactivos: true }),
   })
 
   const { data: compras, isLoading } = useQuery({
@@ -118,6 +122,25 @@ function AdminComprasPage() {
       const detalle = lineas.map((l) => `${l.tipoPago} ${formatPrecio(l.monto)}`).join(' + ')
       setMensaje(`Compra N.º ${compra.numero} pagada (${detalle}): egreso registrado en caja.`)
       setPagoCompraId(null)
+      refrescar()
+    },
+    onError,
+  })
+
+  const enviarMutation = useMutation({
+    mutationFn: ({ id, canal }) => compraService.enviarAlProveedor(id, canal),
+    onSuccess: (envio) => {
+      setError(null)
+      setEnvioCompraId(null)
+      // `enviado` distingue lo que salió de verdad de lo que quedó solo
+      // registrado: decirle "listo" a alguien cuyo correo nunca viajó lo deja
+      // esperando una mercadería que nadie pidió.
+      if (envio.enviado) {
+        setMensaje(`Pedido N.º ${envio.numero} enviado a ${envio.destinatario}.`)
+      } else {
+        setMensaje(null)
+        setError(envio.detalle)
+      }
       refrescar()
     },
     onError,
@@ -338,6 +361,39 @@ function AdminComprasPage() {
                             <span className="text-sm text-emerald-400">Stock ✓</span>
                           )}
 
+                          {compra.estado === 'P' && (
+                            <button
+                              onClick={() =>
+                                setEnvioCompraId(envioCompraId === compra.id ? null : compra.id)
+                              }
+                              disabled={enviarMutation.isPending}
+                              className="btn btn-secondary inline-flex items-center gap-1 text-sm"
+                              title="Mandarle el detalle del pedido al proveedor"
+                            >
+                              <Send size={14} /> {envioCompraId === compra.id ? 'Cerrar' : 'Enviar'}
+                            </button>
+                          )}
+                          {compra.enviadoEn && (
+                            <span
+                              className="text-xs text-emerald-400"
+                              title={`Enviado por ${compra.enviadoCanal}`}
+                            >
+                              Enviado ✓
+                            </span>
+                          )}
+
+                          {compra.estado !== 'X' && (
+                            <button
+                              onClick={() =>
+                                setComprobanteCompraId(comprobanteCompraId === compra.id ? null : compra.id)
+                              }
+                              className="btn btn-secondary inline-flex items-center gap-1 text-sm"
+                              title="El comprobante fiscal del proveedor: sin él la compra no entra en el libro de IVA"
+                            >
+                              <Receipt size={14} /> {comprobanteCompraId === compra.id ? 'Cerrar' : 'Comprobante'}
+                            </button>
+                          )}
+
                           {compra.pagada ? (
                             <span className="inline-flex items-center gap-1 text-sm text-emerald-400">
                               <Wallet size={14} /> Pagada ✓
@@ -370,6 +426,28 @@ function AdminComprasPage() {
                       <tr>
                         <td colSpan={6} className="bg-dark-bg/30 p-3">
                           <PedidoDetallePanel pedidoId={compra.id} />
+                        </td>
+                      </tr>
+                    )}
+                    {envioCompraId === compra.id && compra.estado === 'P' && (
+                      <tr>
+                        <td colSpan={6} className="bg-dark-bg/30 p-3">
+                          <EnviarPedidoPanel
+                            compra={compra}
+                            ocupado={enviarMutation.isPending}
+                            onEnviar={(canal) => enviarMutation.mutate({ id: compra.id, canal })}
+                            onCancelar={() => setEnvioCompraId(null)}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    {comprobanteCompraId === compra.id && compra.estado !== 'X' && (
+                      <tr>
+                        <td colSpan={6} className="bg-dark-bg/30 p-3">
+                          <ComprobanteCompraPanel
+                            compra={compra}
+                            onListo={() => setMensaje(`Comprobante de la compra N.º ${compra.numero} guardado.`)}
+                          />
                         </td>
                       </tr>
                     )}

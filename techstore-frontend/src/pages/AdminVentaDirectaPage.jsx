@@ -24,7 +24,7 @@ function AdminVentaDirectaPage() {
 
   const { data: productos, isLoading } = useQuery({
     queryKey: ['venta-directa-productos', busqueda],
-    queryFn: () => productoService.listar({ search: busqueda, size: 8 }),
+    queryFn: () => productoService.listarAdmin({ search: busqueda, size: 8 }),
     placeholderData: keepPreviousData,
   })
 
@@ -80,12 +80,18 @@ function AdminVentaDirectaPage() {
     )
   }
 
-  /** La rebaja no puede superar el precio: dejaría la línea en negativo. */
+  /** La rebaja debe dejar un importe positivo para poder facturar y cobrar. */
   const cambiarDescuento = (productoId, descuento) => {
     setCarrito((actual) =>
       actual.map((i) =>
         i.productoId === productoId
-          ? { ...i, descuento: descuento === '' ? '' : Math.max(0, Math.min(Number(descuento), Number(i.precio))) }
+          ? {
+              ...i,
+              descuento:
+                descuento === ''
+                  ? ''
+                  : Math.max(0, Math.min(Number(descuento), Math.max(0, Number(i.precio) - 1))),
+            }
           : i,
       ),
     )
@@ -96,7 +102,7 @@ function AdminVentaDirectaPage() {
 
   /**
    * El correo del cliente viaja dentro del receptor, junto con el RUC si lo hay.
-   * Como el pedido queda a nombre del cajero, sin esto la factura le llegaría a él.
+   * Si no se informa, la venta de mostrador queda correctamente como "solo imprimir".
    */
   const conEmail = (receptor) => {
     const email = emailCliente.trim()
@@ -267,7 +273,7 @@ function AdminVentaDirectaPage() {
                         <input
                           type="number"
                           min="0"
-                          max={i.precio}
+                          max={Math.max(0, Number(i.precio) - 1)}
                           step="1"
                           value={i.descuento}
                           placeholder="0"
@@ -319,6 +325,8 @@ function AdminVentaDirectaPage() {
               <CobroPanel
                 total={total}
                 ocupado={venderMutation.isPending}
+                razonSocialObligatoria
+                permitirGuardarEnCliente={false}
                 onCobrar={(lineas, receptor) => venderMutation.mutate({ lineas, receptor })}
                 onCancelar={() => {
                   setCarrito([])

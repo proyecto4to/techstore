@@ -74,7 +74,7 @@ function AdminFacturasPage() {
             <thead>
               <tr>
                 <th>Factura</th>
-                <th>Tipo</th>
+                <th>Condición</th>
                 <th>Pedido</th>
                 <th>Emitida a</th>
                 <th>Fecha</th>
@@ -89,7 +89,7 @@ function AdminFacturasPage() {
               {data.content.map((factura) => (
                 <tr key={factura.id}>
                   <td className="font-mono font-semibold text-neutral-text">{factura.numero}</td>
-                  <td className="text-neutral-secondary">{factura.tipo}</td>
+                  <td className="text-neutral-secondary">{factura.condicionVenta}</td>
                   <td>N.º {factura.pedidoNumero}</td>
                   <td>
                     {factura.receptorRuc ? (

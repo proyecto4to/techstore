@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export const productoDisponible = (producto) =>
+  producto.disponible ?? (Number.isFinite(producto.stockDisponible) && producto.stockDisponible > 0)
+
+export const maximoComprable = (producto) =>
+  Number.isFinite(producto.stockDisponible) ? Math.max(0, producto.stockDisponible) : 99
+
 export const useCartStore = create(
   persist(
     (set) => ({
@@ -10,7 +16,8 @@ export const useCartStore = create(
       // más de lo que hay). El backend igual valida al finalizar la compra.
       agregar: (producto, cantidad = 1) =>
         set((state) => {
-          const tope = producto.stockDisponible > 0 ? producto.stockDisponible : 1
+          if (!productoDisponible(producto)) return state
+          const tope = maximoComprable(producto)
           const existente = state.items.find((i) => i.producto.id === producto.id)
           if (existente) {
             return {
@@ -26,10 +33,10 @@ export const useCartStore = create(
 
       setCantidad: (productoId, cantidad) =>
         set((state) => ({
-          items: state.items.map((i) => {
+          items: state.items.flatMap((i) => {
             if (i.producto.id !== productoId) return i
-            const tope = i.producto.stockDisponible > 0 ? i.producto.stockDisponible : 1
-            return { ...i, cantidad: Math.max(1, Math.min(cantidad, tope)) }
+            if (!productoDisponible(i.producto)) return []
+            return [{ ...i, cantidad: Math.max(1, Math.min(cantidad, maximoComprable(i.producto))) }]
           }),
         })),
 

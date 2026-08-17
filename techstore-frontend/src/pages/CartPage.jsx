@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Trash2, PartyPopper } from 'lucide-react'
-import { useCartStore, selectTotalMonto } from '../store/cartStore'
+import { maximoComprable, productoDisponible, useCartStore, selectTotalMonto } from '../store/cartStore'
 import { useAuthStore } from '../store/authStore'
 import { pedidoService } from '../services/pedidoService'
 import { formatPrecio } from '../utils/format'
@@ -16,8 +16,14 @@ function CartPage() {
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState(null)
   const [pedidoCreado, setPedidoCreado] = useState(null)
+  const intentoCheckout = useRef(null)
+  const hayProductoSinStock = items.some(({ producto }) => !productoDisponible(producto))
 
   const handleCheckout = async () => {
+    if (hayProductoSinStock) {
+      setError('Quitá del carrito los productos agotados antes de finalizar la compra.')
+      return
+    }
     if (!usuario) {
       navigate('/login')
       return
@@ -25,8 +31,16 @@ function CartPage() {
     setError(null)
     setEnviando(true)
     try {
-      const pedido = await pedidoService.checkout(items, notas)
+      const firma = JSON.stringify({
+        items: items.map(({ producto, cantidad }) => [producto.id, cantidad]).sort(([a], [b]) => a - b),
+        notas: notas || null,
+      })
+      if (intentoCheckout.current?.firma !== firma) {
+        intentoCheckout.current = { firma, clave: crypto.randomUUID() }
+      }
+      const pedido = await pedidoService.checkout(items, notas, intentoCheckout.current.clave)
       setPedidoCreado(pedido)
+      intentoCheckout.current = null
       vaciar()
     } catch (err) {
       setError(err.response?.data?.detail ?? 'No se pudo completar la compra. Intente de nuevo.')
@@ -82,6 +96,11 @@ function CartPage() {
           {error}
         </p>
       )}
+      {hayProductoSinStock && (
+        <p className="alerta-error" role="alert">
+          Hay productos agotados en el carrito. Quitalos para poder continuar.
+        </p>
+      )}
 
       <div className="card overflow-x-auto p-0">
         <table className="tabla-admin">
@@ -95,8 +114,9 @@ function CartPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map(({ producto, cantidad }) => (
-              <tr key={producto.id}>
+            {items.map(({ producto, cantidad }) => {
+              const maximo = maximoComprable(producto)
+              return <tr key={producto.id}>
                 <td className="font-medium text-neutral-text">{producto.nombre}</td>
                 <td>{formatPrecio(producto.precio)}</td>
                 <td>
@@ -113,22 +133,18 @@ function CartPage() {
                     <span className="w-8 text-center">{cantidad}</span>
                     <button
                       onClick={() => setCantidad(producto.id, cantidad + 1)}
-                      disabled={cantidad >= producto.stockDisponible}
-                      title={
-                        cantidad >= producto.stockDisponible
-                          ? `No hay más stock: solo quedan ${producto.stockDisponible}`
-                          : undefined
-                      }
+                      disabled={cantidad >= maximo}
+                      title={cantidad >= maximo ? 'Límite por línea alcanzado' : undefined}
                       className="h-7 w-7 rounded border border-dark-border text-neutral-text hover:border-primary-400 hover:bg-primary-400/10 disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label={`Sumar uno de ${producto.nombre}`}
                     >
                       +
                     </button>
                   </div>
-                  <p className={`mt-1 text-xs ${cantidad >= producto.stockDisponible ? 'text-orange-400' : 'text-neutral-muted'}`}>
-                    {cantidad >= producto.stockDisponible
-                      ? `Máximo: ${producto.stockDisponible} en stock`
-                      : `${producto.stockDisponible} disponibles`}
+                  <p className={`mt-1 text-xs ${cantidad >= maximo ? 'text-orange-400' : 'text-neutral-muted'}`}>
+                    {cantidad >= maximo
+                      ? `Máximo por línea: ${maximo}`
+                      : 'Stock y precio se revalidan al finalizar'}
                   </p>
                 </td>
                 <td className="font-semibold text-primary-300">
@@ -144,7 +160,7 @@ function CartPage() {
                   </button>
                 </td>
               </tr>
-            ))}
+            })}
           </tbody>
         </table>
       </div>
@@ -163,8 +179,14 @@ function CartPage() {
           </p>
           <button
             onClick={handleCheckout}
-            disabled={enviando}
-            title={enviando ? 'Procesando tu pedido…' : undefined}
+            disabled={enviando || hayProductoSinStock}
+            title={
+              hayProductoSinStock
+                ? 'Quitá los productos agotados antes de continuar'
+                : enviando
+                  ? 'Procesando tu pedido…'
+                  : undefined
+            }
             className="btn btn-primary px-8 py-3 disabled:cursor-not-allowed"
           >
             {enviando ? 'Procesando…' : usuario ? 'Finalizar compra' : 'Ingresar para comprar'}

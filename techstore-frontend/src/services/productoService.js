@@ -1,12 +1,21 @@
 import api from './api'
 
 export const productoService = {
-  async listar({ search = '', marcaId = null, page = 0, size = 12, incluirInactivos = false } = {}) {
+  async listar({ search = '', marcaId = null, disponible = null, page = 0, size = 12, sort = null } = {}) {
     const params = { page, size }
     if (search) params.search = search
     if (marcaId) params.marcaId = marcaId
-    if (incluirInactivos) params.incluirInactivos = true
+    if (disponible !== null) params.disponible = disponible
+    if (sort) params.sort = sort
     const { data } = await api.get('/productos', { params })
+    return data
+  },
+
+  async listarAdmin({ search = '', marcaId = null, page = 0, size = 12, incluirInactivos = false } = {}) {
+    const params = { page, size, incluirInactivos }
+    if (search) params.search = search
+    if (marcaId) params.marcaId = marcaId
+    const { data } = await api.get('/productos/admin', { params })
     return data
   },
 

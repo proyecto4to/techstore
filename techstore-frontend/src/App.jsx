@@ -10,6 +10,7 @@ import CartPage from './pages/CartPage'
 import PedidosPage from './pages/PedidosPage'
 import AdminProductosPage from './pages/AdminProductosPage'
 import AdminReportesPage from './pages/AdminReportesPage'
+import AdminContabilidadPage from './pages/AdminContabilidadPage'
 import AdminFacturasPage from './pages/AdminFacturasPage'
 import AdminCajaPage from './pages/AdminCajaPage'
 import DashboardPage from './pages/DashboardPage'
@@ -19,6 +20,7 @@ import AdminVentaDirectaPage from './pages/AdminVentaDirectaPage'
 import AdminEmpresaPage from './pages/AdminEmpresaPage'
 import AdminCorreosPage from './pages/AdminCorreosPage'
 import AdminAuditoriaPage from './pages/AdminAuditoriaPage'
+import AdminMensajesPage from './pages/AdminMensajesPage'
 import CuentaPage from './pages/CuentaPage'
 import RegisterPage from './pages/RegisterPage'
 import './App.css'
@@ -139,10 +141,26 @@ function App() {
                 }
               />
               <Route
+                path="/admin/contabilidad"
+                element={
+                  <ProtectedRoute rol="Admin">
+                    <AdminContabilidadPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/admin/correos"
                 element={
                   <ProtectedRoute roles={['Admin', 'Cajero']}>
                     <AdminCorreosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/mensajes"
+                element={
+                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                    <AdminMensajesPage />
                   </ProtectedRoute>
                 }
               />

@@ -56,7 +56,7 @@ function ComparadorProveedores({ items, onElegir }) {
         <div className="mt-4 space-y-3">
           {comparar.data.map((p) => (
             <div
-              key={p.proveedorId}
+              key={`${p.proveedorId}-${p.moneda}`}
               className={`rounded-md border p-3 ${
                 p.coberturaCompleta ? 'border-dark-border' : 'border-yellow-400/40'
               }`}
@@ -77,7 +77,9 @@ function ComparadorProveedores({ items, onElegir }) {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-bold text-primary-300">{formatPrecio(p.total)}</p>
+                  <p className="text-xl font-bold text-primary-300">
+                    {formatPrecio(p.total, p.moneda)}
+                  </p>
                   <p className="text-xs text-neutral-muted">
                     por {p.cubre.length} producto{p.cubre.length === 1 ? '' : 's'}
                   </p>
@@ -124,8 +126,9 @@ function ComparadorProveedores({ items, onElegir }) {
             </div>
           ))}
           <p className="text-xs text-neutral-muted">
-            Ordenados por cobertura y precio. La entrega y el cumplimiento se muestran pero no
-            ordenan: cuánto pesan lo decidís vos.
+            Ordenados por cobertura, moneda y precio. Los importes de monedas distintas se muestran
+            separados porque no se pueden comparar sin una cotización. La entrega y el cumplimiento
+            se muestran pero no ordenan: cuánto pesan lo decidís vos.
           </p>
         </div>
       )}

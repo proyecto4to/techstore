@@ -57,4 +57,14 @@ export const compraService = {
     const { data } = await api.put(`/compras/${id}/anular`)
     return data
   },
+
+  /**
+   * Le manda el pedido al proveedor. La respuesta trae `enviado`, que distingue
+   * lo que salió de verdad de lo que quedó nada más registrado en la bandeja de
+   * salida por no haber SMTP configurado.
+   */
+  async enviarAlProveedor(id, canal) {
+    const { data } = await api.post(`/compras/${id}/enviar`, { canal })
+    return data
+  },
 }

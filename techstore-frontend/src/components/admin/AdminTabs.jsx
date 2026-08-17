@@ -12,7 +12,9 @@ const tabs = [
   { to: '/admin/usuarios', label: 'Usuarios', soloAdmin: true },
   { to: '/admin/empresa', label: 'Empresa', soloAdmin: true },
   { to: '/admin/correos', label: 'Correos' },
+  { to: '/admin/mensajes', label: 'Mensajes' },
   { to: '/admin/reportes', label: 'Reportes' },
+  { to: '/admin/contabilidad', label: 'Contabilidad', soloAdmin: true },
   { to: '/admin/auditoria', label: 'Auditoría', soloAdmin: true },
 ]
 

@@ -12,6 +12,7 @@ const FORM_VACIO = {
   iva: 10,
   stockReal: 0,
   stockMinimo: 0,
+  pesoKg: 0,
   marcaId: '',
   imagenUrl: '',
   activo: true,
@@ -33,7 +34,7 @@ function AdminProductosPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-productos', page],
-    queryFn: () => productoService.listar({ page, size: 10, incluirInactivos: true }),
+    queryFn: () => productoService.listarAdmin({ page, size: 10, incluirInactivos: true }),
     placeholderData: keepPreviousData,
   })
 
@@ -58,6 +59,7 @@ function AdminProductosPage() {
     iva: Number(f.iva),
     stockReal: Number(f.stockReal),
     stockMinimo: Number(f.stockMinimo) || 0,
+    pesoKg: Number(f.pesoKg) || 0,
     marcaId: f.marcaId ? Number(f.marcaId) : null,
     modeloId: null,
     imagenUrl: f.imagenUrl?.trim() || null,
@@ -107,8 +109,8 @@ function AdminProductosPage() {
         precio: producto.precio,
         iva: producto.iva,
         stockReal: producto.stockReal,
-      stockMinimo: producto.stockMinimo ?? 0,
         stockMinimo: producto.stockMinimo ?? 0,
+        pesoKg: producto.pesoKg ?? 0,
         marcaId: producto.marca?.id ?? null,
         modeloId: producto.modelo?.id ?? null,
         imagenUrl: producto.imagenUrl ?? null,
@@ -130,6 +132,8 @@ function AdminProductosPage() {
       precio: producto.precio,
       iva: producto.iva,
       stockReal: producto.stockReal,
+      stockMinimo: producto.stockMinimo ?? 0,
+      pesoKg: producto.pesoKg ?? 0,
       marcaId: producto.marca?.id ?? '',
       imagenUrl: producto.imagenUrl ?? '',
       activo: producto.activo,
@@ -324,7 +328,26 @@ function AdminProductosPage() {
             aria-describedby="ayuda-stock-minimo"
           />
           <p id="ayuda-stock-minimo" className="mt-1 text-xs text-neutral-secondary">
-            En 0 no avisa. Se mide contra el stock disponible, no el real.
+            En 0 usa el mínimo general de 5 unidades. Se mide contra el stock disponible, no el real.
+          </p>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="pesoKg">
+            Peso unitario (kg)
+          </label>
+          <input
+            id="pesoKg"
+            type="number"
+            min="0"
+            step="0.001"
+            value={form.pesoKg}
+            onChange={(e) => setForm({ ...form, pesoKg: e.target.value })}
+            className="input"
+            aria-describedby="ayuda-peso"
+          />
+          <p id="ayuda-peso" className="mt-1 text-xs text-neutral-secondary">
+            Se usa para cotizar transportadoras; 0 permite tarifas sin límite de peso.
           </p>
         </div>
 

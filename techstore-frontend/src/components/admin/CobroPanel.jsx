@@ -14,6 +14,8 @@ function CobroPanel({
   clienteRuc,
   clienteRazonSocial,
   pedirRuc = true,
+  razonSocialObligatoria = false,
+  permitirGuardarEnCliente = true,
   textoBoton = '💵 Registrar cobro',
 }) {
   const [efectivo, setEfectivo] = useState('')
@@ -33,7 +35,8 @@ function CobroPanel({
   const restante = Math.round((total - suma) * 100) / 100
   const montosOk = Math.abs(restante) < 0.005 && suma > 0
   const rucOk = !pedirRuc || !conRuc || ruc.trim() !== ''
-  const valido = montosOk && rucOk
+  const razonSocialOk = !pedirRuc || !conRuc || !razonSocialObligatoria || razonSocial.trim() !== ''
+  const valido = montosOk && rucOk && razonSocialOk
 
   const registrar = () => {
     const lineas = []
@@ -55,7 +58,7 @@ function CobroPanel({
             razonSocial: razonSocial.trim() || null,
             direccion: direccion.trim() || null,
             telefono: telefono.trim() || null,
-            guardarEnCliente,
+            guardarEnCliente: permitirGuardarEnCliente && guardarEnCliente,
           }
         : null
     onCobrar(lineas, receptor)
@@ -162,7 +165,7 @@ function CobroPanel({
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-text" htmlFor="cobro-razon">
-                Razón social
+                Razón social{razonSocialObligatoria ? ' *' : ''}
               </label>
               <input
                 id="cobro-razon"
@@ -170,7 +173,7 @@ function CobroPanel({
                 onChange={(e) => setRazonSocial(e.target.value)}
                 maxLength={255}
                 className="input w-64 py-1 text-sm"
-                placeholder="Nombre del cliente si se deja vacío"
+                placeholder={razonSocialObligatoria ? 'Nombre fiscal del cliente' : 'Nombre del cliente si se deja vacío'}
               />
             </div>
             {/* Opcionales: el manual del SIFEN no los exige para una venta
@@ -201,15 +204,17 @@ function CobroPanel({
                 placeholder="Opcional"
               />
             </div>
-            <label className="flex items-center gap-2 pb-1 text-xs text-neutral-secondary">
-              <input
-                type="checkbox"
-                checked={guardarEnCliente}
-                onChange={(e) => setGuardarEnCliente(e.target.checked)}
-                className="h-4 w-4"
-              />
-              Guardar en la cuenta del cliente
-            </label>
+            {permitirGuardarEnCliente && (
+              <label className="flex items-center gap-2 pb-1 text-xs text-neutral-secondary">
+                <input
+                  type="checkbox"
+                  checked={guardarEnCliente}
+                  onChange={(e) => setGuardarEnCliente(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Guardar en la cuenta del cliente
+              </label>
+            )}
           </div>
         )}
       </div>
@@ -223,6 +228,8 @@ function CobroPanel({
               : `Excede por: ${formatPrecio(-restante)}`
             : !rucOk
               ? 'Ingresá el RUC o destildá "Facturar con RUC"'
+              : !razonSocialOk
+                ? 'Ingresá la razón social del receptor'
               : '✓ Montos completos'}
         </p>
         <button
@@ -233,6 +240,8 @@ function CobroPanel({
               ? undefined
               : !rucOk
                 ? 'Ingresá el RUC del cliente'
+                : !razonSocialOk
+                  ? 'Ingresá la razón social del cliente'
                 : suma <= 0
                   ? 'Ingresá el monto en efectivo y/o transferencia'
                   : restante > 0
