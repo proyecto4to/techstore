@@ -40,13 +40,28 @@ public class NotificationOutboxWorker {
         this.staleAfterSeconds = staleAfterSeconds;
     }
 
+    /**
+     * Busca trabajo empresa por empresa.
+     *
+     * <p>Reclamar de una sola pasada, sin empresa fijada, no devuelve nada: las
+     * políticas de Row Level Security del outbox exigen que la conexión declare a
+     * qué empresa pertenece, y una tarea programada no hereda ese dato de ninguna
+     * petición. El síntoma no es un error sino silencio —el reclamo trae cero
+     * candidatos cada vez— así que los eventos quedan pendientes para siempre y
+     * ningún correo ni push sale del sistema.
+     */
     @Scheduled(fixedDelayString = "${notifications.outbox.poll-interval-ms:5000}",
             initialDelayString = "${notifications.outbox.initial-delay-ms:10000}")
     public void processDue() {
         if (!enabled) return;
         try {
-            for (OutboxStore.ClaimedJob job : store.claim(batchSize, staleAfterSeconds)) {
-                process(job);
+            for (Long tenantId : store.tenantsActivos()) {
+                TenantContext.comoTenant(tenantId, () -> {
+                    for (OutboxStore.ClaimedJob job : store.claim(batchSize, staleAfterSeconds)) {
+                        process(job);
+                    }
+                    return null;
+                });
             }
         } catch (RuntimeException exception) {
             log.warn("No se pudo consultar el outbox de notificaciones: {}", exception.getMessage());

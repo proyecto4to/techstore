@@ -15,6 +15,21 @@ public class OutboxStore {
 
     public record ClaimedJob(Long id, Long tenantId, int attempts) { }
 
+    /**
+     * Las empresas sobre las que hay que buscar trabajo.
+     *
+     * <p>Hace falta porque el reclamo se hace empresa por empresa: las políticas de
+     * Row Level Security sólo dejan ver las filas de la empresa fijada en la
+     * conexión, así que una consulta sin empresa no devuelve nada. {@code tenants}
+     * es la tabla raíz del esquema y no lleva RLS, que es lo que permite leerla
+     * desde una tarea programada, fuera de cualquier petición.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public List<Long> tenantsActivos() {
+        return jdbcTemplate.queryForList(
+                "SELECT id FROM tenants WHERE activo = TRUE ORDER BY id", Long.class);
+    }
+
     /** Reclama trabajo sin bloquear otros nodos y recupera reclamos abandonados. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<ClaimedJob> claim(int batchSize, long staleAfterSeconds) {
