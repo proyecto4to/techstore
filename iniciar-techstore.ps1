@@ -1,6 +1,10 @@
 # Lanzador local/portable: PostgreSQL, JAR del backend, Vite y navegador.
 param(
-    [switch]$PermitirRedLocal
+    [switch]$PermitirRedLocal,
+    # Las notificaciones push salen apagadas: en una máquina de desarrollo no se
+    # quiere despertar el teléfono de nadie por cada prueba. Con esto se enciende
+    # el proveedor de Expo para probarlas de verdad en un dispositivo.
+    [switch]$ConPush
 )
 
 $ErrorActionPreference = 'Continue'
@@ -120,6 +124,10 @@ $env:SERVER_ADDRESS = if ($PermitirRedLocal) { '0.0.0.0' } else { '127.0.0.1' }
 $env:CORS_ALLOWED_ORIGINS = 'http://localhost:5173'
 if ($PermitirRedLocal) {
     Write-Host '  [red] API habilitada temporalmente en la LAN para pruebas del dispositivo.' -ForegroundColor Yellow
+}
+$env:PUSH_PROVIDER = if ($ConPush) { 'expo' } else { 'none' }
+if ($ConPush) {
+    Write-Host '  [push] Proveedor Expo activo: las notificaciones llegan a los dispositivos registrados.' -ForegroundColor Yellow
 }
 New-Item -ItemType Directory -Force -Path $env:APP_UPLOADS_DIR | Out-Null
 Write-Host '  [secretos] Configuracion local segura cargada.' -ForegroundColor Green

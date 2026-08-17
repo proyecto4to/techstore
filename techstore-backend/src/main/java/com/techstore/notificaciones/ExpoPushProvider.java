@@ -2,6 +2,7 @@ package com.techstore.notificaciones;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,12 @@ public class ExpoPushProvider implements PushProvider {
     private final PushProperties properties;
     private final HttpClient httpClient;
 
+    /**
+     * Hay dos constructores —este y el que recibe un cliente HTTP para las
+     * pruebas—, y con más de uno Spring no elige: busca el vacío, no lo encuentra
+     * y la aplicación no arranca. Por eso hay que señalarle cuál usar.
+     */
+    @Autowired
     public ExpoPushProvider(ObjectMapper objectMapper, PushProperties properties) {
         this(objectMapper, properties, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
