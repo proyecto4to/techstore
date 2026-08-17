@@ -10,10 +10,11 @@ Cada push o pull request a `main` ejecuta jobs independientes y sin secretos de 
 - Repositorio: nombres de credenciales, claves/certificados, marcadores de secretos, uso activo de puertos reservados y actions sin SHA completo.
 - Backend: Java 21, `mvn clean verify`, SBOM CycloneDX, política de licencias e inspección del JAR.
 - Frontend: `npm ci`, ESLint, Vitest, build, `npm audit` de producción, SBOM, licencias e inspección de `dist`.
-- Mobile: `npm ci`, TypeScript, ESLint, Jest, validación Maestro, Expo config, Expo Doctor, export Android Hermes, `npm audit`, SBOM, licencias e inspección del export.
 - SAST: CodeQL para Java/Kotlin y JavaScript/TypeScript. En repositorios privados se ejecuta al definir la variable de repositorio `ENABLE_CODEQL=true`, porque depende de que GitHub Advanced Security esté habilitado.
 
-Los jobs tienen `permissions` mínimos, `timeout`, cancelación de ejecuciones obsoletas y acciones fijadas a SHA. Dependabot revisa semanalmente GitHub Actions, Maven y los dos árboles npm.
+Los jobs tienen `permissions` mínimos, `timeout`, cancelación de ejecuciones obsoletas y acciones fijadas a SHA. Dependabot revisa semanalmente GitHub Actions, Maven y el árbol npm de la web.
+
+La aplicación móvil se mudó a [proyecto4to/techstore-mobile](https://github.com/proyecto4to/techstore-mobile) y aplica esta misma política desde su propio workflow, con los mismos gates compartidos. Su baseline y sus particularidades están documentadas allá.
 
 ## Política de dependencias
 
@@ -24,9 +25,6 @@ Baseline al cerrar Fase 14:
 | Árbol | Críticas | Altas | Moderadas |
 | --- | ---: | ---: | ---: |
 | Frontend producción | 0 | 1 | 0 |
-| Mobile producción | 0 | 15 | 8 |
-
-La deuda móvil proviene actualmente del toolchain Expo/Metro. `npm audit fix --force` propone bajar Expo a SDK 53 y está prohibido porque rompe la compatibilidad de SDK 57. Dependabot y Expo Doctor son los mecanismos de seguimiento.
 
 Cada stack genera un SBOM CycloneDX JSON. La revisión automática rechaza licencias de distribución fuerte no aprobadas (AGPL/GPL-3, SSPL, BUSL/Commons Clause); no sustituye una revisión legal previa a publicación comercial.
 
@@ -36,7 +34,6 @@ Cada stack genera un SBOM CycloneDX JSON. La revisión automática rechaza licen
 
 - nuevos `.p12`, `.pfx`, `.pem`, `.key`, `.jks`, `.keystore`, credenciales Google/Firebase/Apple o `.env` reales;
 - marcadores reconocibles de claves privadas y tokens comunes;
-- nombres de secretos de servidor dentro de mobile;
 - uso activo de `8080` o `8181` fuera de documentación;
 - credenciales inyectadas en el workflow;
 - archivos sensibles dentro del JAR, bundle web o export Android.
@@ -59,16 +56,6 @@ cd ..\techstore-frontend
 npm ci
 npm run check
 npm audit --omit=dev --audit-level=critical
-
-cd ..\techstore-mobile
-npm ci
-npm run check
-npm run e2e:validate
-npm run doctor
-$env:EXPO_PUBLIC_APP_ENV = 'preview'
-$env:EXPO_PUBLIC_API_URL = 'http://127.0.0.1:8090/api/v1'
-npx expo export --platform android --output-dir dist-ci
-node ..\scripts\ci-security-check.mjs --artifact dist-ci
 ```
 
 Los puertos `8080` y `8181` permanecen reservados para GeneXus/Tomcat. Metro usa `8081` y la API TechStore usa `8090`.

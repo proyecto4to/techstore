@@ -117,18 +117,14 @@ techstore/
 │       ├── services/           # Cliente Axios con auto-refresh de tokens
 │       ├── store/              # Zustand (sesión persistida)
 │       └── utils/              # Formato de moneda (₲, es-PY)
-├── techstore-mobile/           # Expo SDK 57 (implementación hasta Fase 15)
-│   └── src/
-│       ├── app/                # Expo Router
-│       ├── components/         # Sistema visual TechStore
-│       ├── features/           # Pantallas organizadas por feature
-│       └── theme/              # Tokens oficiales y dark mode único
 └── tools/                      # Maven portable (no versionado)
 ```
 
 ## Aplicación móvil
 
-La aplicación móvil tiene terminados la implementación y los builds técnicos de Fase 15; resta la aceptación manual en el Xiaomi antes de declarar esa fase aceptada. EAS generó APK interno, AAB técnico y development build Android; iOS quedó preparado para credenciales Apple autorizadas y API HTTPS real. Para descargar e instalar, seguí la [entrega APK](docs/mobile/PREVIEW_APK.md). Login, catálogo, favoritos, carrito, direcciones, checkout idempotente, cotización, tracking, pedidos, chat, push, centro de notificaciones y bloqueo biométrico consumen la API configurada.
+La aplicación móvil vive en un repositorio propio: [proyecto4to/techstore-mobile](https://github.com/proyecto4to/techstore-mobile). Ahí están el código Expo, la documentación de sus quince fases y las herramientas de build.
+
+Consume esta API, que sigue siendo la autoridad de permisos, precios, stock, pagos, tenant y fiscalidad. El contrato del que se generan sus tipos es [docs/api/mobile-auth.openapi.yaml](docs/api/mobile-auth.openapi.yaml): si cambia acá, hay que regenerarlos allá.
 
 ## Pruebas
 

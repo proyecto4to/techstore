@@ -39,16 +39,3 @@ updates:
       frontend-dependencies:
         patterns:
           - "*"
-
-  - package-ecosystem: npm
-    directory: /techstore-mobile
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:30"
-      timezone: America/Asuncion
-    open-pull-requests-limit: 5
-    groups:
-      mobile-dependencies:
-        patterns:
-          - "*"
