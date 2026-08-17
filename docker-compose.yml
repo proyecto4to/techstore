@@ -1,16 +1,80 @@
-version: '3.8'
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILES:-5}"
+
+x-mode-guard: &mode-guard
+  image: postgres:15-alpine
+  restart: "no"
+  volumes:
+    - ./docker/validate-config.sh:/docker/validate-config.sh:ro
+  entrypoint: ["sh", "/docker/validate-config.sh"]
+  depends_on:
+    config-guard:
+      condition: service_completed_successfully
+  logging: *default-logging
 
 services:
+  config-guard:
+    image: postgres:15-alpine
+    container_name: techstore-config-guard
+    restart: "no"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en tu archivo .env}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Define APP_DB_PASSWORD en tu archivo .env}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en tu archivo .env}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      TECHSTORE_MODE: ${TECHSTORE_MODE:?Define TECHSTORE_MODE como local, commercial-local o commercial}
+      SELECTED_FRONTEND_PROFILE: ${COMPOSE_PROFILES:?COMPOSE_PROFILES debe seleccionar el mismo perfil que TECHSTORE_MODE}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?Define SPRING_PROFILES_ACTIVE}
+      SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED:?Define SPRINGDOC_ENABLED}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Define PUBLIC_BASE_URL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Define CORS_ALLOWED_ORIGINS}
+      POSTGRES_BIND_ADDRESS: ${POSTGRES_BIND_ADDRESS:-127.0.0.1}
+      BACKEND_BIND_ADDRESS: ${BACKEND_BIND_ADDRESS:-127.0.0.1}
+      FRONTEND_BIND_ADDRESS: ${FRONTEND_BIND_ADDRESS:-127.0.0.1}
+    volumes:
+      - ./docker/validate-config.sh:/docker/validate-config.sh:ro
+    entrypoint: ["sh", "/docker/validate-config.sh"]
+    logging: *default-logging
+
+  mode-guard-local:
+    <<: *mode-guard
+    container_name: techstore-mode-guard-local
+    profiles: ["local"]
+    environment:
+      TECHSTORE_MODE: ${TECHSTORE_MODE:?Define TECHSTORE_MODE}
+      EXPECTED_MODE: local
+
+  mode-guard-commercial-local:
+    <<: *mode-guard
+    container_name: techstore-mode-guard-commercial-local
+    profiles: ["commercial-local"]
+    environment:
+      TECHSTORE_MODE: ${TECHSTORE_MODE:?Define TECHSTORE_MODE}
+      EXPECTED_MODE: commercial-local
+
+  mode-guard-commercial:
+    <<: *mode-guard
+    container_name: techstore-mode-guard-commercial
+    profiles: ["commercial"]
+    environment:
+      TECHSTORE_MODE: ${TECHSTORE_MODE:?Define TECHSTORE_MODE}
+      EXPECTED_MODE: commercial
+
   postgres:
     image: postgres:15-alpine
     container_name: techstore-postgres
+    restart: unless-stopped
+    stop_grace_period: 60s
     environment:
       POSTGRES_DB: techstore_db
       POSTGRES_USER: techstore_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en tu archivo .env (ver .env.example)}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=es_ES.UTF-8"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale-provider=icu --icu-locale=es-PY"
     ports:
-      - "5432:5432"
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,49 +82,91 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    depends_on:
+      config-guard:
+        condition: service_completed_successfully
     networks:
       - techstore-network
+    logging: *default-logging
+
+  db-role-init:
+    image: postgres:15-alpine
+    container_name: techstore-db-role-init
+    restart: "no"
+    environment:
+      POSTGRES_DB: techstore_db
+      POSTGRES_USER: techstore_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en tu archivo .env}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Define APP_DB_PASSWORD en tu archivo .env}
+    volumes:
+      - ./docker/postgres/configure-app-role.sh:/docker/configure-app-role.sh:ro
+    entrypoint: ["sh", "/docker/configure-app-role.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - techstore-network
+    logging: *default-logging
 
   backend:
     build:
       context: ./techstore-backend
       dockerfile: Dockerfile
     container_name: techstore-backend
+    restart: unless-stopped
+    stop_grace_period: 30s
     environment:
       SPRING_APPLICATION_NAME: techstore-api
-      SPRING_PROFILES_ACTIVE: dev
+      SERVER_ADDRESS: 0.0.0.0
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?Define SPRING_PROFILES_ACTIVE}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/techstore_db
-      SPRING_DATASOURCE_USERNAME: techstore_user
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en tu archivo .env (ver .env.example)}
+      SPRING_DATASOURCE_USERNAME: techstore_app
+      SPRING_DATASOURCE_PASSWORD: ${APP_DB_PASSWORD:?Define APP_DB_PASSWORD en tu archivo .env}
+      FLYWAY_DB_URL: jdbc:postgresql://postgres:5432/techstore_db
+      FLYWAY_DB_USERNAME: techstore_user
+      FLYWAY_DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en tu archivo .env}
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en tu archivo .env (ver .env.example)}
+      APP_BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       JWT_EXPIRATION_MS: 900000
       JWT_REFRESH_EXPIRATION_MS: 604800000
-      CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://localhost:3000"
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Define CORS_ALLOWED_ORIGINS}
+      APP_FRONTEND_URL: ${PUBLIC_BASE_URL:?Define PUBLIC_BASE_URL}
+      SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED:?Define SPRINGDOC_ENABLED}
+      APP_UPLOADS_DIR: /data/uploads
       LOGGING_LEVEL_ROOT: INFO
-      LOGGING_LEVEL_COM_TECHSTORE: DEBUG
+      LOGGING_LEVEL_COM_TECHSTORE: ${APP_LOG_LEVEL:-INFO}
+      SERVER_PORT: 8090
     ports:
-      - "8080:8080"
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8090}:8090"
+    volumes:
+      - uploads_data:/data/uploads
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-role-init:
+        condition: service_completed_successfully
     networks:
       - techstore-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
+    logging: *default-logging
 
-  frontend:
+  frontend-local:
+    profiles: ["local"]
     build:
       context: ./techstore-frontend
       dockerfile: Dockerfile.dev
-    container_name: techstore-frontend
+    container_name: techstore-frontend-local
+    restart: unless-stopped
+    stop_grace_period: 15s
     environment:
-      VITE_API_URL: http://localhost:8080/api/v1
+      VITE_API_URL: http://localhost:8090/api/v1
       NODE_ENV: development
     ports:
-      - "5173:5173"
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-5173}:5173"
     volumes:
       - ./techstore-frontend/src:/app/src
       - ./techstore-frontend/public:/app/public
@@ -68,10 +174,58 @@ services:
     networks:
       - techstore-network
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+      mode-guard-local:
+        condition: service_completed_successfully
+    logging: *default-logging
+
+  frontend-commercial-local:
+    profiles: ["commercial-local"]
+    build:
+      context: ./techstore-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+    container_name: techstore-frontend-commercial-local
+    restart: unless-stopped
+    stop_grace_period: 15s
+    ports:
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-5173}:8091"
+    depends_on:
+      backend:
+        condition: service_healthy
+      mode-guard-commercial-local:
+        condition: service_completed_successfully
+    networks:
+      - techstore-network
+    logging: *default-logging
+
+  frontend-commercial:
+    profiles: ["commercial"]
+    build:
+      context: ./techstore-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+    container_name: techstore-frontend-commercial
+    restart: unless-stopped
+    stop_grace_period: 15s
+    ports:
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-5173}:8091"
+    depends_on:
+      backend:
+        condition: service_healthy
+      mode-guard-commercial:
+        condition: service_completed_successfully
+    networks:
+      - techstore-network
+    logging: *default-logging
 
 volumes:
   postgres_data:
+    driver: local
+  uploads_data:
     driver: local
 
 networks:

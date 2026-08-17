@@ -12,8 +12,13 @@ Guía práctica para operar el sistema, escrita para el día a día del negocio
 | **Encender** | Doble clic en el ícono **TechStore** del escritorio. Se abre solo el navegador con la tienda cuando todo está listo (30–60 segundos la primera vez). |
 | **Apagar** | Doble clic en **TechStore - Detener**. También podés simplemente apagar la PC: no se pierde nada, y el próximo inicio se recupera solo. |
 
+Este es el modo **local predeterminado** y conserva los accesos directos
+actuales. El apagado solo detiene los procesos que el propio lanzador registró;
+si 5173, 8090 o 5432 pertenecen a otro programa, TechStore muestra el conflicto
+y no lo cierra.
+
 Direcciones útiles: la tienda vive en `http://localhost:5173` y la
-documentación técnica de la API en `http://localhost:8080/swagger-ui.html`.
+documentación técnica de la API en `http://localhost:8090/swagger-ui.html`.
 
 ## 2. Roles y qué puede hacer cada uno
 
@@ -98,11 +103,31 @@ En Admin → Compras:
 1. Elegí el proveedor (o creálo ahí mismo con *+ Nuevo proveedor*).
 2. Agregá los productos con la **cantidad** y el **costo unitario** que te cobra el proveedor.
 3. *Registrar compra* — queda **Pendiente**, el stock todavía no cambia.
-4. Cuando llega la mercadería: botón **Recibir** → el stock real sube solo.
-5. Botón **Pagar**: podés pagarle **todo en efectivo, todo por transferencia o
+4. Botón **Enviar**: le manda el pedido al proveedor con el detalle de productos,
+   cantidades y total. Elegís el canal — hoy anda el **correo**; WhatsApp aparece
+   pero está deshabilitado, porque mandar en nombre de un negocio exige una
+   cuenta de *WhatsApp Business API* (Meta Cloud API o Twilio), con verificación
+   del negocio y costo por conversación.
+   - El proveedor **puede responderte**: la respuesta llega a la casilla que
+     tengas cargada en Admin → Empresa.
+   - Si el proveedor no tiene correo cargado, el sistema no te deja mandarlo y te
+     dice que lo completes.
+   - **Mandar el pedido no lo confirma.** La compra sigue Pendiente hasta que
+     llegue la mercadería. Si el correo no llega a salir (por ejemplo, si no hay
+     servidor de correo configurado), la compra **no** queda marcada como
+     enviada: te avisa qué pasó en vez de dejarte creyendo que el proveedor lo
+     recibió.
+5. Cuando llega la mercadería: botón **Recibir** → el stock real sube solo.
+6. Botón **Pagar**: podés pagarle **todo en efectivo, todo por transferencia o
    repartido entre los dos**. Cada parte se anota como un egreso separado en la
    caja, para que el arqueo distinga lo que salió del cajón de lo que salió del
    banco. *Recibir* y *Pagar* son independientes: podés hacer uno sin el otro.
+7. Botón **Comprobante**: cargá la factura que mandó el proveedor (número,
+   timbrado y fecha). **Esto no es opcional si vas a presentar libros**: lo que
+   se declara ante la DNIT es el documento del proveedor, no el pedido que
+   cargaste vos. Si dejás los importes vacíos, se toman los de la compra; si el
+   papel dice otra cosa (un flete, una diferencia de precio), cargalos a mano y
+   manda el papel.
 
 ## 6. Caja
 
@@ -211,7 +236,66 @@ Admin → Reportes, con filtro por fechas (Hoy / 7 días / 30 días / Todo):
 - **Productos más vendidos** y **mejores clientes**
 - **Stock bajo** con umbral configurable
 
-## 10. Datos fiscales de la factura
+## 10. Contabilidad: libros de IVA y presentación a la DNIT
+
+Admin → Contabilidad (solo Admin). Tiene cuatro solapas.
+
+### Liquidación del IVA
+
+Lo que cobraste de IVA en las ventas (**débito fiscal**) contra lo que pagaste
+en las compras (**crédito fiscal**). La diferencia es lo que se paga, o lo que
+queda a favor para el período siguiente.
+
+### Libro de ventas y libro de compras
+
+Los comprobantes del período en orden cronológico, con el desglose gravadas al
+10% / al 5% / exentas y el IVA de cada uno. Se exportan a PDF.
+
+- Las facturas **anuladas no aparecen**: un documento anulado no se declara, y
+  el hueco en la numeración es correcto.
+- Las **notas de crédito** figuran en rojo y con signo negativo: restan.
+- El libro de compras va por la **fecha del comprobante del proveedor**, no por
+  la fecha en que cargaste la compra.
+- Con **Desde = Hasta** el libro de ventas te sirve de **cierre diario**.
+
+### Archivo para la DNIT
+
+Genera el ZIP del **Registro de Comprobantes** que se sube a *Marangatu*
+(RG 90/2021, el que reemplazó a Hechauka). Elegís año y mes —o marcás *Registro
+anual*— y te lo descarga con el nombre reglamentario. **Subilo tal cual, sin
+descomprimirlo.**
+
+- El **vencimiento** sale del calendario perpetuo: la última cifra de tu RUC sin
+  dígito verificador decide el día del mes siguiente (0 → 7, 1 → 9, 2 → 11, y
+  así hasta 9 → 25).
+- Si al período le falta algún dato obligatorio **el archivo no se genera**, y
+  la pantalla te lista qué falta. No es una molestia gratuita: Marangatu rechaza
+  el archivo entero, no la fila con el problema.
+- El formato **TXT** viene por defecto porque separa con tabulaciones y no hay
+  forma de que se confunda con el texto de una razón social.
+- **Impuesto a la renta**: elegís si los comprobantes se imputan al IRE o al
+  IRP-RSP. Depende de las obligaciones que tengas inscriptas en el RUC, así que
+  el sistema no lo adivina.
+
+> **Ojo con lo que la DNIT ya tiene.** El archivo no debe incluir comprobantes
+> emitidos por e-Kuatia. Hoy TechStore arma el KuDE pero **no transmite al
+> SIFEN**, así que sus facturas sí van en el archivo. Si algún día se transmite
+> de verdad, esto hay que revisarlo o cada venta quedaría declarada dos veces.
+
+### Qué libros exige la ley, para ubicarse
+
+- **Libro Diario e Inventario**: obligatorios por la Ley 1034/83 "Del
+  Comerciante", rubricados por el **Registro Público de Comercio**, no por la
+  DNIT. Requieren plan de cuentas y partida doble: **el sistema todavía no los
+  lleva**.
+- **Libros de Ventas y Compras (IVA)** y **Libro Mayor**: los pide la RG
+  412/2004. La resolución no fija columnas, solo exige discriminar gravadas,
+  exoneradas y exportación con el IVA por separado — que es lo que imprimen los
+  libros de acá.
+- **Registro de Comprobantes**: es lo que hoy se presenta efectivamente, y es lo
+  que genera la solapa anterior.
+
+## 11. Datos fiscales de la factura
 
 La factura sale con formato oficial DNIT (timbrado, condición de venta,
 columnas de IVA, total en letras). Los datos del **emisor** —los tuyos, los que
@@ -253,7 +337,7 @@ Si querés poner **tu propio logo**, reemplazá estos dos archivos por los tuyos
 > acordate de exportar también el PNG. Y si el archivo faltara, los documentos
 > se emiten igual, solo que sin logo.
 
-## 11. Factura electrónica (SIFEN) — demostrativo
+## 12. Factura electrónica (SIFEN) — demostrativo
 
 En la pestaña **Facturas**, cada factura tiene además de su PDF dos botones:
 
@@ -273,7 +357,7 @@ Los datos fiscales del emisor (RUC, timbrado, establecimiento, punto de
 expedición, actividad económica, ubicación) se configuran en
 `application.properties` bajo `empresa.*`.
 
-## 12. Notificaciones por correo (bandeja de salida)
+## 13. Notificaciones por correo (bandeja de salida)
 
 El sistema **registra un correo** en cada evento importante: emisión de una
 **factura** (con el PDF adjunto), **alta** de un cliente, **cambio** de la
@@ -294,27 +378,38 @@ correo real:
 > Un usuario **desactivado** que intente entrar verá el mensaje *"Tu cuenta
 > está bloqueada o inactiva. Contactá al administrador"* en la pantalla de acceso.
 
-## 13. Respaldos de la base (copias de seguridad)
+## 14. Respaldos y restauración
 
-Tus datos se respaldan **solos**: cada vez que iniciás o detenés el sistema
-con los íconos del escritorio se guarda una copia de la base. Se conservan
-los últimos 20 respaldos en `%LOCALAPPDATA%\TechStore\backups` (fuera de
-OneDrive, a propósito).
+Tus datos se respaldan **solos**: cada vez que iniciás o detenés el modo local
+con los íconos del escritorio se crea un conjunto que contiene la **base**, las
+**fotos/archivos subidos** y un manifiesto con hashes SHA-256. El dump y el ZIP
+se validan antes de publicarse; si el respaldo de cierre falla, PostgreSQL queda
+encendido y se muestra el error. Se conservan los últimos 20 conjuntos en
+`%LOCALAPPDATA%\TechStore\backups` (fuera de OneDrive, a propósito).
 
 - **Respaldar ahora**: ícono **TechStore - Respaldar** (útil antes de una
   carga grande de datos o cualquier cambio importante).
-- **Restaurar**: ícono **TechStore - Restaurar** → te muestra la lista de
-  copias con su fecha, elegís una y confirmás escribiendo `SI`. Reemplaza el
-  contenido actual por el de esa copia. Después volvé a iniciar TechStore.
+- **Restaurar**: ícono **TechStore - Restaurar** → te muestra la lista, valida
+  dump, manifiesto, hashes y ZIP, y pide confirmación escribiendo `RESTAURAR`.
+  Para una copia antigua sin manifiesto exige `RESTAURAR-SOLO-BD`. Antes de
+  reemplazar nada crea otro respaldo de seguridad. La base se restaura en una
+  transacción y los uploads se intercambian con rollback razonable si algo
+  falla. Después volvé a iniciar TechStore con el acceso directo habitual.
+
+Los respaldos antiguos que no tienen manifiesto siguen siendo compatibles,
+pero restauran únicamente la base y dejan los uploads actuales sin cambios.
+Estos íconos administran la instalación **local/portable**; una instalación
+Docker comercial debe respaldar externamente ambos volúmenes (`postgres_data`
+y `uploads_data`) y ensayar su procedimiento de restauración.
 
 > Si borraste algo por error o la base se dañó, restaurá el respaldo más
 > reciente y perdés, como mucho, lo hecho desde ese momento.
 
-## 14. Preguntas frecuentes
+## 15. Preguntas frecuentes
 
 **Se apagó la PC de golpe, ¿perdí datos?**
 No. La base de datos se recupera sola en el próximo inicio, y además hay
-respaldos automáticos (ver sección 13) por si alguna vez hiciera falta.
+respaldos automáticos (ver sección 14) por si alguna vez hiciera falta.
 
 **Me olvidé la contraseña de admin.**
 Otro Admin puede resetearla desde Usuarios. Si no hay otro, contactá soporte técnico.
@@ -326,3 +421,35 @@ configuración aparte (consultá soporte técnico).
 **¿Un cliente puede ver los datos de otro?**
 No: cada cliente ve solo sus pedidos y facturas; las pantallas de
 administración exigen rol Admin o Cajero.
+
+## 16. Puesta en marcha comercial
+
+El modo local y sus accesos directos siguen siendo la opción predeterminada.
+El perfil Docker `commercial` empaqueta el frontend para operación estable,
+pero **no convierte por sí solo al sistema en un servicio público ni en una
+solución fiscal homologada**.
+
+Checklist de instalación:
+
+1. Instalar Docker con Compose y un proxy inverso capaz de administrar TLS.
+2. Copiar `.env.commercial.example` como `.env.commercial`. Reemplazar los tres
+   placeholders: contraseña administrativa de PostgreSQL, contraseña distinta
+   para `techstore_app` y `JWT_SECRET` aleatorio de 32 caracteres o más.
+3. Definir `PUBLIC_BASE_URL` y `CORS_ALLOWED_ORIGINS` con el dominio `https://`
+   real. El perfil rechaza modo `dev`, Swagger habilitado, HTTP y placeholders.
+4. Iniciar con
+   `docker compose --env-file .env.commercial --profile commercial up -d --build`.
+5. Configurar el proxy HTTPS para apuntar a `127.0.0.1:5173`. No publicar los
+   puertos 5432 (PostgreSQL) ni 8090 (API) hacia Internet.
+6. Cambiar de inmediato las cuentas de demostración (`admin123`,
+   `cajero1234`) y crear usuarios nominales con el mínimo rol necesario.
+7. Configurar copias externas cifradas de `postgres_data` y `uploads_data`,
+   con retención, copia fuera del servidor y una restauración ensayada.
+8. Configurar monitoreo, alertas, actualizaciones, políticas de privacidad y
+   controles legales/fiscales aplicables antes de atender clientes reales.
+
+> ⚠️ **SIFEN sigue siendo demostrativo y no homologado.** Usa un certificado
+> de prueba y no transmite a la DNIT. Para emitir comprobantes electrónicos con
+> validez legal hacen falta habilitación, timbrado y certificado válidos, además
+> de integrar y homologar los web services oficiales. No se debe vender como
+> facturación electrónica operativa mientras esos pasos no estén completos.

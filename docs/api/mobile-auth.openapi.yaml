@@ -1,0 +1,1459 @@
+openapi: 3.1.0
+info:
+  title: TechStore Mobile API
+  version: 1.6.0
+  description: Contrato versionado de autenticación, catálogo, carrito, direcciones, checkout y envíos consumido por TechStore Mobile.
+servers:
+  - url: http://localhost:8090/api/v1
+    description: Backend local
+tags:
+  - name: Autenticación
+  - name: Catálogo
+  - name: Favoritos
+  - name: Carrito
+  - name: Direcciones
+  - name: Checkout
+  - name: Envíos
+  - name: Mensajería
+paths:
+  /auth/login:
+    post:
+      operationId: login
+      tags: [Autenticación]
+      summary: Iniciar sesión
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Sesión iniciada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+  /auth/registro:
+    post:
+      operationId: registrar
+      tags: [Autenticación]
+      summary: Crear cuenta de cliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistroRequest'
+      responses:
+        '201':
+          description: Cuenta creada y sesión iniciada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /auth/refresh:
+    post:
+      operationId: refresh
+      tags: [Autenticación]
+      summary: Rotar la sesión refresh
+      description: >-
+        El refresh JWT viaja en el cuerpo y también como Bearer para resolver de
+        forma firmada el tenant antes de consultar la sesión. Nunca autentica
+        peticiones de negocio como si fuera un access token.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token anterior revocado y nuevo par emitido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [Autenticación]
+      summary: Cerrar la sesión actual
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '204':
+          description: Sesión revocada
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+  /auth/me:
+    get:
+      operationId: me
+      tags: [Autenticación]
+      summary: Obtener el perfil autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil actual
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+  /productos:
+    get:
+      operationId: listarProductos
+      tags: [Catálogo]
+      summary: Listar el catálogo público
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: marcaId
+          in: query
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: disponible
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: ['nombre,asc', 'precio,asc', 'precio,desc', 'createdAt,desc']
+      responses:
+        '200':
+          description: Página de productos visibles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+  /productos/{id}:
+    get:
+      operationId: obtenerProducto
+      tags: [Catálogo]
+      summary: Obtener un producto público visible
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Producto visible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoPublicResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /marcas:
+    get:
+      operationId: listarMarcas
+      tags: [Catálogo]
+      summary: Listar marcas activas
+      responses:
+        '200':
+          description: Marcas disponibles para filtrar
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MarcaResponse'
+  /favoritos:
+    get:
+      operationId: listarFavoritos
+      tags: [Favoritos]
+      summary: Listar mis productos favoritos visibles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Favoritos del usuario
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FavoritoResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+  /favoritos/{productoId}:
+    post:
+      operationId: agregarFavorito
+      tags: [Favoritos]
+      summary: Guardar un producto como favorito
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductoId'
+      responses:
+        '201':
+          description: Favorito guardado o ya existente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoritoResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: quitarFavorito
+      tags: [Favoritos]
+      summary: Quitar un producto de favoritos
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductoId'
+      responses:
+        '204':
+          description: Favorito eliminado o ya ausente
+        '401':
+          $ref: '#/components/responses/Problem'
+  /carrito/validar:
+    post:
+      operationId: validarCarrito
+      tags: [Carrito]
+      summary: Revalidar precios y disponibilidad sin reservar stock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidarCarritoRequest'
+      responses:
+        '200':
+          description: Estado canónico del carrito
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidacionCarritoResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+  /direcciones:
+    get:
+      operationId: listarDirecciones
+      tags: [Direcciones]
+      summary: Listar mis direcciones de entrega
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Direcciones propias, principal primero
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DireccionEntregaResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: crearDireccion
+      tags: [Direcciones]
+      summary: Crear una dirección de entrega
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DireccionEntregaRequest'
+      responses:
+        '201':
+          description: Dirección creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DireccionEntregaResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+  /direcciones/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DireccionId'
+    get:
+      operationId: obtenerDireccion
+      tags: [Direcciones]
+      summary: Obtener una dirección propia
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dirección encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DireccionEntregaResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: actualizarDireccion
+      tags: [Direcciones]
+      summary: Actualizar una dirección propia
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DireccionEntregaRequest'
+      responses:
+        '200':
+          description: Dirección actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DireccionEntregaResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: eliminarDireccion
+      tags: [Direcciones]
+      summary: Eliminar una dirección propia
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Dirección eliminada
+        '404':
+          $ref: '#/components/responses/Problem'
+  /envios/cotizar:
+    post:
+      operationId: cotizarEnvio
+      tags: [Envíos]
+      summary: Cotizar las opciones vigentes para una dirección y carrito
+      description: El backend aplica ciudad, departamento, peso, subtotal, promociones y umbrales de envío gratis.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CotizarEnvioRequest'
+      responses:
+        '200':
+          description: Opciones configuradas y revalidadas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CotizacionEnvioResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+  /envios/pedidos/{pedidoId}:
+    get:
+      operationId: trackingEnvio
+      tags: [Envíos]
+      summary: Consultar el seguimiento de un pedido propio
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: pedidoId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Envío y línea temporal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvioResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /conversaciones:
+    get:
+      operationId: listarConversaciones
+      tags: [Mensajería]
+      summary: Listar conversaciones propias, más recientes primero
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        '200':
+          description: Página de conversaciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversacionPage'
+        '401':
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: crearConversacion
+      tags: [Mensajería]
+      summary: Crear o reutilizar una conversación abierta y enviar su primer mensaje
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearConversacionRequest'
+      responses:
+        '201':
+          description: Conversación y primer mensaje persistidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversacionCreadaResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+  /conversaciones/{conversacionId}:
+    get:
+      operationId: obtenerConversacion
+      tags: [Mensajería]
+      summary: Obtener una conversación propia
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ConversacionId'
+      responses:
+        '200':
+          description: Conversación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversacionResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /conversaciones/{conversacionId}/mensajes:
+    get:
+      operationId: historialMensajes
+      tags: [Mensajería]
+      summary: Recuperar historial paginado, más reciente primero
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ConversacionId'
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Página de mensajes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MensajePage'
+        '404':
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: enviarMensajeRest
+      tags: [Mensajería]
+      summary: Enviar de forma idempotente; también se distribuye por STOMP
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ConversacionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnviarMensajeRequest'
+      responses:
+        '201':
+          description: Mensaje persistido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MensajeResponse'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+  /conversaciones/{conversacionId}/leido:
+    put:
+      operationId: marcarConversacionLeida
+      tags: [Mensajería]
+      summary: Marcar como leídos los mensajes de la otra parte
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ConversacionId'
+      responses:
+        '200':
+          description: Estado de lectura
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LecturaResponse'
+  /pedidos:
+    get:
+      operationId: listarMisPedidos
+      tags: [Checkout]
+      summary: Listar el historial paginado del usuario autenticado
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: ['fecha,desc']
+      responses:
+        '200':
+          description: Página de pedidos propios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoPage'
+        '401':
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: checkout
+      tags: [Checkout]
+      summary: Confirmar checkout de forma idempotente
+      description: La misma clave y el mismo cuerpo siempre devuelven el mismo pedido sin volver a comprometer stock.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '201':
+          description: Pedido creado o recuperado por la clave idempotente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /pedidos/{pedidoId}:
+    get:
+      operationId: obtenerMiPedido
+      tags: [Checkout]
+      summary: Obtener el detalle de un pedido propio
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PedidoId'
+      responses:
+        '200':
+          description: Detalle del pedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoResponse'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /pedidos/{pedidoId}/cancelar:
+    put:
+      operationId: cancelarMiPedido
+      tags: [Checkout]
+      summary: Cancelar un pedido propio todavía pendiente
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PedidoId'
+      responses:
+        '200':
+          description: Pedido cancelado y stock liberado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+components:
+  parameters:
+    ProductoId:
+      name: productoId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    DireccionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    PedidoId:
+      name: pedidoId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    ConversacionId:
+      name: conversacionId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Problem:
+      description: Error RFC 7807
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+  schemas:
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 1
+          maxLength: 100
+    RegistroRequest:
+      type: object
+      additionalProperties: false
+      required: [nombre, apellido, email, password]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 100
+        apellido:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$'
+    RefreshTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          minLength: 1
+    UsuarioResponse:
+      type: object
+      additionalProperties: false
+      required: [id, email, nombre, apellido, rol]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        nombre:
+          type: string
+        apellido:
+          type: string
+        rol:
+          type: string
+        ruc:
+          type: [string, 'null']
+        razonSocial:
+          type: [string, 'null']
+    AuthResponse:
+      type: object
+      additionalProperties: false
+      required: [accessToken, refreshToken, tokenType, expiresInMs, usuario]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          const: Bearer
+        expiresInMs:
+          type: integer
+          format: int64
+          minimum: 1
+        usuario:
+          $ref: '#/components/schemas/UsuarioResponse'
+    MarcaResponse:
+      type: object
+      additionalProperties: false
+      required: [id, nombre]
+      properties:
+        id:
+          type: integer
+          format: int64
+        nombre:
+          type: string
+    ModeloRef:
+      type: object
+      additionalProperties: false
+      required: [id, nombre]
+      properties:
+        id:
+          type: integer
+          format: int64
+        nombre:
+          type: string
+    ProductoPublicResponse:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, moneda, precio, iva, disponible]
+      properties:
+        id:
+          type: integer
+          format: int64
+        nombre:
+          type: string
+        descripcion:
+          type: [string, 'null']
+        moneda:
+          type: string
+          enum: [PYG, USD]
+        precio:
+          type: number
+          minimum: 0
+        iva:
+          type: integer
+          minimum: 0
+          maximum: 100
+        disponible:
+          type: boolean
+        marca:
+          oneOf:
+            - $ref: '#/components/schemas/MarcaResponse'
+            - type: 'null'
+        modelo:
+          oneOf:
+            - $ref: '#/components/schemas/ModeloRef'
+            - type: 'null'
+        imagenUrl:
+          type: [string, 'null']
+    ProductoPage:
+      type: object
+      additionalProperties: false
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductoPublicResponse'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    FavoritoResponse:
+      type: object
+      additionalProperties: false
+      required: [producto, creadoEn]
+      properties:
+        producto:
+          $ref: '#/components/schemas/ProductoPublicResponse'
+        creadoEn:
+          type: string
+          format: date-time
+    ValidarCarritoRequest:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/ItemCarrito'
+    ItemCarrito:
+      type: object
+      additionalProperties: false
+      required: [productoId, cantidad]
+      properties:
+        productoId:
+          type: integer
+          format: int64
+          minimum: 1
+        cantidad:
+          type: integer
+          minimum: 1
+          maximum: 99
+    EstadoLineaCarrito:
+      type: string
+      enum: [DISPONIBLE, NO_ENCONTRADO, NO_DISPONIBLE, CANTIDAD_INSUFICIENTE, CANTIDAD_EXCESIVA]
+    LineaCarritoResponse:
+      type: object
+      additionalProperties: false
+      required: [productoId, cantidad, estado]
+      properties:
+        productoId:
+          type: integer
+          format: int64
+          minimum: 1
+        cantidad:
+          type: integer
+          minimum: 1
+        estado:
+          $ref: '#/components/schemas/EstadoLineaCarrito'
+        producto:
+          oneOf:
+            - $ref: '#/components/schemas/ProductoPublicResponse'
+            - type: 'null'
+        subtotal:
+          type: [number, 'null']
+          minimum: 0
+    ValidacionCarritoResponse:
+      type: object
+      additionalProperties: false
+      required: [valido, items, totales]
+      properties:
+        valido:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaCarritoResponse'
+        totales:
+          type: object
+          additionalProperties:
+            type: number
+            minimum: 0
+    DireccionEntregaRequest:
+      type: object
+      additionalProperties: false
+      required: [nombreDestinatario, telefono, departamento, ciudad, direccionLinea1]
+      properties:
+        nombreDestinatario:
+          type: string
+          minLength: 1
+          maxLength: 120
+        telefono:
+          type: string
+          minLength: 1
+          maxLength: 30
+          description: Se acepta con o sin +595; el servidor lo normaliza a E.164.
+        departamento:
+          type: string
+          minLength: 1
+          maxLength: 80
+        ciudad:
+          type: string
+          minLength: 1
+          maxLength: 100
+        barrio:
+          type: [string, 'null']
+          maxLength: 100
+        direccionLinea1:
+          type: string
+          minLength: 1
+          maxLength: 200
+        direccionLinea2:
+          type: [string, 'null']
+          maxLength: 200
+        numeroCasa:
+          type: [string, 'null']
+          maxLength: 40
+        referencia:
+          type: [string, 'null']
+          maxLength: 300
+        codigoPostal:
+          type: [string, 'null']
+          maxLength: 20
+        latitud:
+          type: [number, 'null']
+          minimum: -90
+          maximum: 90
+        longitud:
+          type: [number, 'null']
+          minimum: -180
+          maximum: 180
+        principal:
+          type: boolean
+          default: false
+    DireccionEntregaResponse:
+      allOf:
+        - $ref: '#/components/schemas/DireccionEntregaRequest'
+        - type: object
+          required: [id, telefono, principal, createdAt, updatedAt]
+          properties:
+            id:
+              type: integer
+              format: int64
+            telefono:
+              type: string
+              pattern: '^\+595[0-9]{8,10}$'
+            principal:
+              type: boolean
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    MetodoEntrega:
+      type: string
+      enum: [RETIRO_TIENDA, ENVIO_DOMICILIO]
+    MetodoPagoCheckout:
+      type: string
+      enum: [PAGO_EN_LOCAL, TRANSFERENCIA_BANCARIA]
+    CheckoutRequest:
+      type: object
+      additionalProperties: false
+      required: [items, direccionEntregaId, metodoEntrega, metodoPago, tarifaEnvioId]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/ItemCarrito'
+        notas:
+          type: [string, 'null']
+          maxLength: 1000
+        direccionEntregaId:
+          type: integer
+          format: int64
+          minimum: 1
+        metodoEntrega:
+          $ref: '#/components/schemas/MetodoEntrega'
+        metodoPago:
+          $ref: '#/components/schemas/MetodoPagoCheckout'
+        tarifaEnvioId:
+          type: integer
+          format: int64
+          minimum: 1
+    TipoEnvio:
+      type: string
+      enum: [RETIRO_TIENDA, ENTREGA_LOCAL, OTRA_CIUDAD, OTRO_DEPARTAMENTO, TRANSPORTADORA]
+    EstadoEnvio:
+      type: string
+      enum: [PENDIENTE, PREPARANDO, LISTO_PARA_ENVIO, DESPACHADO, EN_CAMINO, INTENTO_ENTREGA, ENTREGADO, CANCELADO]
+    CotizarEnvioRequest:
+      type: object
+      additionalProperties: false
+      required: [direccionEntregaId, items]
+      properties:
+        direccionEntregaId:
+          type: integer
+          format: int64
+          minimum: 1
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/ItemCarrito'
+    CotizacionEnvioResponse:
+      type: object
+      additionalProperties: false
+      required: [tarifaId, codigo, nombre, tipo, providerCode, costo, moneda, iva, gratis, pesoTotalKg, fechaEstimadaDesde, fechaEstimadaHasta]
+      properties:
+        tarifaId:
+          type: integer
+          format: int64
+        codigo:
+          type: string
+        nombre:
+          type: string
+        descripcion:
+          type: [string, 'null']
+        tipo:
+          $ref: '#/components/schemas/TipoEnvio'
+        providerCode:
+          type: string
+        transportista:
+          type: [string, 'null']
+        costo:
+          type: number
+          minimum: 0
+        moneda:
+          type: string
+          enum: [PYG, USD]
+        iva:
+          type: number
+          enum: [0, 5, 10]
+        gratis:
+          type: boolean
+        pesoTotalKg:
+          type: number
+          minimum: 0
+        fechaEstimadaDesde:
+          type: string
+          format: date
+        fechaEstimadaHasta:
+          type: string
+          format: date
+    EnvioEventoResponse:
+      type: object
+      additionalProperties: false
+      required: [id, estado, descripcion, fechaHora]
+      properties:
+        id:
+          type: integer
+          format: int64
+        estado:
+          $ref: '#/components/schemas/EstadoEnvio'
+        descripcion:
+          type: string
+        fechaHora:
+          type: string
+          format: date-time
+        ubicacion:
+          type: [string, 'null']
+    EnvioResponse:
+      type: object
+      additionalProperties: false
+      required: [id, pedidoId, pedidoNumero, tipo, providerCode, codigoSeguimiento, costo, moneda, iva, estado, eventos]
+      properties:
+        id:
+          type: integer
+          format: int64
+        pedidoId:
+          type: integer
+          format: int64
+        pedidoNumero:
+          type: integer
+        tipo:
+          $ref: '#/components/schemas/TipoEnvio'
+        providerCode:
+          type: string
+        transportista:
+          type: [string, 'null']
+        codigoSeguimiento:
+          type: [string, 'null']
+        costo:
+          type: number
+          minimum: 0
+        moneda:
+          type: string
+          enum: [PYG, USD]
+        iva:
+          type: number
+          enum: [0, 5, 10]
+        fechaEstimadaDesde:
+          type: [string, 'null']
+          format: date
+        fechaEstimadaHasta:
+          type: [string, 'null']
+          format: date
+        fechaDespacho:
+          type: [string, 'null']
+          format: date-time
+        fechaEntrega:
+          type: [string, 'null']
+          format: date-time
+        estado:
+          $ref: '#/components/schemas/EstadoEnvio'
+        observaciones:
+          type: [string, 'null']
+        eventos:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnvioEventoResponse'
+    DireccionPedidoResponse:
+      type: object
+      required: [id, nombreDestinatario, telefono, departamento, ciudad, direccionLinea1]
+      properties:
+        id:
+          type: integer
+          format: int64
+        nombreDestinatario:
+          type: string
+        telefono:
+          type: string
+        departamento:
+          type: string
+        ciudad:
+          type: string
+        barrio:
+          type: [string, 'null']
+        direccionLinea1:
+          type: string
+        direccionLinea2:
+          type: [string, 'null']
+        numeroCasa:
+          type: [string, 'null']
+        referencia:
+          type: [string, 'null']
+        codigoPostal:
+          type: [string, 'null']
+        latitud:
+          type: [number, 'null']
+        longitud:
+          type: [number, 'null']
+    PedidoDetalleResponse:
+      type: object
+      required: [productoId, productoNombre, cantidad, precioUnitario, subtotal, ivaAplicado]
+      properties:
+        productoId:
+          type: integer
+          format: int64
+        productoNombre:
+          type: string
+        cantidad:
+          type: integer
+          minimum: 1
+        precioUnitario:
+          type: number
+        subtotal:
+          type: number
+        ivaAplicado:
+          type: integer
+    PedidoResumenResponse:
+      type: object
+      additionalProperties: false
+      required: [id, numero, tipo, estado, fecha, moneda, total, usuarioEmail]
+      properties:
+        id:
+          type: integer
+          format: int64
+        numero:
+          type: integer
+        tipo:
+          type: string
+        estado:
+          type: string
+          enum: [P, C, G, N, R, X]
+        fecha:
+          type: string
+          format: date-time
+        moneda:
+          type: string
+          enum: [PYG, USD]
+        total:
+          type: number
+          minimum: 0
+        usuarioEmail:
+          type: string
+          format: email
+        clienteRuc:
+          type: [string, 'null']
+        clienteRazonSocial:
+          type: [string, 'null']
+    PedidoPage:
+      type: object
+      additionalProperties: false
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/PedidoResumenResponse'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    PedidoResponse:
+      type: object
+      required: [id, numero, tipo, estado, fecha, moneda, total, subtotalProductos, costoEnvio, ivaEnvio, metodoEntrega, metodoPago, usuarioEmail, detalles]
+      properties:
+        id:
+          type: integer
+          format: int64
+        numero:
+          type: integer
+        tipo:
+          type: string
+        estado:
+          type: string
+        fecha:
+          type: string
+          format: date-time
+        moneda:
+          type: string
+          enum: [PYG, USD]
+        total:
+          type: number
+        subtotalProductos:
+          type: number
+        costoEnvio:
+          type: number
+        ivaEnvio:
+          type: number
+          enum: [0, 5, 10]
+        notas:
+          type: [string, 'null']
+        metodoEntrega:
+          $ref: '#/components/schemas/MetodoEntrega'
+        metodoPago:
+          $ref: '#/components/schemas/MetodoPagoCheckout'
+        direccionEntrega:
+          oneOf:
+            - $ref: '#/components/schemas/DireccionPedidoResponse'
+            - type: 'null'
+        usuarioEmail:
+          type: string
+          format: email
+        detalles:
+          type: array
+          items:
+            $ref: '#/components/schemas/PedidoDetalleResponse'
+    CrearConversacionRequest:
+      type: object
+      additionalProperties: false
+      required: [clientMessageId, mensaje]
+      properties:
+        pedidoId:
+          type: [integer, 'null']
+          format: int64
+          minimum: 1
+        clientMessageId:
+          type: string
+          minLength: 1
+          maxLength: 100
+        mensaje:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    EnviarMensajeRequest:
+      type: object
+      additionalProperties: false
+      required: [clientMessageId, contenido]
+      properties:
+        clientMessageId:
+          type: string
+          minLength: 1
+          maxLength: 100
+        contenido:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    MensajeResponse:
+      type: object
+      additionalProperties: false
+      required: [id, conversacionId, clientMessageId, tipo, contenido, remitenteId, remitenteNombre, remitenteEmail, remitenteRol, enviadoEn]
+      properties:
+        id: { type: integer, format: int64, minimum: 1 }
+        conversacionId: { type: integer, format: int64, minimum: 1 }
+        clientMessageId: { type: string }
+        tipo: { type: string, enum: [TEXTO, IMAGEN, SISTEMA] }
+        contenido: { type: string }
+        remitenteId: { type: integer, format: int64, minimum: 1 }
+        remitenteNombre: { type: string }
+        remitenteEmail: { type: string, format: email }
+        remitenteRol: { type: string }
+        enviadoEn: { type: string, format: date-time }
+        entregadoEn: { type: [string, 'null'], format: date-time }
+        leidoEn: { type: [string, 'null'], format: date-time }
+    ConversacionResponse:
+      type: object
+      additionalProperties: false
+      required: [id, estado, clienteId, clienteNombre, clienteEmail, noLeidos, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int64, minimum: 1 }
+        estado: { type: string, enum: [ABIERTA, CERRADA] }
+        clienteId: { type: integer, format: int64, minimum: 1 }
+        clienteNombre: { type: string }
+        clienteEmail: { type: string, format: email }
+        pedidoId: { type: [integer, 'null'], format: int64 }
+        pedidoNumero: { type: [integer, 'null'] }
+        ultimoMensaje:
+          oneOf:
+            - $ref: '#/components/schemas/MensajeResponse'
+            - type: 'null'
+        noLeidos: { type: integer, format: int64, minimum: 0 }
+        ultimoMensajeEn: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ConversacionCreadaResponse:
+      type: object
+      additionalProperties: false
+      required: [conversacion, mensaje]
+      properties:
+        conversacion: { $ref: '#/components/schemas/ConversacionResponse' }
+        mensaje: { $ref: '#/components/schemas/MensajeResponse' }
+    LecturaResponse:
+      type: object
+      additionalProperties: false
+      required: [conversacionId, lectorEmail, mensajes, leidoEn]
+      properties:
+        conversacionId: { type: integer, format: int64 }
+        lectorEmail: { type: string, format: email }
+        mensajes: { type: integer, minimum: 0 }
+        leidoEn: { type: string, format: date-time }
+    ConversacionPage:
+      type: object
+      additionalProperties: false
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items: { $ref: '#/components/schemas/ConversacionResponse' }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1 }
+        totalElements: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    MensajePage:
+      type: object
+      additionalProperties: false
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items: { $ref: '#/components/schemas/MensajeResponse' }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1 }
+        totalElements: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+        errores:
+          type: object
+          additionalProperties:
+            type: string

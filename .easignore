@@ -1,0 +1,63 @@
+# EAS parte de la raíz Git: excluir todo lo ajeno a la app móvil.
+/.git/
+/.github/
+/artifacts/
+/docker/
+/docs/
+/scripts/
+/techstore-backend/
+/techstore-frontend/
+/tools/
+/*.ps1
+/*.md
+/docker-compose.yml
+/.env*
+/secrets.local.ps1*
+/email.local.ps1*
+
+# Dependencias y salidas locales de mobile
+/techstore-mobile/node_modules/
+/techstore-mobile/.expo/
+/techstore-mobile/dist/
+/techstore-mobile/dist-*/
+/techstore-mobile/web-build/
+/techstore-mobile/coverage/
+/techstore-mobile/artifacts/
+
+# Configuración local y credenciales
+/techstore-mobile/.env*
+!/techstore-mobile/.env.example
+/techstore-mobile/*.jks
+/techstore-mobile/*.keystore
+/techstore-mobile/*.p8
+/techstore-mobile/*.p12
+/techstore-mobile/*.pfx
+/techstore-mobile/*.pem
+/techstore-mobile/*.key
+/techstore-mobile/*.mobileprovision
+/techstore-mobile/google-services.json
+/techstore-mobile/GoogleService-Info.plist
+/techstore-mobile/credentials.json
+
+# Fuentes que no forman parte del binario
+/techstore-mobile/tests/
+/techstore-mobile/e2e/
+/techstore-mobile/scripts/
+/techstore-mobile/docs/
+/techstore-mobile/AGENTS.md
+/techstore-mobile/README.md
+/techstore-mobile/LICENSE
+/techstore-mobile/openapi-ts.config.ts
+
+# Nativos generados mediante CNG/EAS Prebuild
+/techstore-mobile/android/
+/techstore-mobile/ios/
+/techstore-mobile/.kotlin/
+
+# Archivos de editor/SO/log
+/techstore-mobile/.DS_Store
+/techstore-mobile/*.log
+/techstore-mobile/*.orig.*
+/techstore-mobile/*.tsbuildinfo
+/techstore-mobile/.vscode/
+/techstore-mobile/.idea/

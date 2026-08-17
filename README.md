@@ -7,7 +7,7 @@ Sistema de e-commerce full-stack: **Spring Boot 3.2 (Java 21) + React 18 + Postg
 | Capa | Tecnología |
 |---|---|
 | Backend | Spring Boot 3.2, Spring Security (JWT), Spring Data JPA, Flyway, MapStruct, Lombok, springdoc-openapi |
-| Frontend | React 18, Vite 5, Tailwind CSS 3, React Router 6, TanStack Query 5, Zustand, Axios |
+| Frontend | React 18, Vite 8.1, Tailwind CSS 3, React Router 7, TanStack Query 5, Zustand, Axios |
 | Base de datos | PostgreSQL 15 (migraciones versionadas con Flyway) |
 | Infraestructura | Docker Compose (postgres + backend + frontend) |
 
@@ -20,13 +20,33 @@ Sistema de e-commerce full-stack: **Spring Boot 3.2 (Java 21) + React 18 + Postg
 
 En el escritorio de Windows: **TechStore** levanta PostgreSQL + backend + frontend y abre la tienda;
 **TechStore - Detener** apaga todo. (Los scripts viven en la raíz del repo:
-`iniciar-techstore.ps1` / `detener-techstore.ps1`.)
+`iniciar-techstore.ps1` / `detener-techstore.ps1`.) Este sigue siendo el modo
+local predeterminado: conserva el JAR y los accesos directos actuales. El
+lanzador exige secretos válidos y el cierre solo detiene PIDs registrados por
+TechStore; si otro programa ocupa un puerto, se informa el conflicto sin matarlo.
 
 ### Opción A — Docker (requiere Docker Desktop)
 
-```bash
-docker-compose up --build
+```powershell
+Copy-Item .env.example .env
+# Edita .env y reemplaza todos los placeholders.
+docker compose up -d --build
 ```
+
+El `.env.example` activa el perfil `local` (Vite con recarga). Para una
+instalación comercial se parte de `.env.commercial.example`:
+
+```powershell
+Copy-Item .env.commercial.example .env.commercial
+# Define tres secretos fuertes, distintos cuando corresponda, y el dominio HTTPS.
+docker compose --env-file .env.commercial --profile commercial up -d --build
+```
+
+El perfil `commercial` compila el frontend y lo sirve con nginx sin privilegios.
+PostgreSQL y la API quedan ligados a `127.0.0.1`; un proxy inverso del host debe
+publicar **solo** el frontend con HTTPS. La aplicación conecta como
+`techstore_app` (sin superusuario ni `BYPASSRLS`), mientras Flyway usa el rol
+migrador. Base y archivos subidos persisten en `postgres_data` y `uploads_data`.
 
 ### Opción B — Manual con PostgreSQL portable (sin Docker)
 
@@ -55,9 +75,9 @@ tools\pgsql\bin\pg_ctl.exe -D "$env:LOCALAPPDATA\TechStore\pgdata" stop
 | Servicio | URL |
 |---|---|
 | Frontend | http://localhost:5173 |
-| API | http://localhost:8080 |
-| Swagger UI | http://localhost:8080/swagger-ui.html |
-| Health check | http://localhost:8080/actuator/health |
+| API | http://localhost:8090 |
+| Swagger UI | http://localhost:8090/swagger-ui.html |
+| Health check | http://localhost:8090/actuator/health |
 
 **Credenciales de prueba:** `admin@techstore.py` / `admin123`
 
@@ -97,8 +117,18 @@ techstore/
 │       ├── services/           # Cliente Axios con auto-refresh de tokens
 │       ├── store/              # Zustand (sesión persistida)
 │       └── utils/              # Formato de moneda (₲, es-PY)
+├── techstore-mobile/           # Expo SDK 57 (implementación hasta Fase 15)
+│   └── src/
+│       ├── app/                # Expo Router
+│       ├── components/         # Sistema visual TechStore
+│       ├── features/           # Pantallas organizadas por feature
+│       └── theme/              # Tokens oficiales y dark mode único
 └── tools/                      # Maven portable (no versionado)
 ```
+
+## Aplicación móvil
+
+La aplicación móvil tiene terminados la implementación y los builds técnicos de Fase 15; resta la aceptación manual en el Xiaomi antes de declarar esa fase aceptada. EAS generó APK interno, AAB técnico y development build Android; iOS quedó preparado para credenciales Apple autorizadas y API HTTPS real. Para descargar e instalar, seguí la [entrega APK](docs/mobile/PREVIEW_APK.md). Login, catálogo, favoritos, carrito, direcciones, checkout idempotente, cotización, tracking, pedidos, chat, push, centro de notificaciones y bloqueo biométrico consumen la API configurada.
 
 ## Pruebas
 
@@ -113,7 +143,7 @@ cd techstore-backend
 ```
 
 Las de integración (`*IT.java`) levantan **PostgreSQL 15 real** como proceso
-hijo, corren las 22 migraciones desde cero sobre una base vacía y ejercitan la
+hijo, corren las 42 migraciones desde cero sobre una base vacía y ejercitan la
 API por HTTP con JWT. Verifican lo que ningún unitario puede: que el esquema y
 las entidades no se hayan desincronizado, que la seguridad no deje un endpoint
 abierto, y que cobrar descuente stock, mueva la caja y emita factura.
@@ -135,10 +165,16 @@ mvn -q org.codehaus.mojo:exec-maven-plugin:3.1.0:java \
 
 ## Antes de producción
 
-- [ ] Cambiar `JWT_SECRET` (mínimo 32 caracteres aleatorios) — variable de entorno.
-- [ ] Cambiar credenciales de PostgreSQL y del usuario admin.
-- [ ] Restringir `CORS_ALLOWED_ORIGINS` al dominio real.
-- [ ] Desactivar Swagger UI o protegerlo (`springdoc.swagger-ui.enabled=false`).
+- [ ] Usar `.env.commercial` con el perfil `commercial`; el modo `local` es para desarrollo/uso en esta PC.
+- [ ] Reemplazar `JWT_SECRET` y las dos contraseñas de PostgreSQL; la clave runtime debe ser distinta de la administrativa.
+- [ ] Cambiar o eliminar inmediatamente todos los usuarios y contraseñas de demostración.
+- [ ] Publicar únicamente mediante un proxy HTTPS y limitar `CORS_ALLOWED_ORIGINS` al dominio real; no exponer 5432 ni 8090.
+- [ ] Mantener Swagger desactivado (`SPRINGDOC_ENABLED=false`, exigido por el perfil comercial).
+- [ ] Automatizar respaldos externos de `postgres_data` y `uploads_data`, y ensayar una restauración antes de operar.
+- [ ] Completar revisión legal, fiscal, privacidad, monitoreo y actualizaciones de seguridad.
+- [ ] **No usar la salida SIFEN como comprobante legal:** hoy es demostrativa, usa certificado de prueba, no está homologada y no transmite a DNIT.
+
+La lista operativa ampliada está en la sección **Puesta en marcha comercial** de [MANUAL.md](MANUAL.md).
 
 ## Roadmap
 
@@ -147,5 +183,5 @@ mvn -q org.codehaus.mojo:exec-maven-plugin:3.1.0:java \
 3. ~~Carrito de compras (Zustand) + checkout con control de stock~~ ✅
 4. ~~Pagos y facturación con IVA + panel admin de pedidos~~ ✅
 5. ~~Panel admin de productos (CRUD desde la web) y reportes de ventas~~ ✅
-6. ~~Tests de integración con PostgreSQL real~~ ✅ (sin Docker) · CI/CD pendiente
+6. ~~Tests de integración con PostgreSQL real + CI/CD de backend/web/mobile~~ ✅ (sin Docker local)
 7. Deploy (AWS / DigitalOcean)

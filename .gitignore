@@ -1,6 +1,7 @@
 techstore-backend/target/
 techstore-frontend/node_modules/
 techstore-frontend/dist/
+artifacts/
 tools/
 *.dump
 .DS_Store
@@ -10,4 +11,20 @@ tools/
 *.swp
 email.local.ps1
 secrets.local.ps1
-.env
+
+# Configuración local y credenciales
+.env*
+!.env.example
+!.env.commercial.example
+*.p8
+*.p12
+*.pfx
+*.pem
+*.key
+*.jks
+*.keystore
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+service-account*.json
+credentials.json

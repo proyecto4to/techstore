@@ -1,145 +1,232 @@
-# Lanzador de TechStore: levanta PostgreSQL, backend y frontend, y abre la tienda.
+# Lanzador local/portable: PostgreSQL, JAR del backend, Vite y navegador.
+param(
+    [switch]$PermitirRedLocal
+)
+
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-
-# Credenciales SMTP opcionales para el ENVIO REAL de correos (archivo local, ignorado por git).
-# Copia 'email.local.ps1.ejemplo' como 'email.local.ps1' y poné tu casilla + contraseña de aplicacion.
-$emailLocal = Join-Path $root 'email.local.ps1'
-if (Test-Path $emailLocal) {
-    . $emailLocal
-    Write-Host '  [correo] Credenciales SMTP cargadas: envio de correos REAL activo.' -ForegroundColor Green
-}
-
-# Secretos de JWT y base de datos (archivo local, ignorado por git).
-# Copia 'secrets.local.ps1.ejemplo' como 'secrets.local.ps1' con tus propios valores.
-$secretsLocal = Join-Path $root 'secrets.local.ps1'
-if (Test-Path $secretsLocal) {
-    . $secretsLocal
-    Write-Host '  [secretos] JWT_SECRET y password de BD cargados desde secrets.local.ps1.' -ForegroundColor Green
-} else {
-    Write-Host '  [secretos] AVISO: secrets.local.ps1 no existe, usando valores por defecto (solo para pruebas).' -ForegroundColor Yellow
-}
-
-$pgData = "$env:LOCALAPPDATA\TechStore\pgdata"
-$pgLog = "$env:LOCALAPPDATA\TechStore\pg.log"
+$techStoreLocal = Join-Path $env:LOCALAPPDATA 'TechStore'
+$runDir = Join-Path $techStoreLocal 'run'
+$pgData = Join-Path $techStoreLocal 'pgdata'
+$pgLog = Join-Path $techStoreLocal 'pg.log'
 $pgCtl = Join-Path $root 'tools\pgsql\bin\pg_ctl.exe'
+$pgIsReady = Join-Path $root 'tools\pgsql\bin\pg_isready.exe'
+$backendDir = Join-Path $root 'techstore-backend'
+$frontendDir = Join-Path $root 'techstore-frontend'
+$backendJar = Join-Path $backendDir 'target\techstore-backend-1.0.0.jar'
 
 Write-Host ''
 Write-Host '  ============================' -ForegroundColor DarkYellow
-Write-Host '     TechStore - Iniciando'    -ForegroundColor DarkYellow
+Write-Host '     TechStore - Iniciando' -ForegroundColor DarkYellow
 Write-Host '  ============================' -ForegroundColor DarkYellow
 Write-Host ''
+
+function Fallar($mensaje) {
+    Write-Host "  ERROR: $mensaje" -ForegroundColor Red
+    Write-Host '  No se modificaron procesos ajenos.' -ForegroundColor DarkGray
+    exit 1
+}
 
 function Test-Url($url) {
-    try { Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3 | Out-Null; $true } catch { $false }
+    try { Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3 | Out-Null; return $true }
+    catch { return $false }
 }
 
-# 1) PostgreSQL
+function Get-PidPuerto([int]$puerto) {
+    $conexion = Get-NetTCPConnection -LocalPort $puerto -State Listen -ErrorAction SilentlyContinue |
+        Sort-Object OwningProcess | Select-Object -First 1
+    if ($null -eq $conexion) { return $null }
+    return [int]$conexion.OwningProcess
+}
+
+function Test-ProcesoTechStore([int]$idProceso, $tipo) {
+    try {
+        $proceso = Get-Process -Id $idProceso -ErrorAction Stop
+        $cim = Get-CimInstance Win32_Process -Filter "ProcessId = $idProceso" -ErrorAction Stop
+        $linea = [string]$cim.CommandLine
+        if ($tipo -eq 'backend') {
+            return ($proceso.ProcessName -in @('java', 'javaw') -and
+                $linea -match 'techstore-backend-.*\.jar' -and
+                $linea -match '-Dtechstore\.launcher=local-portable')
+        }
+        if ($tipo -eq 'frontend') {
+            return ($proceso.ProcessName -eq 'node' -and
+                $linea -match '[\\/]vite[\\/]bin[\\/]vite\.js' -and
+                $linea.IndexOf($frontendDir, [StringComparison]::OrdinalIgnoreCase) -ge 0)
+        }
+        return $false
+    } catch {
+        return $false
+    }
+}
+
+function Registrar-Proceso([int]$idProceso, $nombre) {
+    $proceso = Get-Process -Id $idProceso -ErrorAction Stop
+    $registro = [ordered]@{
+        pid = $idProceso
+        startedUtc = $proceso.StartTime.ToUniversalTime().ToString('o')
+        kind = $nombre
+    }
+    $registro | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runDir "$nombre.pid.json") -Encoding UTF8
+}
+
+function Registrar-PuertoTechStore([int]$puerto, $tipo) {
+    $idProceso = Get-PidPuerto $puerto
+    if ($null -ne $idProceso -and (Test-ProcesoTechStore $idProceso $tipo)) {
+        Registrar-Proceso $idProceso $tipo
+        return $true
+    }
+    return $false
+}
+
+foreach ($requerido in @($pgCtl, $pgIsReady, $backendJar)) {
+    if (-not (Test-Path -LiteralPath $requerido)) { Fallar "no se encontro $requerido" }
+}
+if (-not (Get-Command java -ErrorAction SilentlyContinue)) { Fallar 'Java 21 no esta disponible en PATH.' }
+if (-not (Get-Command node.exe -ErrorAction SilentlyContinue)) { Fallar 'Node.js no esta disponible en PATH.' }
+if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) { Fallar 'Node/npm no esta disponible en PATH.' }
+$versionNodeTexto = (& node.exe --version 2>$null).TrimStart('v')
+$versionNode = $null
+if (-not [version]::TryParse($versionNodeTexto, [ref]$versionNode) -or
+    -not (($versionNode.Major -eq 20 -and $versionNode -ge [version]'20.19.0') -or $versionNode -ge [version]'22.12.0')) {
+    Fallar "Vite 8 requiere Node 20.19+ o 22.12+; se encontro $versionNodeTexto"
+}
+if (-not (Test-Path -LiteralPath $pgData)) { Fallar "no existe la base local en $pgData" }
+New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+
+$secretsLocal = Join-Path $root 'secrets.local.ps1'
+if (-not (Test-Path -LiteralPath $secretsLocal)) {
+    Fallar 'falta secrets.local.ps1. Copia secrets.local.ps1.ejemplo y reemplaza todos los valores.'
+}
+. $secretsLocal
+
+if ([string]::IsNullOrWhiteSpace($env:JWT_SECRET) -or $env:JWT_SECRET.Length -lt 32 -or $env:JWT_SECRET -match 'reemplaza|change.?me') {
+    Fallar 'JWT_SECRET falta, es corto o sigue siendo un placeholder.'
+}
+if ([string]::IsNullOrWhiteSpace($env:SPRING_DATASOURCE_PASSWORD) -or $env:SPRING_DATASOURCE_PASSWORD.Length -lt 16 -or $env:SPRING_DATASOURCE_PASSWORD -match 'reemplaza|techstore_pass_dev') {
+    Fallar 'la contraseña administrativa de PostgreSQL falta o sigue siendo insegura.'
+}
+if ([string]::IsNullOrWhiteSpace($env:APP_DB_PASSWORD) -or $env:APP_DB_PASSWORD.Length -lt 16 -or $env:APP_DB_PASSWORD -match 'reemplaza') {
+    Fallar 'APP_DB_PASSWORD falta o es insegura. Ejecuta configurar-rol-app.ps1 una vez.'
+}
+if ($env:APP_DB_PASSWORD -eq $env:SPRING_DATASOURCE_PASSWORD) {
+    Fallar 'APP_DB_PASSWORD debe ser distinta de la contraseña administrativa.'
+}
+
+$env:APP_UPLOADS_DIR = if ($env:APP_UPLOADS_DIR) { $env:APP_UPLOADS_DIR } else { Join-Path $techStoreLocal 'uploads' }
+# El modo portable es realmente local: ni la API ni sus endpoints de
+# administración deben escuchar en la red doméstica por accidente.
+$env:SERVER_ADDRESS = if ($PermitirRedLocal) { '0.0.0.0' } else { '127.0.0.1' }
+$env:CORS_ALLOWED_ORIGINS = 'http://localhost:5173'
+if ($PermitirRedLocal) {
+    Write-Host '  [red] API habilitada temporalmente en la LAN para pruebas del dispositivo.' -ForegroundColor Yellow
+}
+New-Item -ItemType Directory -Force -Path $env:APP_UPLOADS_DIR | Out-Null
+Write-Host '  [secretos] Configuracion local segura cargada.' -ForegroundColor Green
+
+$emailLocal = Join-Path $root 'email.local.ps1'
+if (Test-Path -LiteralPath $emailLocal) {
+    . $emailLocal
+    Write-Host '  [correo] Credenciales SMTP cargadas: envio real activo.' -ForegroundColor Green
+}
+
+# 1) PostgreSQL portable. Solo se administra el clúster de TechStore.
 & $pgCtl -D $pgData status *> $null
-if ($LASTEXITCODE -ne 0) {
+$postgresActivo = ($LASTEXITCODE -eq 0)
+if (-not $postgresActivo) {
+    $ocupantePg = Get-PidPuerto 5432
+    if ($null -ne $ocupantePg) { Fallar "el puerto 5432 ya pertenece al PID $ocupantePg" }
     Write-Host '  [1/3] Iniciando PostgreSQL...' -NoNewline
-    # Start-Process sin -Wait a proposito: en PowerShell 5.1, "&" con
-    # redireccion queda esperando la tuberia que hereda postgres, y -Wait
-    # espera al arbol completo de procesos (postgres incluido). El sondeo
-    # de estado de abajo es el que espera a que el servidor este listo.
-    Start-Process -FilePath $pgCtl `
-        -ArgumentList "-D `"$pgData`" -l `"$pgLog`" start" `
-        -WindowStyle Hidden
-    $intentosPg = 0
-    do {
+    Start-Process -FilePath $pgCtl -ArgumentList "-D `"$pgData`" -l `"$pgLog`" start" -WindowStyle Hidden
+    for ($i = 0; $i -lt 30; $i++) {
         & $pgCtl -D $pgData status *> $null
-        if ($LASTEXITCODE -eq 0) { break }
-        Start-Sleep -Seconds 2; $intentosPg++
-    } while ($intentosPg -lt 15)
-    if ($intentosPg -ge 15) { Write-Host ' NO ARRANCO (ver pg.log)' -ForegroundColor Red }
-    else { Write-Host ' listo' -ForegroundColor Green }
+        if ($LASTEXITCODE -eq 0) { $postgresActivo = $true; break }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $postgresActivo) { Write-Host ' fallo' -ForegroundColor Red; Fallar 'PostgreSQL no arranco; revisa pg.log.' }
+    Write-Host ' listo' -ForegroundColor Green
 } else {
     Write-Host '  [1/3] PostgreSQL ya estaba corriendo' -ForegroundColor Green
 }
 
-# El postmaster puede estar "corriendo" pero aun en recuperacion, rechazando
-# conexiones; si el backend arranca en ese momento, muere. pg_isready espera
-# a que la base acepte conexiones de verdad.
-$pgIsReady = Join-Path $root 'tools\pgsql\bin\pg_isready.exe'
-Write-Host '        Esperando a que la base acepte conexiones...' -NoNewline
-$intentosListo = 0
-do {
-    & $pgIsReady -h localhost -p 5432 *> $null
-    if ($LASTEXITCODE -eq 0) { break }
-    Start-Sleep -Seconds 2; $intentosListo++
-} while ($intentosListo -lt 30)
-if ($intentosListo -ge 30) { Write-Host ' SIN RESPUESTA' -ForegroundColor Red }
-else { Write-Host ' lista' -ForegroundColor Green }
-
-# Respaldo automatico al arrancar: la base ya se recupero y acepta
-# conexiones, asi que este dump es de un estado sano.
-& (Join-Path $root 'backup-techstore.ps1')
-
-# La aplicacion corre con un rol SIN privilegios de administrador: asi las
-# politicas de Row Level Security se le aplican de verdad, y una eventual
-# inyeccion SQL no llega al sistema operativo.
-# Flyway se queda con el rol administrador, que necesita para crear y alterar
-# tablas y para ver todas las empresas al migrar.
-# Va DESPUES del respaldo a proposito: backup-techstore.ps1 vuelve a cargar
-# secrets.local.ps1 y dejaria SPRING_DATASOURCE_PASSWORD con la clave del
-# administrador mientras el usuario ya es techstore_app.
-# Si todavia no se corrio configurar-rol-app.ps1, todo sigue como antes.
-if ($env:APP_DB_PASSWORD) {
-    $env:FLYWAY_DB_USERNAME = if ($env:SPRING_DATASOURCE_USERNAME) { $env:SPRING_DATASOURCE_USERNAME } else { 'techstore_user' }
-    $env:FLYWAY_DB_PASSWORD = $env:SPRING_DATASOURCE_PASSWORD
-    $env:SPRING_DATASOURCE_USERNAME = 'techstore_app'
-    $env:SPRING_DATASOURCE_PASSWORD = $env:APP_DB_PASSWORD
-    Write-Host '  [base] La app conecta como techstore_app (sin superusuario); Flyway migra como administrador.' -ForegroundColor Green
-} else {
-    Write-Host '  [base] AVISO: la app conecta como superusuario. Corre configurar-rol-app.ps1 para cerrarlo.' -ForegroundColor Yellow
+Write-Host '        Esperando conexiones...' -NoNewline
+$baseLista = $false
+for ($i = 0; $i -lt 30; $i++) {
+    & $pgIsReady -h localhost -p 5432 -d techstore_db *> $null
+    if ($LASTEXITCODE -eq 0) { $baseLista = $true; break }
+    Start-Sleep -Seconds 2
 }
+if (-not $baseLista) { Write-Host ' sin respuesta' -ForegroundColor Red; Fallar 'PostgreSQL no acepta conexiones.' }
+Write-Host ' lista' -ForegroundColor Green
 
-# 2) Backend
-if (-not (Test-Url 'http://localhost:8080/actuator/health')) {
-    Write-Host '  [2/3] Iniciando backend (Spring Boot)...' -NoNewline
-    # Si quedo un java colgado en el puerto 8080 (p. ej. sin base de datos), se baja primero.
-    $ocupantes = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue
-    foreach ($idProc in ($ocupantes.OwningProcess | Sort-Object -Unique)) {
-        try {
-            if ((Get-Process -Id $idProc -ErrorAction Stop).ProcessName -eq 'java') {
-                Stop-Process -Id $idProc -Force
-            }
-        } catch { }
-    }
-    # Ruta relativa a proposito: PowerShell 5.1 no agrega comillas a argumentos
-    # con espacios y esta ruta de usuario los tiene ("Dell Vostro").
-    Start-Process -FilePath 'java' `
-        -ArgumentList '-jar', 'target\techstore-backend-1.0.0.jar' `
-        -WorkingDirectory "$root\techstore-backend" -WindowStyle Minimized
-    $intentos = 0
-    while (-not (Test-Url 'http://localhost:8080/actuator/health') -and $intentos -lt 70) {
-        Start-Sleep -Seconds 3; $intentos++
-    }
-    if ($intentos -ge 70) { Write-Host ' NO RESPONDE (ver consola de java)' -ForegroundColor Red }
-    else { Write-Host ' listo' -ForegroundColor Green }
-} else {
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'backup-techstore.ps1') -Silencioso
+if ($LASTEXITCODE -ne 0) { Fallar 'el respaldo automatico no pudo validarse; no se iniciara la aplicacion.' }
+Write-Host '  [backup] Respaldo automatico verificado.' -ForegroundColor Green
+
+# Flyway migra como administrador; el runtime usa techstore_app sin BYPASSRLS.
+$env:FLYWAY_DB_USERNAME = if ($env:SPRING_DATASOURCE_USERNAME) { $env:SPRING_DATASOURCE_USERNAME } else { 'techstore_user' }
+$env:FLYWAY_DB_PASSWORD = $env:SPRING_DATASOURCE_PASSWORD
+$env:SPRING_DATASOURCE_USERNAME = 'techstore_app'
+$env:SPRING_DATASOURCE_PASSWORD = $env:APP_DB_PASSWORD
+Write-Host '  [base] Runtime sin superusuario; Flyway conserva el rol migrador.' -ForegroundColor Green
+
+# 2) Backend JAR. Nunca se mata un ocupante desconocido del puerto.
+if (Test-Url 'http://localhost:8090/actuator/health') {
+    $registrado = Registrar-PuertoTechStore 8090 'backend'
     Write-Host '  [2/3] Backend ya estaba corriendo' -ForegroundColor Green
+    if (-not $registrado) { Write-Host '        Proceso no registrado: el cierre no lo detendra.' -ForegroundColor Yellow }
+} else {
+    $ocupanteBackend = Get-PidPuerto 8090
+    if ($null -ne $ocupanteBackend) { Fallar "el puerto 8090 ya pertenece al PID $ocupanteBackend" }
+    Write-Host '  [2/3] Iniciando backend (Spring Boot)...' -NoNewline
+    $procesoBackend = Start-Process -FilePath 'java' -ArgumentList '-Dtechstore.launcher=local-portable', '-jar', 'target\techstore-backend-1.0.0.jar' `
+        -WorkingDirectory $backendDir -WindowStyle Minimized -PassThru
+    Registrar-Proceso $procesoBackend.Id 'backend'
+    $backendListo = $false
+    for ($i = 0; $i -lt 70; $i++) {
+        if (Test-Url 'http://localhost:8090/actuator/health') { $backendListo = $true; break }
+        if ($procesoBackend.HasExited) { break }
+        Start-Sleep -Seconds 3
+    }
+    if (-not $backendListo) {
+        Write-Host ' no responde' -ForegroundColor Red
+        Stop-Process -Id $procesoBackend.Id -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath (Join-Path $runDir 'backend.pid.json') -Force -ErrorAction SilentlyContinue
+        Fallar 'el backend no inicio; revisa la consola de Java.'
+    }
+    Write-Host ' listo' -ForegroundColor Green
 }
 
-# 3) Frontend
-if (-not (Test-Url 'http://localhost:5173')) {
-    Write-Host '  [3/3] Iniciando frontend (Vite)...' -NoNewline
-    Start-Process -FilePath 'cmd' -ArgumentList '/c', 'npm run dev' `
-        -WorkingDirectory "$root\techstore-frontend" -WindowStyle Minimized
-    $intentos = 0
-    while (-not (Test-Url 'http://localhost:5173') -and $intentos -lt 20) {
-        Start-Sleep -Seconds 2; $intentos++
-    }
-    if ($intentos -ge 20) { Write-Host ' NO RESPONDE' -ForegroundColor Red }
-    else { Write-Host ' listo' -ForegroundColor Green }
-} else {
+# 3) Frontend Vite, manteniendo el flujo usado por los accesos directos.
+if (Test-Url 'http://localhost:5173') {
+    $registrado = Registrar-PuertoTechStore 5173 'frontend'
     Write-Host '  [3/3] Frontend ya estaba corriendo' -ForegroundColor Green
+    if (-not $registrado) { Write-Host '        Proceso no registrado: el cierre no lo detendra.' -ForegroundColor Yellow }
+} else {
+    $ocupanteFrontend = Get-PidPuerto 5173
+    if ($null -ne $ocupanteFrontend) { Fallar "el puerto 5173 ya pertenece al PID $ocupanteFrontend" }
+    Write-Host '  [3/3] Iniciando frontend (Vite)...' -NoNewline
+    Start-Process -FilePath 'cmd.exe' -ArgumentList '/d', '/c', 'npm run dev' `
+        -WorkingDirectory $frontendDir -WindowStyle Minimized
+    $frontendListo = $false
+    for ($i = 0; $i -lt 30; $i++) {
+        if (Test-Url 'http://localhost:5173') { $frontendListo = $true; break }
+        Start-Sleep -Seconds 2
+    }
+    if (-not $frontendListo) { Write-Host ' no responde' -ForegroundColor Red; Fallar 'el frontend no inicio.' }
+    if (-not (Registrar-PuertoTechStore 5173 'frontend')) {
+        Write-Host ' listo, sin PID verificable' -ForegroundColor Yellow
+        Write-Host '        El cierre no detendra un proceso que no pueda identificar.' -ForegroundColor Yellow
+    } else {
+        Write-Host ' listo' -ForegroundColor Green
+    }
 }
 
 Write-Host ''
-Write-Host '  Tienda:  http://localhost:5173'  -ForegroundColor Cyan
-Write-Host '  API:     http://localhost:8080'  -ForegroundColor Cyan
-Write-Host '  Swagger: http://localhost:8080/swagger-ui.html' -ForegroundColor Cyan
+Write-Host '  Tienda:  http://localhost:5173' -ForegroundColor Cyan
+Write-Host '  API:     http://localhost:8090' -ForegroundColor Cyan
+Write-Host '  Swagger: http://localhost:8090/swagger-ui.html' -ForegroundColor Cyan
 Write-Host ''
 Start-Process 'http://localhost:5173'
 Start-Sleep -Seconds 3
+exit 0
