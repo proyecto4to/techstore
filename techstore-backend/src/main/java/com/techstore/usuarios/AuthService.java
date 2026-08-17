@@ -5,8 +5,6 @@ import com.techstore.comun.RucParaguayo;
 import com.techstore.notificaciones.CorreoService;
 import com.techstore.notificaciones.EmailTemplateService;
 import com.techstore.notificaciones.TipoCorreo;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,6 +25,7 @@ public class AuthService {
     private final RolRepository rolRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshSessionService refreshSessionService;
     private final CorreoService correoService;
     private final EmailTemplateService emailTemplateService;
     private final LoginRateLimiter loginRateLimiter;
@@ -95,24 +94,15 @@ public class AuthService {
         return buildAuthResponse(usuario);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(noRollbackFor = BadCredentialsException.class)
     public AuthResponse refresh(RefreshTokenRequest request) {
-        Claims claims;
-        try {
-            claims = jwtService.parseToken(request.refreshToken());
-        } catch (JwtException ex) {
-            throw new BadCredentialsException("Refresh token inválido o expirado");
-        }
+        RefreshSessionService.Rotacion rotacion = refreshSessionService.rotar(request.refreshToken());
+        return buildAuthResponse(rotacion.usuario(), rotacion.refreshToken());
+    }
 
-        if (!jwtService.isRefreshToken(claims)) {
-            throw new BadCredentialsException("El token provisto no es un refresh token");
-        }
-
-        Usuario usuario = usuarioRepository.findByEmail(claims.getSubject())
-                .filter(u -> Boolean.TRUE.equals(u.getActivo()))
-                .orElseThrow(() -> new BadCredentialsException("Usuario inexistente o inactivo"));
-
-        return buildAuthResponse(usuario);
+    @Transactional
+    public void logout(RefreshTokenRequest request) {
+        refreshSessionService.revocar(request.refreshToken());
     }
 
     /**
@@ -150,6 +140,7 @@ public class AuthService {
         }
         usuario.setPasswordHash(passwordEncoder.encode(request.passwordNueva()));
         usuarioRepository.save(usuario);
+        refreshSessionService.revocarTodas(usuario);
 
         correoService.enviar(
                 TipoCorreo.CAMBIO_PASSWORD,
@@ -175,9 +166,13 @@ public class AuthService {
     }
 
     private AuthResponse buildAuthResponse(Usuario usuario) {
+        return buildAuthResponse(usuario, refreshSessionService.crear(usuario));
+    }
+
+    private AuthResponse buildAuthResponse(Usuario usuario, String refreshToken) {
         return new AuthResponse(
                 jwtService.generateAccessToken(usuario),
-                jwtService.generateRefreshToken(usuario),
+                refreshToken,
                 "Bearer",
                 jwtService.getAccessExpirationMs(),
                 UsuarioResponse.from(usuario));

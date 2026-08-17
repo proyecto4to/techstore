@@ -4,6 +4,7 @@ import com.techstore.catalogo.Producto;
 import com.techstore.comun.BusinessException;
 import com.techstore.comun.ConMoneda;
 import com.techstore.comun.Dinero;
+import com.techstore.comun.LineaGravada;
 import com.techstore.comun.Moneda;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -29,7 +30,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
-public class PedidoDetalle implements ConMoneda {
+public class PedidoDetalle implements ConMoneda, LineaGravada {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -117,7 +118,7 @@ public class PedidoDetalle implements ConMoneda {
         if (rebaja.esNegativo()) {
             throw new BusinessException("ventas.descuento.negativo", producto.getNombre());
         }
-        if (rebaja.mayorQue(precioUnitario)) {
+        if (rebaja.compareTo(precioUnitario) >= 0) {
             throw new BusinessException("ventas.descuento.mayor.al.precio",
                     producto.getNombre(), rebaja.plano(), precioUnitario.plano());
         }

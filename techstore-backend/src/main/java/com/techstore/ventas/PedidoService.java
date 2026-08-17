@@ -8,9 +8,11 @@ import com.techstore.comun.Dinero;
 import com.techstore.comun.Moneda;
 import com.techstore.comun.PageResponse;
 import com.techstore.comun.ResourceNotFoundException;
-import com.techstore.notificaciones.CorreoService;
-import com.techstore.notificaciones.EmailTemplateService;
-import com.techstore.notificaciones.TipoCorreo;
+import com.techstore.direcciones.DireccionEntrega;
+import com.techstore.direcciones.DireccionEntregaService;
+import com.techstore.envios.CotizacionEnvio;
+import com.techstore.envios.EnvioService;
+import com.techstore.notificaciones.outbox.NotificationOutboxPublisher;
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +23,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
+import java.util.HexFormat;
 import java.util.Map;
+import java.util.TreeMap;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 @Service
 @RequiredArgsConstructor
@@ -34,8 +41,9 @@ public class PedidoService {
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
     private final PedidoMapper pedidoMapper;
-    private final CorreoService correoService;
-    private final EmailTemplateService emailTemplateService;
+    private final NotificationOutboxPublisher notificationPublisher;
+    private final DireccionEntregaService direccionEntregaService;
+    private final EnvioService envioService;
 
     /**
      * Crea un pedido de venta en estado Pendiente comprometiendo el stock.
@@ -44,13 +52,52 @@ public class PedidoService {
      */
     @Transactional
     public PedidoResponse checkout(String emailUsuario, CheckoutRequest request) {
-        Usuario usuario = usuarioRepository.findByEmail(emailUsuario)
+        return checkout(emailUsuario, request, null);
+    }
+
+    /**
+     * Ejecuta un checkout idempotente cuando llega una clave. El bloqueo de la
+     * fila del usuario hace que dos solicitudes concurrentes con la misma clave
+     * se procesen en serie, antes de tocar stock.
+     */
+    @Transactional
+    public PedidoResponse checkout(String emailUsuario, CheckoutRequest request, String idempotencyKey) {
+        String clave = normalizarClave(idempotencyKey);
+        Usuario usuario = (clave == null
+                ? usuarioRepository.findByEmail(emailUsuario)
+                : usuarioRepository.findByEmailForUpdate(emailUsuario))
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
 
         // Fusiona items repetidos del mismo producto (la BD exige unicidad pedido+producto).
         Map<Long, Integer> cantidades = new LinkedHashMap<>();
         for (CheckoutRequest.ItemCarrito item : request.items()) {
             cantidades.merge(item.productoId(), item.cantidad(), Integer::sum);
+        }
+
+        MetodoEntrega metodoEntrega = request.metodoEntrega() == null
+                ? MetodoEntrega.RETIRO_TIENDA
+                : request.metodoEntrega();
+        MetodoPagoCheckout metodoPago = request.metodoPago() == null
+                ? MetodoPagoCheckout.PAGO_EN_LOCAL
+                : request.metodoPago();
+        String hash = clave == null ? null : hashSolicitud(request, cantidades, metodoEntrega, metodoPago);
+
+        if (clave != null) {
+            var existente = pedidoRepository.findWithDetallesByUsuarioIdAndIdempotencyKey(usuario.getId(), clave);
+            if (existente.isPresent()) {
+                Pedido pedidoExistente = existente.get();
+                if (!hash.equals(pedidoExistente.getIdempotencyRequestHash())) {
+                    throw new BusinessException("ventas.checkout.idempotencia.conflicto");
+                }
+                return pedidoMapper.toResponse(pedidoExistente);
+            }
+        }
+
+        DireccionEntrega direccion = request.direccionEntregaId() == null
+                ? null
+                : direccionEntregaService.buscarPropia(usuario, request.direccionEntregaId());
+        if (metodoEntrega == MetodoEntrega.ENVIO_DOMICILIO && direccion == null) {
+            throw new BusinessException("ventas.checkout.direccion.requerida");
         }
 
         Map<Long, Producto> productos = productoRepository.findAllForUpdate(cantidades.keySet()).stream()
@@ -61,6 +108,11 @@ public class PedidoService {
         pedido.setEstado(EstadoPedido.P);
         pedido.setUsuario(usuario);
         pedido.setNotas(request.notas());
+        pedido.setDireccionEntrega(DireccionPedidoSnapshot.desde(direccion));
+        pedido.setMetodoEntrega(metodoEntrega);
+        pedido.setMetodoPago(metodoPago);
+        pedido.setIdempotencyKey(clave);
+        pedido.setIdempotencyRequestHash(hash);
         pedido.setNumero(autonumeradorService.siguiente(ENTIDAD_PEDIDO));
         // La moneda del pedido es la del catálogo; los detalles heredan la suya de acá.
         pedido.setMoneda(Moneda.porDefecto());
@@ -94,30 +146,49 @@ public class PedidoService {
             total = total.mas(detalle.getSubtotal());
         }
 
-        pedido.setTotal(total);
+        Map<Producto, Integer> itemsEnvio = new LinkedHashMap<>();
+        cantidades.forEach((id, cantidad) -> itemsEnvio.put(productos.get(id), cantidad));
+        CotizacionEnvio cotizacion = envioService.seleccionar(
+                direccion, itemsEnvio, total, request.tarifaEnvioId(), metodoEntrega);
+        pedido.setCostoEnvio(cotizacion.costo());
+        pedido.setIvaEnvio(cotizacion.iva());
+        pedido.setTotal(total.mas(cotizacion.costo()));
         Pedido guardado = pedidoRepository.save(pedido);
-        enviarConfirmacionPedido(usuario, guardado);
+        envioService.registrar(guardado, direccion, cotizacion);
+        notificationPublisher.pedidoCreado(guardado);
         return pedidoMapper.toResponse(guardado);
     }
 
-    /** Avisa al cliente por correo que recibimos su pedido (bandeja de salida). */
-    private void enviarConfirmacionPedido(Usuario cliente, Pedido pedido) {
-        String cuerpo = emailTemplateService.construir(
-                TipoCorreo.PEDIDO,
-                "¡Recibimos tu pedido!",
-                cliente.getNombre(),
-                "Tu pedido N.º " + pedido.getNumero() + " quedó en estado Pendiente y el stock reservado "
-                        + "a tu nombre. Cuando lo confirmemos y cobremos, te enviaremos la factura por este medio.",
-                "Total: " + pedido.getTotal(),
-                "VER MIS PEDIDOS",
-                emailTemplateService.url("/pedidos"));
-        correoService.enviar(
-                TipoCorreo.PEDIDO,
-                cliente.getEmail(),
-                cliente.getNombre() + " " + cliente.getApellido(),
-                "Recibimos tu pedido N.º " + pedido.getNumero() + " — TechStore",
-                cuerpo,
-                "PEDIDO-" + pedido.getNumero());
+    private String normalizarClave(String idempotencyKey) {
+        if (idempotencyKey == null) {
+            return null;
+        }
+        String clave = idempotencyKey.trim();
+        if (clave.isEmpty() || clave.length() > 100) {
+            throw new BusinessException("ventas.checkout.idempotencia.invalida");
+        }
+        return clave;
+    }
+
+    private String hashSolicitud(CheckoutRequest request,
+                                 Map<Long, Integer> cantidades,
+                                 MetodoEntrega metodoEntrega,
+                                 MetodoPagoCheckout metodoPago) {
+        StringBuilder canonica = new StringBuilder();
+        new TreeMap<>(cantidades).forEach((productoId, cantidad) ->
+                canonica.append(productoId).append(':').append(cantidad).append(';'));
+        canonica.append('|').append(request.notas() == null ? "" : request.notas());
+        canonica.append('|').append(request.direccionEntregaId() == null ? "" : request.direccionEntregaId());
+        canonica.append('|').append(metodoEntrega.name());
+        canonica.append('|').append(metodoPago.name());
+        canonica.append('|').append(request.tarifaEnvioId() == null ? "" : request.tarifaEnvioId());
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(canonica.toString().getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 no está disponible", ex);
+        }
     }
 
     /**
@@ -140,7 +211,10 @@ public class PedidoService {
         }
 
         pedido.setEstado(EstadoPedido.C);
-        return pedidoMapper.toResponse(pedidoRepository.save(pedido));
+        envioService.pedidoConfirmado(pedido);
+        Pedido guardado = pedidoRepository.save(pedido);
+        notificationPublisher.pedidoConfirmado(guardado);
+        return pedidoMapper.toResponse(guardado);
     }
 
     /**
@@ -162,7 +236,10 @@ public class PedidoService {
         }
 
         pedido.setEstado(EstadoPedido.X);
-        return pedidoMapper.toResponse(pedidoRepository.save(pedido));
+        envioService.pedidoCancelado(pedido);
+        Pedido guardado = pedidoRepository.save(pedido);
+        notificationPublisher.pedidoCancelado(guardado);
+        return pedidoMapper.toResponse(guardado);
     }
 
     @Transactional(readOnly = true)

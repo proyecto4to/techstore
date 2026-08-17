@@ -8,7 +8,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,11 +56,13 @@ public class ReposicionService {
     /** El punto de reposición de cada producto, por id. */
     @Transactional(readOnly = true)
     public Map<Long, PuntoDeReposicion> calcularTodos(Iterable<Producto> productos) {
-        Map<Long, Double> demandaDiaria = demandaDiariaPorProducto();
+        List<Producto> lista = new ArrayList<>();
+        productos.forEach(lista::add);
+        Map<Long, Double> demandaDiaria = demandaDiariaPorProducto(lista);
         Map<Long, Double> diasEntrega = diasDeEntregaPorProducto();
 
         Map<Long, PuntoDeReposicion> resultado = new HashMap<>();
-        for (Producto producto : productos) {
+        for (Producto producto : lista) {
             resultado.put(producto.getId(), calcular(producto, demandaDiaria, diasEntrega));
         }
         return resultado;
@@ -66,7 +71,7 @@ public class ReposicionService {
     /** El punto de reposición de un producto suelto. */
     @Transactional(readOnly = true)
     public PuntoDeReposicion calcular(Producto producto) {
-        return calcular(producto, demandaDiariaPorProducto(), diasDeEntregaPorProducto());
+        return calcular(producto, demandaDiariaPorProducto(List.of(producto)), diasDeEntregaPorProducto());
     }
 
     private PuntoDeReposicion calcular(Producto producto,
@@ -92,15 +97,33 @@ public class ReposicionService {
                 demanda, entrega, true);
     }
 
-    private Map<Long, Double> demandaDiariaPorProducto() {
-        LocalDateTime desde = LocalDateTime.now().minusDays(diasHistorial);
+    private Map<Long, Double> demandaDiariaPorProducto(Iterable<Producto> productos) {
+        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime desde = ahora.minusDays(diasHistorial);
+        Map<Long, Producto> porId = new HashMap<>();
+        productos.forEach(producto -> porId.put(producto.getId(), producto));
         Map<Long, Double> demanda = new HashMap<>();
         for (Object[] fila : pedidoDetalleRepository.unidadesVendidasDesde(
                 TipoPedido.Venta, VENDIDOS, desde)) {
+            Long productoId = (Long) fila[0];
             long unidades = ((Number) fila[1]).longValue();
-            demanda.put((Long) fila[0], (double) unidades / diasHistorial);
+            Producto producto = porId.get(productoId);
+            int divisor = producto == null ? diasHistorial : diasObservados(producto, ahora.toLocalDate());
+            demanda.put(productoId, (double) unidades / divisor);
         }
         return demanda;
+    }
+
+    /**
+     * Un producto nuevo no pudo venderse antes de existir. Dividir sus ventas
+     * por toda la ventana de 90 días escondería su velocidad real.
+     */
+    int diasObservados(Producto producto, LocalDate hoy) {
+        if (producto.getCreatedAt() == null) {
+            return diasHistorial;
+        }
+        long desdeAlta = ChronoUnit.DAYS.between(producto.getCreatedAt().toLocalDate(), hoy) + 1;
+        return (int) Math.max(1, Math.min(diasHistorial, desdeAlta));
     }
 
     private Map<Long, Double> diasDeEntregaPorProducto() {

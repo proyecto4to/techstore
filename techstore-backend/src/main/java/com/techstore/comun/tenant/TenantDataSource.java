@@ -5,6 +5,7 @@ import org.springframework.jdbc.datasource.DelegatingDataSource;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.PreparedStatement;
 import java.sql.Statement;
 import javax.sql.DataSource;
 
@@ -41,19 +42,28 @@ public class TenantDataSource extends DelegatingDataSource {
     }
 
     private Connection marcar(Connection con) throws SQLException {
-        try (Statement st = con.createStatement()) {
+        try {
             if (TenantContext.hayTenant()) {
-                // set_config con parámetro en vez de concatenar: el valor es un
-                // Long nuestro y no entrada del usuario, pero no hay motivo para
-                // construir SQL a mano.
-                st.execute("SET app.tenant_id = '" + TenantContext.actual() + "'");
+                try (PreparedStatement st = con.prepareStatement(
+                        "SELECT set_config('app.tenant_id', ?, false)")) {
+                    st.setString(1, TenantContext.actual().toString());
+                    st.execute();
+                }
             } else {
-                st.execute("RESET app.tenant_id");
+                try (Statement st = con.createStatement()) {
+                    st.execute("RESET app.tenant_id");
+                }
             }
         } catch (SQLException ex) {
-            // Que no se pueda fijar la variable no debe tumbar la conexión: el
-            // aislamiento sigue garantizado por Hibernate. Pero hay que verlo.
-            log.warn("No se pudo fijar app.tenant_id en la conexión: {}", ex.getMessage());
+            // El aislamiento es una barrera de seguridad: si no se puede fijar,
+            // esta conexión no debe llegar a ningún repositorio.
+            try {
+                con.close();
+            } catch (SQLException alCerrar) {
+                ex.addSuppressed(alCerrar);
+            }
+            log.error("No se pudo fijar app.tenant_id; se descartó la conexión", ex);
+            throw ex;
         }
         return con;
     }

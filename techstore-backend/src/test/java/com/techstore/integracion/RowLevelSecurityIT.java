@@ -11,12 +11,14 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -36,27 +38,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest
 @ActiveProfiles("test")
 @DisplayName("Row Level Security en la base")
-@org.junit.jupiter.api.Disabled("""
-        DESACTIVADO POR UN PROBLEMA DEL MONTAJE, NO DEL SISTEMA.
-
-        En la base real el aislamiento por RLS funciona y esta comprobado a mano:
-        conectando como techstore_app, sin app.tenant_id se ven 0 filas; con la
-        empresa 1, las 37 del catalogo; con la empresa 2, ninguna.
-
-        Sobre el PostgreSQL embebido de las pruebas, en cambio, el rol limitado
-        que crea este test sigue viendo todas las filas. La causa esta en como se
-        arma el rol aca —lo mas probable es que la politica de mantenimiento de
-        V24, creada 'TO current_user' durante la migracion, termine alcanzandolo—,
-        y hasta entenderlo bien el test no prueba lo que dice probar.
-
-        Un test que pasa por el motivo equivocado es peor que no tenerlo: daria
-        por cubierto justo el modo de fallar mas grave del sistema. Queda escrito
-        y desactivado a proposito, con el diagnostico pendiente.
-        """)
 class RowLevelSecurityIT {
 
     private static final String ROL = "app_sin_privilegios";
     private static final String CLAVE = "prueba-rls";
+    private static final String PRODUCTO_TENANT_1 = "Producto RLS empresa 1";
+    private static final String PRODUCTO_TENANT_2 = "Producto RLS empresa 2";
 
     @DynamicPropertySource
     static void base(DynamicPropertyRegistry registro) {
@@ -71,7 +58,11 @@ class RowLevelSecurityIT {
     @BeforeEach
     void prepararRolLimitado() throws SQLException {
         try (Connection con = dataSource.getConnection(); Statement st = con.createStatement()) {
-            urlJdbc = con.getMetaData().getURL();
+            // La URL de EmbeddedPostgres trae ?user=postgres. Si se reutiliza
+            // tal cual, ese parámetro pisa el usuario entregado a DriverManager
+            // y el test termina conectando como superusuario sin advertirlo.
+            // Se quitan los parámetros para probar realmente con el rol limitado.
+            urlJdbc = con.getMetaData().getURL().split("\\?", 2)[0];
             st.execute("""
                     DO $$
                     BEGIN
@@ -86,20 +77,44 @@ class RowLevelSecurityIT {
 
             st.execute("INSERT INTO tenants (id, codigo, nombre) VALUES (2, 'rls-otra', 'Otra') "
                     + "ON CONFLICT (id) DO NOTHING");
+            st.execute("DELETE FROM productos WHERE nombre IN ('" + PRODUCTO_TENANT_1
+                    + "', '" + PRODUCTO_TENANT_2 + "')");
             st.execute("INSERT INTO productos (tenant_id, nombre, precio, stock_real, stock_comprometido, "
-                    + "stock_minimo, activo) VALUES (2, 'Producto RLS empresa 2', 1000, 1, 0, 0, true)");
+                    + "stock_minimo, activo) VALUES "
+                    + "(1, '" + PRODUCTO_TENANT_1 + "', 1000, 1, 0, 0, true), "
+                    + "(2, '" + PRODUCTO_TENANT_2 + "', 1000, 1, 0, 0, true)");
         }
     }
 
     private long productosVisibles(String tenantId) throws SQLException {
         try (Connection con = DriverManager.getConnection(urlJdbc, ROL, CLAVE);
              Statement st = con.createStatement()) {
+            try (ResultSet identidad = st.executeQuery("SELECT current_user")) {
+                identidad.next();
+                assertEquals(ROL, identidad.getString(1),
+                        "La prueba de RLS no está usando el rol limitado");
+            }
             if (tenantId != null) {
                 st.execute("SET app.tenant_id = '" + tenantId + "'");
             }
             try (ResultSet rs = st.executeQuery("SELECT count(*) FROM productos")) {
                 rs.next();
                 return rs.getLong(1);
+            }
+        }
+    }
+
+    private boolean productoVisible(String tenantId, String nombre) throws SQLException {
+        try (Connection con = DriverManager.getConnection(urlJdbc, ROL, CLAVE);
+             Statement tenant = con.createStatement()) {
+            tenant.execute("SET app.tenant_id = '" + tenantId + "'");
+            try (PreparedStatement consulta = con.prepareStatement(
+                    "SELECT count(*) FROM productos WHERE nombre = ?")) {
+                consulta.setString(1, nombre);
+                try (ResultSet rs = consulta.executeQuery()) {
+                    rs.next();
+                    return rs.getLong(1) == 1;
+                }
             }
         }
     }
@@ -114,13 +129,17 @@ class RowLevelSecurityIT {
     @Test
     @DisplayName("con una empresa fijada se ve esa y solo esa")
     void soloLaEmpresaFijada() throws SQLException {
-        long deLaUno = productosVisibles("1");
-        long deLaDos = productosVisibles("2");
-
-        assertTrue(deLaUno > 0, "La empresa 1 no ve su propio catálogo");
-        assertEquals(1, deLaDos, "La empresa 2 debería ver únicamente su producto");
-        assertTrue(deLaUno != deLaDos,
-                "Las dos empresas ven lo mismo: las políticas no están discriminando");
+        // La base es compartida por toda la suite, así que no se afirma una
+        // cantidad total frágil. Se usan dos marcadores inequívocos y se
+        // comprueba en ambos sentidos que cada tenant ve el suyo, nunca el otro.
+        assertTrue(productoVisible("1", PRODUCTO_TENANT_1),
+                "La empresa 1 no ve su propio producto");
+        assertFalse(productoVisible("1", PRODUCTO_TENANT_2),
+                "La empresa 1 puede ver el producto de la empresa 2");
+        assertTrue(productoVisible("2", PRODUCTO_TENANT_2),
+                "La empresa 2 no ve su propio producto");
+        assertFalse(productoVisible("2", PRODUCTO_TENANT_1),
+                "La empresa 2 puede ver el producto de la empresa 1");
     }
 
     @Test

@@ -8,6 +8,7 @@ import org.mapstruct.Mapping;
 public interface PedidoMapper extends DineroMapper {
 
     @Mapping(target = "usuarioEmail", source = "usuario.email")
+    @Mapping(target = "direccionEntrega", source = "direccionEntrega")
     PedidoResponse toResponse(Pedido pedido);
 
     @Mapping(target = "usuarioEmail", source = "usuario.email")
@@ -18,4 +19,6 @@ public interface PedidoMapper extends DineroMapper {
     @Mapping(target = "productoId", source = "producto.id")
     @Mapping(target = "productoNombre", source = "producto.nombre")
     PedidoResponse.DetalleResponse toDetalleResponse(PedidoDetalle detalle);
+
+    PedidoResponse.DireccionResponse toDireccionResponse(DireccionPedidoSnapshot direccion);
 }

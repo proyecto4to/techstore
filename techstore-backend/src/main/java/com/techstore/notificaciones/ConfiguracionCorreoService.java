@@ -1,5 +1,6 @@
 package com.techstore.notificaciones;
 
+import com.techstore.configuracion.SecretValueCipher;
 import com.techstore.empresa.Configuracion;
 import com.techstore.empresa.ConfiguracionRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class ConfiguracionCorreoService {
     private static final String FROM = "smtp.from";
 
     private final ConfiguracionRepository repo;
+    private final SecretValueCipher cipher;
 
     @Transactional(readOnly = true)
     public SmtpConfigResponse actual() {
@@ -35,7 +37,7 @@ public class ConfiguracionCorreoService {
                 entero(PORT, 587),
                 valor(USER, ""),
                 valor(FROM, ""),
-                !valor(PASS, "").isBlank(),
+                !password().isBlank(),
                 configurado());
     }
 
@@ -47,13 +49,13 @@ public class ConfiguracionCorreoService {
         set(FROM, req.from() == null ? "" : req.from().trim());
         // La contraseña solo se pisa si viene con valor (el form no la devuelve).
         if (req.password() != null && !req.password().isBlank()) {
-            set(PASS, req.password());
+            set(PASS, cipher.cifrar(req.password()));
         }
     }
 
     @Transactional(readOnly = true)
     public boolean configurado() {
-        return !valor(HOST, "").isBlank() && !valor(USER, "").isBlank() && !valor(PASS, "").isBlank();
+        return !valor(HOST, "").isBlank() && !valor(USER, "").isBlank() && !password().isBlank();
     }
 
     /** {@link JavaMailSender} armado con la config guardada, o {@code null} si no está completa. */
@@ -66,10 +68,12 @@ public class ConfiguracionCorreoService {
         sender.setHost(valor(HOST, "smtp.gmail.com"));
         sender.setPort(entero(PORT, 587));
         sender.setUsername(valor(USER, ""));
-        sender.setPassword(valor(PASS, ""));
+        sender.setPassword(password());
         Properties props = sender.getJavaMailProperties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.starttls.required", "true");
+        props.put("mail.smtp.ssl.checkserveridentity", "true");
         props.put("mail.smtp.connectiontimeout", "8000");
         props.put("mail.smtp.timeout", "8000");
         props.put("mail.smtp.writetimeout", "8000");
@@ -87,6 +91,10 @@ public class ConfiguracionCorreoService {
         return repo.findById(clave).map(Configuracion::getValor)
                 .filter(v -> v != null)
                 .orElse(porDefecto);
+    }
+
+    private String password() {
+        return cipher.descifrar(valor(PASS, ""));
     }
 
     private int entero(String clave, int porDefecto) {

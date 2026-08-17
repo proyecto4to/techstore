@@ -61,7 +61,7 @@ class MigracionesIT {
             }
         }
         assertTrue(fallidas.isEmpty(), "Migraciones fallidas: " + fallidas);
-        assertEquals(31, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
+        assertEquals(42, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
     }
 
     @Test
@@ -73,7 +73,8 @@ class MigracionesIT {
                 "movimiento_caja", "cierres_caja", "aperturas_caja",
                 "notas_credito", "nota_credito_detalles",
                 "proveedores", "configuracion", "correos",
-                "audit_log", "intento_login", "autonumerador");
+                "audit_log", "intento_login", "autonumerador", "sesiones_refresh", "favoritos",
+                "dispositivos_moviles", "notification_outbox", "notificaciones_usuario");
 
         List<String> presentes = new ArrayList<>();
         try (Connection con = dataSource.getConnection();
@@ -143,6 +144,145 @@ class MigracionesIT {
     }
 
     @Test
+    @DisplayName("V32 dejó la factura con su propio timbrado y sin el campo tipo duplicado")
+    void facturaConDatosFiscalesPropios() throws SQLException {
+        // El timbrado admite nulo a propósito: las facturas anteriores a esta
+        // migración pueden no tener con qué rellenarlo, y un nulo dice la verdad
+        // mejor que un cero inventado.
+        assertTrue(existeColumna("facturas", "timbrado"));
+        assertEquals("YES", nullable("facturas", "timbrado"));
+
+        assertTrue(existeColumna("facturas", "condicion_venta"));
+        assertEquals("NO", nullable("facturas", "condicion_venta"));
+        assertEquals("NO", nullable("facturas", "receptor_tipo_documento"));
+
+        // `tipo` guardaba lo mismo que `condicion_venta`: tener los dos garantiza
+        // que algún día se contradigan.
+        assertFalse(existeColumna("facturas", "tipo"),
+                "La columna tipo quedó viva y duplica a condicion_venta");
+    }
+
+    @Test
+    @DisplayName("V32 creó el comprobante del proveedor con sus reglas en la base")
+    void comprobanteDelProveedor() throws SQLException {
+        assertTrue(contar("SELECT count(*) FROM information_schema.tables "
+                + "WHERE table_schema = 'public' AND table_name = 'compra_comprobantes'") == 1);
+
+        assertEquals("NO", nullable("compra_comprobantes", "fecha_emision"));
+        assertEquals("NO", nullable("compra_comprobantes", "total"));
+        // Timbrado y número admiten nulo: el despacho de importación no lleva
+        // timbrado y el ticket de máquina registradora no lleva número.
+        assertEquals("YES", nullable("compra_comprobantes", "timbrado"));
+        assertEquals("YES", nullable("compra_comprobantes", "numero"));
+
+        // Cargar dos veces la misma factura del proveedor duplicaría el crédito
+        // fiscal: lo impide la base, no solo el servicio.
+        assertTrue(existeRestriccion("comprobante_proveedor_unico"));
+        assertTrue(existeRestriccion("comprobante_por_compra"));
+        assertTrue(existeRestriccion("comprobante_desglose_cuadra"));
+        assertTrue(existeRestriccion("comprobante_importes_positivos"));
+    }
+
+    @Test
+    @DisplayName("V33 dejó el envío del pedido al proveedor, y no como estado del pedido")
+    void envioDelPedidoAlProveedor() throws SQLException {
+        assertTrue(existeColumna("pedidos", "enviado_en"));
+        assertTrue(existeColumna("pedidos", "enviado_canal"));
+        // Ambas admiten nulo: la enorme mayoría de los pedidos son ventas, que
+        // no se le mandan a ningún proveedor.
+        assertEquals("YES", nullable("pedidos", "enviado_en"));
+        assertEquals("YES", nullable("pedidos", "enviado_canal"));
+
+        // Que el pedido se haya mandado no es que el proveedor lo haya aceptado:
+        // el estado sigue siendo el de siempre.
+        assertEquals(3, contar("SELECT count(*) FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid "
+                + "WHERE t.typname = 'canal_envio'"),
+                "El canal tiene que admitir correo, WhatsApp y ambos");
+    }
+
+    @Test
+    @DisplayName("la tabla nueva quedó aislada por empresa como el resto del dominio")
+    void elComprobanteTambienTieneRls() throws SQLException {
+        assertEquals(1, contar("SELECT count(*) FROM pg_class "
+                + "WHERE relname = 'compra_comprobantes' AND relrowsecurity AND relforcerowsecurity"),
+                "Sin RLS forzado, una empresa vería los comprobantes de otra");
+        assertEquals(2, contar("SELECT count(*) FROM pg_policies "
+                + "WHERE tablename = 'compra_comprobantes'"),
+                "Faltan las políticas de aislamiento y de mantenimiento");
+    }
+
+    @Test
+    @DisplayName("V35 guarda sesiones refresh revocables sin token en claro y con RLS")
+    void sesionesRefreshSeguras() throws SQLException {
+        for (String columna : List.of("tenant_id", "usuario_id", "token_id", "token_hash",
+                "creado_en", "expira_en", "revocado_en", "reemplazado_por")) {
+            assertTrue(existeColumna("sesiones_refresh", columna), "Falta " + columna);
+        }
+        assertEquals(1, contar("SELECT count(*) FROM pg_constraint "
+                + "WHERE conname = 'sesion_refresh_token_unico'"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_constraint "
+                + "WHERE conname = 'sesion_refresh_hash_unico'"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_class "
+                + "WHERE relname = 'sesiones_refresh' AND relrowsecurity AND relforcerowsecurity"));
+        assertEquals(2, contar("SELECT count(*) FROM pg_policies "
+                + "WHERE tablename = 'sesiones_refresh'"));
+    }
+
+    @Test
+    @DisplayName("V36 creó favoritos únicos por usuario y aislados por tenant")
+    void favoritosSeguros() throws SQLException {
+        for (String columna : List.of("tenant_id", "usuario_id", "producto_id", "creado_en")) {
+            assertTrue(existeColumna("favoritos", columna), "Falta " + columna);
+        }
+        assertEquals(1, contar("SELECT count(*) FROM pg_constraint "
+                + "WHERE conname = 'favorito_usuario_producto_unico'"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_class "
+                + "WHERE relname = 'favoritos' AND relrowsecurity AND relforcerowsecurity"));
+        assertEquals(2, contar("SELECT count(*) FROM pg_policies WHERE tablename = 'favoritos'"));
+    }
+
+    @Test
+    @DisplayName("V41 creó el outbox durable, deduplicado y aislado por tenant")
+    void notificationOutboxSeguro() throws SQLException {
+        for (String columna : List.of("tenant_id", "event_type", "consumer_channel",
+                "aggregate_type", "aggregate_id", "recipient_user_id", "payload", "status",
+                "attempts", "next_attempt_at", "claimed_at", "processed_at", "created_at",
+                "last_error_sanitized", "idempotency_key")) {
+            assertTrue(existeColumna("notification_outbox", columna), "Falta " + columna);
+        }
+        assertEquals("jsonb", tipo("notification_outbox", "payload"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_constraint "
+                + "WHERE conname = 'uk_notification_outbox_idempotency'"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_class "
+                + "WHERE relname = 'notification_outbox' AND relrowsecurity AND relforcerowsecurity"));
+        assertEquals(2, contar("SELECT count(*) FROM pg_policies "
+                + "WHERE tablename = 'notification_outbox'"));
+        assertEquals(3, contar("SELECT count(*) FROM pg_indexes "
+                + "WHERE tablename = 'notification_outbox' AND indexname LIKE 'idx_notification_outbox_%'"));
+    }
+
+    @Test
+    @DisplayName("V42 creó el centro de notificaciones idempotente y aislado por tenant")
+    void centroNotificacionesSeguro() throws SQLException {
+        for (String columna : List.of("tenant_id", "usuario_id", "tipo", "titulo", "mensaje",
+                "referencia_tipo", "referencia_id", "deep_link", "leida", "leida_en",
+                "source_outbox_id", "created_at")) {
+            assertTrue(existeColumna("notificaciones_usuario", columna), "Falta " + columna);
+        }
+        assertEquals(1, contar("SELECT count(*) FROM pg_constraint "
+                + "WHERE conname = 'uk_notificacion_source'"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_class "
+                + "WHERE relname = 'notificaciones_usuario' AND relrowsecurity AND relforcerowsecurity"));
+        assertEquals(2, contar("SELECT count(*) FROM pg_policies "
+                + "WHERE tablename = 'notificaciones_usuario'"));
+        assertEquals(2, contar("SELECT count(*) FROM pg_indexes "
+                + "WHERE tablename = 'notificaciones_usuario' AND indexname LIKE 'idx_notificaciones_usuario_%'"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_constraint "
+                + "WHERE conname = 'ck_notification_outbox_channel' "
+                + "AND pg_get_constraintdef(oid) LIKE '%INTERNAL%'"));
+    }
+
+    @Test
     @DisplayName("los datos semilla quedaron cargados")
     void datosSemilla() throws SQLException {
         assertEquals(3, contar("SELECT count(*) FROM roles"));
@@ -184,5 +324,16 @@ class MigracionesIT {
     private boolean existeColumna(String tabla, String columna) throws SQLException {
         return contar("SELECT count(*) FROM information_schema.columns WHERE table_name = '"
                 + tabla + "' AND column_name = '" + columna + "'") == 1;
+    }
+
+    private String tipo(String tabla, String columna) throws SQLException {
+        try (Connection con = dataSource.getConnection();
+             Statement st = con.createStatement();
+             ResultSet rs = st.executeQuery(
+                     "SELECT data_type FROM information_schema.columns WHERE table_name = '"
+                             + tabla + "' AND column_name = '" + columna + "'")) {
+            assertTrue(rs.next(), "No existe la columna " + tabla + "." + columna);
+            return rs.getString(1);
+        }
     }
 }

@@ -9,12 +9,14 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 import javax.crypto.SecretKey;
 
 @Service
 public class JwtService {
 
     public static final String CLAIM_TYPE = "type";
+    public static final String CLAIM_TENANT = "tenant_id";
     public static final String TYPE_ACCESS = "access";
     public static final String TYPE_REFRESH = "refresh";
 
@@ -66,9 +68,13 @@ public class JwtService {
     private String buildToken(Usuario usuario, long expirationMs, String type) {
         Instant now = Instant.now();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(usuario.getEmail())
                 .claim("uid", usuario.getId())
                 .claim("rol", usuario.getRol().getNombre())
+                // El tenant viaja dentro de la firma: el cliente no puede
+                // cambiarlo como sí podría hacer con una cabecera HTTP común.
+                .claim(CLAIM_TENANT, usuario.getTenantId() == null ? 1L : usuario.getTenantId())
                 .claim(CLAIM_TYPE, type)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusMillis(expirationMs)))

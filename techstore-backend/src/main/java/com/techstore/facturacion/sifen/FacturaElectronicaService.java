@@ -19,6 +19,7 @@ public class FacturaElectronicaService {
     private final DocumentoElectronicoService documentoElectronicoService;
     private final FirmaDigitalService firmaDigitalService;
     private final KudeService kudeService;
+    private final SifenProperties sifenProperties;
 
     public record XmlFirmado(String numero, String cdc, String xml) {
     }
@@ -28,18 +29,22 @@ public class FacturaElectronicaService {
 
     @Transactional(readOnly = true)
     public XmlFirmado generarXml(Long facturaId) {
+        sifenProperties.exigirActivo();
         Factura factura = buscar(facturaId);
         DocumentoElectronicoService.DocumentoElectronico de = documentoElectronicoService.generar(factura);
         String firmado = firmaDigitalService.firmar(de.xml(), de.cdc());
-        return new XmlFirmado(factura.getNumero(), de.cdc(), firmado);
+        String completo = kudeService.completarXmlConQr(factura, de.cdc(), firmado);
+        return new XmlFirmado(factura.getNumero(), de.cdc(), completo);
     }
 
     @Transactional(readOnly = true)
     public Kude generarKude(Long facturaId) {
+        sifenProperties.exigirActivo();
         Factura factura = buscar(facturaId);
         DocumentoElectronicoService.DocumentoElectronico de = documentoElectronicoService.generar(factura);
         String firmado = firmaDigitalService.firmar(de.xml(), de.cdc());
-        byte[] pdf = kudeService.generar(factura, de.cdc(), firmado);
+        String completo = kudeService.completarXmlConQr(factura, de.cdc(), firmado);
+        byte[] pdf = kudeService.generar(factura, de.cdc(), completo);
         return new Kude(factura.getNumero(), pdf);
     }
 

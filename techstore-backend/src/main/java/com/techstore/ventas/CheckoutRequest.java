@@ -10,7 +10,22 @@ import java.util.List;
 
 public record CheckoutRequest(
         @NotEmpty @Valid List<ItemCarrito> items,
-        @Size(max = 1000) String notas) {
+        @Size(max = 1000) String notas,
+        Long direccionEntregaId,
+        MetodoEntrega metodoEntrega,
+        MetodoPagoCheckout metodoPago,
+        Long tarifaEnvioId) {
+
+    /** Mantiene compatibles a los clientes web anteriores a la libreta móvil. */
+    public CheckoutRequest(List<ItemCarrito> items, String notas) {
+        this(items, notas, null, null, null, null);
+    }
+
+    /** Compatibilidad con la firma de la Fase 5. */
+    public CheckoutRequest(List<ItemCarrito> items, String notas, Long direccionEntregaId,
+                           MetodoEntrega metodoEntrega, MetodoPagoCheckout metodoPago) {
+        this(items, notas, direccionEntregaId, metodoEntrega, metodoPago, null);
+    }
 
     public record ItemCarrito(
             @NotNull Long productoId,

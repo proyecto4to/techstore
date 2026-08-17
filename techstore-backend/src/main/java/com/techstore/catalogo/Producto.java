@@ -101,10 +101,14 @@ public class Producto implements ConMoneda {
 
     /**
      * Punto de reposición: cuando el stock disponible cae hasta acá, el producto
-     * aparece en el aviso de reposición. En 0 nunca avisa.
+     * aparece en el aviso de reposición. En 0 usa el umbral general.
      */
     @Column(name = "stock_minimo", nullable = false)
     private Integer stockMinimo = 0;
+
+    /** Peso unitario usado exclusivamente por las reglas configurables de envío. */
+    @Column(name = "peso_kg", nullable = false, precision = 10, scale = 3)
+    private BigDecimal pesoKg = BigDecimal.ZERO;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "marca_id")

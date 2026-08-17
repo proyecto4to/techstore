@@ -17,10 +17,19 @@ public record ProductoRequest(
         @NotNull @Min(0) Integer stockReal,
         /** Punto de reposición. Opcional: si no viene, queda en 0 y el producto no avisa. */
         @Min(0) Integer stockMinimo,
+        @DecimalMin("0.0") BigDecimal pesoKg,
         Long marcaId,
         Long modeloId,
         @Size(max = 500) String imagenUrl,
         Boolean activo,
         /** Si desaparece de la tienda al quedarse sin stock. Nulo deja el valor actual. */
         Boolean ocultarSinStock) {
+
+    /** Compatibilidad binaria de tests y clientes internos anteriores al peso logístico. */
+    public ProductoRequest(String nombre, String descripcion, BigDecimal precio, Integer iva,
+                           Integer stockReal, Integer stockMinimo, Long marcaId, Long modeloId,
+                           String imagenUrl, Boolean activo, Boolean ocultarSinStock) {
+        this(nombre, descripcion, precio, iva, stockReal, stockMinimo, BigDecimal.ZERO,
+                marcaId, modeloId, imagenUrl, activo, ocultarSinStock);
+    }
 }

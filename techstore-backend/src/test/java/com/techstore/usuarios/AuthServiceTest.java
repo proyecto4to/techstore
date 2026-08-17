@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.techstore.empresa.EmisorDePrueba.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -37,6 +38,9 @@ class AuthServiceTest {
     private CorreoService correoService;
 
     @Mock
+    private RefreshSessionService refreshSessionService;
+
+    @Mock
     private IntentoLoginRepository intentoLoginRepository;
 
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
@@ -50,8 +54,8 @@ class AuthServiceTest {
     void setUp() {
         EmpresaProperties empresa = new EmpresaProperties(
                 "TechStore Paraguay", null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
-        EmailTemplateService emailTemplateService = new EmailTemplateService(empresa, "http://localhost:5173");
+                null, null, null, null, null, null, null, null, null, null, null, null);
+        EmailTemplateService emailTemplateService = new EmailTemplateService(config(empresa), "http://localhost:5173");
 
         // El limitador ahora guarda los intentos en la base. Se le da un
         // repositorio de mentira sobre un Map para que el test siga probando la
@@ -69,7 +73,7 @@ class AuthServiceTest {
                 .when(intentoLoginRepository).deleteById(anyString());
 
         authService = new AuthService(
-                usuarioRepository, rolRepository, encoder, jwtService, correoService,
+                usuarioRepository, rolRepository, encoder, jwtService, refreshSessionService, correoService,
                 emailTemplateService, new LoginRateLimiter(intentoLoginRepository));
 
         Rol rol = new Rol();
@@ -84,6 +88,9 @@ class AuthServiceTest {
         admin.setRol(rol);
         admin.setActivo(true);
         admin.setPasswordHash(encoder.encode("admin123"));
+
+        lenient().when(refreshSessionService.crear(any(Usuario.class)))
+                .thenAnswer(inv -> jwtService.generateRefreshToken(inv.getArgument(0)));
     }
 
     @Test
@@ -152,8 +159,9 @@ class AuthServiceTest {
 
     @Test
     void refreshConRefreshTokenValidoEmiteNuevoPar() {
-        when(usuarioRepository.findByEmail("admin@techstore.py")).thenReturn(Optional.of(admin));
         String refreshToken = jwtService.generateRefreshToken(admin);
+        when(refreshSessionService.rotar(refreshToken)).thenReturn(
+                new RefreshSessionService.Rotacion(admin, jwtService.generateRefreshToken(admin)));
 
         AuthResponse response = authService.refresh(new RefreshTokenRequest(refreshToken));
 
@@ -164,9 +172,20 @@ class AuthServiceTest {
     @Test
     void refreshConAccessTokenEsRechazado() {
         String accessToken = jwtService.generateAccessToken(admin);
+        when(refreshSessionService.rotar(accessToken))
+                .thenThrow(new BadCredentialsException("Refresh token inválido"));
 
         assertThrows(BadCredentialsException.class,
                 () -> authService.refresh(new RefreshTokenRequest(accessToken)));
+    }
+
+    @Test
+    void logoutRevocaLaSesionRefresh() {
+        String refreshToken = jwtService.generateRefreshToken(admin);
+
+        authService.logout(new RefreshTokenRequest(refreshToken));
+
+        org.mockito.Mockito.verify(refreshSessionService).revocar(refreshToken);
     }
 
     @Test

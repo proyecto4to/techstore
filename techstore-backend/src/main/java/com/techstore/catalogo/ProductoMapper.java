@@ -14,12 +14,18 @@ public interface ProductoMapper extends DineroMapper {
     @Mapping(target = "margen", expression = "java(aMonto(producto.getMargen()))")
     ProductoResponse toResponse(Producto producto);
 
+    @Mapping(target = "disponible", expression = "java(producto.getStockDisponible() > 0)")
+    ProductoPublicResponse toPublicResponse(Producto producto);
+
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "tenantId", ignore = true)
+    @Mapping(target = "moneda", ignore = true)
     @Mapping(target = "marca", ignore = true)
     @Mapping(target = "modelo", ignore = true)
     @Mapping(target = "stockComprometido", ignore = true)
     // Sin stockMinimo el producto no avisa, que es como venían los existentes.
     @Mapping(target = "stockMinimo", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "pesoKg", source = "pesoKg", defaultValue = "0")
     // El costo no se carga a mano: sale de la última compra recibida.
     @Mapping(target = "costo", ignore = true)
     @Mapping(target = "costoActualizadoEn", ignore = true)
@@ -32,11 +38,14 @@ public interface ProductoMapper extends DineroMapper {
     Producto toEntity(ProductoRequest request);
 
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "tenantId", ignore = true)
+    @Mapping(target = "moneda", ignore = true)
     @Mapping(target = "marca", ignore = true)
     @Mapping(target = "modelo", ignore = true)
     @Mapping(target = "stockComprometido", ignore = true)
     // Sin stockMinimo el producto no avisa, que es como venían los existentes.
     @Mapping(target = "stockMinimo", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "pesoKg", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "costo", ignore = true)
     @Mapping(target = "costoActualizadoEn", ignore = true)
     @Mapping(target = "createdAt", ignore = true)

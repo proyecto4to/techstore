@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -37,8 +38,11 @@ public class PedidoController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Checkout", description = "Crea un pedido Pendiente con los items del carrito y compromete stock")
-    public PedidoResponse checkout(@Valid @RequestBody CheckoutRequest request, Authentication auth) {
-        return pedidoService.checkout(auth.getName(), request);
+    public PedidoResponse checkout(
+            @Valid @RequestBody CheckoutRequest request,
+            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
+            Authentication auth) {
+        return pedidoService.checkout(auth.getName(), request, idempotencyKey);
     }
 
     @GetMapping

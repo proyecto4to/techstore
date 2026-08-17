@@ -1,11 +1,14 @@
 package com.techstore.facturacion;
 
+import com.techstore.comun.CondicionOperacion;
 import com.techstore.comun.ConMoneda;
 import com.techstore.comun.Dinero;
 import com.techstore.comun.Moneda;
+import com.techstore.comun.TipoIdentificacion;
 import com.techstore.usuarios.Usuario;
 import com.techstore.ventas.Pedido;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -89,8 +92,36 @@ public class Factura implements ConMoneda {
     @Column(name = "receptor_telefono", length = 20)
     private String receptorTelefono;
 
-    @Column(nullable = false, length = 10)
-    private String tipo;
+    /**
+     * Con qué documento se identificó el receptor. Decide cómo se lo declara en
+     * el Registro de Comprobantes de la DNIT: sin RUC la venta va como "sin
+     * nombre", que es lo que la administración entiende por consumidor final.
+     */
+    @Convert(converter = TipoIdentificacion.ConversorJpa.class)
+    @Column(name = "receptor_tipo_documento", nullable = false)
+    private TipoIdentificacion receptorTipoDocumento = TipoIdentificacion.SinNombre;
+
+    /**
+     * Timbrado con el que salió, congelado al emitir. Un timbrado vence y se
+     * reemplaza; si el libro de IVA de enero se imprime en diciembre tiene que
+     * mostrar el que la factura tenía en enero, no el vigente hoy.
+     *
+     * <p>Nulo solo en las facturas emitidas antes de que el sistema lo
+     * registrara: para esas, el único timbrado que hubo es el de la
+     * configuración (ver {@link #timbradoO(String)}).
+     */
+    @Column(length = 8)
+    private String timbrado;
+
+    /**
+     * Contado o crédito. Hoy el sistema solo cobra al contado, pero es un dato
+     * del documento y no una constante: el KuDE lo imprime y la DNIT lo pide en
+     * el campo 13 del Registro de Comprobantes.
+     */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "condicion_venta", columnDefinition = "condicion_operacion", nullable = false)
+    private CondicionOperacion condicionVenta = CondicionOperacion.Contado;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "pedido_id", nullable = false)
@@ -162,5 +193,19 @@ public class Factura implements ConMoneda {
 
     public void setTotal(Dinero total) {
         this.total = monto(total);
+    }
+
+    /**
+     * El timbrado de esta factura, o el que se le pase si es anterior a que el
+     * sistema empezara a guardarlo. El respaldo tiene que venir de afuera
+     * porque es el de la configuración de la empresa, que la entidad no conoce.
+     */
+    public String timbradoO(String respaldo) {
+        return timbrado == null || timbrado.isBlank() ? respaldo : timbrado;
+    }
+
+    /** Si se cobró al momento. Lo usan el KuDE y la factura impresa. */
+    public boolean esContado() {
+        return condicionVenta == CondicionOperacion.Contado;
     }
 }

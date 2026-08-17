@@ -3,6 +3,8 @@ package com.techstore.empresa;
 import com.techstore.auditoria.AuditoriaService;
 import com.techstore.comun.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,7 @@ public class EmpresaConfigService {
     /** Valores de application.properties: el punto de partida si no hay nada en la base. */
     private final EmpresaProperties porDefecto;
     private final AuditoriaService auditoriaService;
+    private final Environment environment;
 
     private volatile EmpresaProperties cache;
 
@@ -54,6 +57,9 @@ public class EmpresaConfigService {
         if (DatosDelEmisor.faltaTipoContribuyente(emisor)) {
             faltantes.add("Tipo de contribuyente");
         }
+        if (esProduccion() && DatosDelEmisor.contieneDatosDemo(emisor)) {
+            faltantes.add("Reemplaza el RUC, timbrado y correo de demostración");
+        }
         if (!faltantes.isEmpty()) {
             throw new BusinessException("empresa.datos.incompletos", String.join(", ", faltantes));
         }
@@ -69,6 +75,10 @@ public class EmpresaConfigService {
         if (DatosDelEmisor.faltaTipoContribuyente(emisor)) {
             etiquetas.add("Tipo de contribuyente");
             campos.add("tipoContribuyente");
+        }
+        if (esProduccion() && DatosDelEmisor.contieneDatosDemo(emisor)) {
+            etiquetas.add("Reemplaza los datos fiscales de demostración");
+            campos.add("ruc");
         }
         return new DatosEmisorPendientesResponse(etiquetas.isEmpty(), etiquetas, campos);
     }
@@ -101,6 +111,7 @@ public class EmpresaConfigService {
         set("distrito-nombre", req.distritoNombre());
         set("ciudad-codigo", req.ciudadCodigo());
         set("ciudad-nombre", req.ciudadNombre());
+        set("identificacion-sin-nombre", req.identificacionSinNombre());
 
         cache = null;
         EmpresaProperties nueva = actual();
@@ -141,7 +152,8 @@ public class EmpresaConfigService {
                 valor("distrito-nombre", porDefecto.distritoNombre()),
                 valor("ciudad-codigo", porDefecto.ciudadCodigo()),
                 valor("ciudad-nombre", porDefecto.ciudadNombre()),
-                valor("timbrado-inicio-vigencia", porDefecto.timbradoInicioVigencia()));
+                valor("timbrado-inicio-vigencia", porDefecto.timbradoInicioVigencia()),
+                valor("identificacion-sin-nombre", porDefecto.identificacionSinNombre()));
     }
 
     private String valor(String clave, String porDefectoValor) {
@@ -161,6 +173,10 @@ public class EmpresaConfigService {
         } catch (NumberFormatException ex) {
             return porDefectoValor;
         }
+    }
+
+    private boolean esProduccion() {
+        return environment.acceptsProfiles(Profiles.of("prod"));
     }
 
     /** Vacío borra el valor guardado, o sea que vuelve al de application.properties. */

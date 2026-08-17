@@ -56,6 +56,13 @@ public class AuthController {
         return authService.refresh(request);
     }
 
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Cerrar sesión", description = "Revoca la sesión refresh actual")
+    public void logout(@Valid @RequestBody RefreshTokenRequest request) {
+        authService.logout(request);
+    }
+
     @GetMapping("/me")
     @Operation(summary = "Perfil actual", description = "Datos del usuario autenticado")
     public UsuarioResponse me(Authentication authentication) {

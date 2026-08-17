@@ -32,6 +32,8 @@ public class CompraController {
 
     private final CompraService compraService;
     private final ComparadorProveedoresService comparadorService;
+    private final ComprobanteCompraService comprobanteService;
+    private final EnvioPedidoService envioPedidoService;
 
     @PostMapping("/comparar")
     @Operation(summary = "Comparar proveedores para una compra",
@@ -75,5 +77,31 @@ public class CompraController {
     @Operation(summary = "Anular una compra pendiente")
     public CompraResumenResponse anular(@PathVariable Long id) {
         return compraService.anular(id);
+    }
+
+    @PostMapping("/{id}/enviar")
+    @Operation(summary = "Mandarle el pedido al proveedor",
+            description = "Le manda el detalle de la compra por el canal elegido. No confirma nada: "
+                    + "la compra sigue Pendiente hasta que llegue la mercadería. La respuesta dice si "
+                    + "el correo salió de verdad o si quedó solo registrado por falta de SMTP.")
+    public EnvioPedidoResponse enviarAlProveedor(
+            @PathVariable Long id, @Valid @RequestBody EnviarPedidoRequest request) {
+        return envioPedidoService.enviar(id, request.canal());
+    }
+
+    @PutMapping("/{id}/comprobante")
+    @Operation(summary = "Registrar el comprobante del proveedor",
+            description = "El número, timbrado y fecha de la factura que emitió el proveedor: es lo que se "
+                    + "asienta en el libro de compras y lo que da el crédito fiscal. Si no se cargan los "
+                    + "importes se toman los de la compra. Vuelto a llamar, reemplaza el comprobante anterior.")
+    public ComprobanteCompraResponse registrarComprobante(
+            @PathVariable Long id, @Valid @RequestBody ComprobanteCompraRequest request) {
+        return comprobanteService.registrar(id, request);
+    }
+
+    @GetMapping("/{id}/comprobante")
+    @Operation(summary = "Ver el comprobante cargado de una compra")
+    public ComprobanteCompraResponse verComprobante(@PathVariable Long id) {
+        return comprobanteService.obtener(id);
     }
 }

@@ -44,4 +44,31 @@ public interface FacturaRepository extends JpaRepository<Factura, Long> {
     Optional<Factura> findParaPdfByPedidoId(Long pedidoId);
 
     Optional<Factura> findByPedidoId(Long pedidoId);
+
+    /**
+     * Las facturas de un período en orden cronológico, para el libro de IVA de
+     * ventas. Trae los detalles porque el desglose por tasa sale de ahí.
+     *
+     * <p>Las anuladas quedan afuera: un documento anulado no se declara. Una
+     * devolución, incluso total, no cambia la factura a este estado: se declara
+     * la factura original y también la nota de crédito que la compensa.
+     */
+    default List<Factura> delPeriodo(LocalDateTime desde, LocalDateTime hasta) {
+        return delPeriodoExcepto(desde, hasta, EstadoFactura.Anulada);
+    }
+
+    /**
+     * El estado a excluir viaja como parámetro y no como literal dentro del
+     * JPQL: {@code estado_factura} es un enum nativo de PostgreSQL, y un literal
+     * inline se traduce a {@code 'Anulada'::EstadoFactura} —el nombre de la clase
+     * Java— que en la base no existe. Ligado como parámetro, el driver lo manda
+     * con el tipo correcto.
+     */
+    @EntityGraph(attributePaths = {"pedido", "pedido.detalles"})
+    @Query("select f from Factura f "
+            + "where f.fecha >= :desde and f.fecha < :hasta and f.estado <> :excluido "
+            + "order by f.fecha, f.numero")
+    List<Factura> delPeriodoExcepto(@Param("desde") LocalDateTime desde,
+                                    @Param("hasta") LocalDateTime hasta,
+                                    @Param("excluido") EstadoFactura excluido);
 }

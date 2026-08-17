@@ -21,6 +21,7 @@ public record ProductoResponse(
         Integer stockComprometido,
         Integer stockDisponible,
         Integer stockMinimo,
+        BigDecimal pesoKg,
         boolean necesitaReposicion,
         MarcaRef marca,
         ModeloRef modelo,

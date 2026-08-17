@@ -117,7 +117,7 @@ class VentaCompletaIT {
                 "El número de factura no tiene el formato de la DNIT: " + numero);
 
         // --- 5. El stock bajó, y el producto quedó en zona de reposición ------
-        MvcResult despues = mvc.perform(get("/api/v1/productos/" + productoId)
+        MvcResult despues = mvc.perform(get("/api/v1/productos/admin/" + productoId)
                         .header("Authorization", "Bearer " + jwt))
                 .andExpect(status().isOk())
                 .andReturn();

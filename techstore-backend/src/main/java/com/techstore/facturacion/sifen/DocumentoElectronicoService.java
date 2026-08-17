@@ -3,6 +3,7 @@ package com.techstore.facturacion.sifen;
 import com.techstore.comun.BusinessException;
 import com.techstore.comun.Dinero;
 import com.techstore.comun.RucParaguayo;
+import com.techstore.comun.TipoIdentificacion;
 import com.techstore.empresa.EmpresaConfigService;
 import com.techstore.empresa.EmpresaProperties;
 import com.techstore.facturacion.Factura;
@@ -34,12 +35,12 @@ import javax.xml.transform.stream.StreamResult;
 public class DocumentoElectronicoService {
 
     private static final String NS = "http://ekuatia.set.gov.py/sifen/xsd";
-    private static final String VERSION = "150";
     private static final String TIPO_DOC_FE = "01"; // Factura electrónica
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final DateTimeFormatter D = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final EmpresaConfigService empresaConfig;
+    private final SifenProperties sifenProperties;
 
     /** Datos vigentes del emisor (editables desde la app). */
     private EmpresaProperties empresa() {
@@ -51,6 +52,7 @@ public class DocumentoElectronicoService {
     }
 
     public DocumentoElectronico generar(Factura factura) {
+        sifenProperties.exigirActivo();
         try {
             return construir(factura);
         } catch (BusinessException ex) {
@@ -82,7 +84,7 @@ public class DocumentoElectronicoService {
         Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
         Element rDE = doc.createElementNS(NS, "rDE");
         doc.appendChild(rDE);
-        hijo(doc, rDE, "dVerFor", VERSION);
+        hijo(doc, rDE, "dVerFor", sifenProperties.getVersion().trim());
 
         Element de = hijo(doc, rDE, "DE", null);
         de.setAttribute("Id", cdc);
@@ -100,7 +102,9 @@ public class DocumentoElectronicoService {
         Element gTimb = hijo(doc, de, "gTimb", null);
         hijo(doc, gTimb, "iTiDE", "1");
         hijo(doc, gTimb, "dDesTiDE", "Factura electrónica");
-        hijo(doc, gTimb, "dNumTim", empresa().timbrado());
+        // El timbrado congelado en la factura: el XML de un documento ya emitido
+        // no puede cambiar porque después se haya habilitado otro timbrado.
+        hijo(doc, gTimb, "dNumTim", factura.timbradoO(empresa().timbrado()));
         hijo(doc, gTimb, "dEst", establecimiento);
         hijo(doc, gTimb, "dPunExp", puntoExpedicion);
         hijo(doc, gTimb, "dNumDoc", numeroDoc);
@@ -128,8 +132,10 @@ public class DocumentoElectronicoService {
         hijo(doc, gCamFE, "dDesIndPres", "Operación presencial");
 
         Element gCamCond = hijo(doc, gDtip, "gCamCond", null);
-        hijo(doc, gCamCond, "iCondOpe", "1");
-        hijo(doc, gCamCond, "dDCondOpe", "Contado");
+        // La condición sale de la factura: los códigos del SIFEN para contado y
+        // crédito son los mismos 1 y 2 de la Tabla 2 de la DNIT.
+        hijo(doc, gCamCond, "iCondOpe", String.valueOf(factura.getCondicionVenta().codigo()));
+        hijo(doc, gCamCond, "dDCondOpe", factura.getCondicionVenta().etiqueta());
         Element gPaConEIni = hijo(doc, gCamCond, "gPaConEIni", null);
         hijo(doc, gPaConEIni, "iTiPago", "1");
         hijo(doc, gPaConEIni, "dDesTiPag", "Efectivo");
@@ -140,6 +146,7 @@ public class DocumentoElectronicoService {
         for (PedidoDetalle detalle : factura.getPedido().getDetalles()) {
             agregarItem(doc, gDtip, detalle);
         }
+        agregarItemEnvio(doc, gDtip, factura.getPedido());
 
         agregarTotales(doc, de, factura);
 
@@ -161,6 +168,8 @@ public class DocumentoElectronicoService {
         hijo(doc, g, "cCiuEmi", empresa().ciudadCodigo());
         hijo(doc, g, "dDesCiuEmi", empresa().ciudadNombre());
         hijo(doc, g, "dTelEmi", empresa().telefono());
+        // D129 es obligatorio en el XSD v150 y debe ir antes de gActEco.
+        hijo(doc, g, "dEmailE", empresa().email());
         Element gAct = hijo(doc, g, "gActEco", null);
         hijo(doc, gAct, "cActEco", empresa().actividadCodigo());
         hijo(doc, gAct, "dDesActEco", empresa().actividad());
@@ -180,7 +189,10 @@ public class DocumentoElectronicoService {
             hijo(doc, g, "iTipIDRec", "5");
             hijo(doc, g, "dDTipIDRec", "Innominado");
             hijo(doc, g, "dNumIDRec", "0");
-            hijo(doc, g, "dNomRec", cliente.getNombre() + " " + cliente.getApellido());
+            // El pedido de una venta directa pertenece al cajero. Para un receptor
+            // innominado no se puede copiar su identidad al XML: la factura ya dejó
+            // congelado que el receptor es SinNombre.
+            hijo(doc, g, "dNomRec", nombreReceptor(factura));
         } else {
             // Con RUC: contribuyente (B2B). El RUC va sin el dígito verificador,
             // que se informa aparte en dDVRec.
@@ -190,7 +202,7 @@ public class DocumentoElectronicoService {
             hijo(doc, g, "dDesPaisRe", "Paraguay");
             hijo(doc, g, "dRucRec", RucParaguayo.numero(ruc));
             hijo(doc, g, "dDVRec", String.valueOf(RucParaguayo.dv(ruc)));
-            hijo(doc, g, "dNomRec", factura.getReceptorNombre());
+            hijo(doc, g, "dNomRec", nombreReceptor(factura));
         }
         // Opcionales (D213, D214): solo van si se informaron. El manual los da
         // como ocurrencia 0-1 y un elemento vacío sería peor que su ausencia.
@@ -239,12 +251,45 @@ public class DocumentoElectronicoService {
         hijo(doc, gResta, "dTotOpeItem", plano(subtotal));
 
         Element gIVA = hijo(doc, g, "gCamIVA", null);
-        hijo(doc, gIVA, "iAfectIVA", tasa.signum() > 0 ? "1" : "3");
+        // El nombre del campo oficial es iAfecIVA (sin la segunda "t").
+        hijo(doc, gIVA, "iAfecIVA", tasa.signum() > 0 ? "1" : "3");
         hijo(doc, gIVA, "dDesAfecIVA", tasa.signum() > 0 ? "Gravado IVA" : "Exento");
         hijo(doc, gIVA, "dPropIVA", "100");
         hijo(doc, gIVA, "dTasaIVA", tasa.stripTrailingZeros().toPlainString());
-        hijo(doc, gIVA, "dBasGravIVA", plano(baseGravada));
+        hijo(doc, gIVA, "dBasGravIVA", tasa.signum() > 0 ? plano(baseGravada) : "0");
         hijo(doc, gIVA, "dLiqIVAItem", plano(iva));
+        // E736 es obligatorio incluso para un ítem gravado: cero si no es
+        // exento, o el total de la línea cuando iAfecIVA=3.
+        hijo(doc, gIVA, "dBasExe", tasa.signum() > 0 ? "0" : plano(subtotal));
+    }
+
+    /** El flete cobrado es un servicio gravado y debe cerrar con el total pagado. */
+    private void agregarItemEnvio(Document doc, Element gDtip, com.techstore.ventas.Pedido pedido) {
+        Dinero subtotal = pedido.getCostoEnvio();
+        if (!subtotal.esPositivo()) return;
+        BigDecimal tasa = pedido.getIvaEnvio() == null ? BigDecimal.ZERO : pedido.getIvaEnvio();
+        Dinero iva = subtotal.ivaIncluido(tasa);
+
+        Element g = hijo(doc, gDtip, "gCamItem", null);
+        hijo(doc, g, "dCodInt", "ENVIO");
+        hijo(doc, g, "dDesProSer", "Servicio de entrega");
+        hijo(doc, g, "cUniMed", "77");
+        hijo(doc, g, "dDesUniMed", "UNI");
+        hijo(doc, g, "dCantProSer", "1");
+        Element gVal = hijo(doc, g, "gValorItem", null);
+        hijo(doc, gVal, "dPUniProSer", plano(subtotal));
+        hijo(doc, gVal, "dTotBruOpeItem", plano(subtotal));
+        Element gResta = hijo(doc, gVal, "gValorRestaItem", null);
+        hijo(doc, gResta, "dDescItem", "0");
+        hijo(doc, gResta, "dTotOpeItem", plano(subtotal));
+        Element gIva = hijo(doc, g, "gCamIVA", null);
+        hijo(doc, gIva, "iAfecIVA", tasa.signum() > 0 ? "1" : "3");
+        hijo(doc, gIva, "dDesAfecIVA", tasa.signum() > 0 ? "Gravado IVA" : "Exento");
+        hijo(doc, gIva, "dPropIVA", "100");
+        hijo(doc, gIva, "dTasaIVA", tasa.stripTrailingZeros().toPlainString());
+        hijo(doc, gIva, "dBasGravIVA", tasa.signum() > 0 ? plano(subtotal.menos(iva)) : "0");
+        hijo(doc, gIva, "dLiqIVAItem", plano(iva));
+        hijo(doc, gIva, "dBasExe", tasa.signum() > 0 ? "0" : plano(subtotal));
     }
 
     private void agregarTotales(Document doc, Element de, Factura factura) {
@@ -265,6 +310,14 @@ public class DocumentoElectronicoService {
             // que hace cerrar bruto − descuento = neto.
             totalDescuento = totalDescuento.mas(d.getDescuentoDeLaLinea());
         }
+        Dinero costoEnvio = factura.getPedido().getCostoEnvio();
+        int tasaEnvio = factura.getPedido().getIvaEnvio() == null ? 0
+                : factura.getPedido().getIvaEnvio().intValue();
+        switch (tasaEnvio) {
+            case 10 -> grav10 = grav10.mas(costoEnvio);
+            case 5 -> grav5 = grav5.mas(costoEnvio);
+            default -> exentas = exentas.mas(costoEnvio);
+        }
         // El mismo cálculo que guarda la factura y que imprime el KuDE.
         Dinero iva10 = grav10.ivaIncluido(BigDecimal.TEN);
         Dinero iva5 = grav5.ivaIncluido(BigDecimal.valueOf(5));
@@ -273,12 +326,34 @@ public class DocumentoElectronicoService {
         hijo(doc, g, "dSubExe", plano(exentas));
         hijo(doc, g, "dSub5", plano(grav5));
         hijo(doc, g, "dSub10", plano(grav10));
-        hijo(doc, g, "dTotDesc", plano(totalDescuento));
+        // El XSD v150 define una secuencia estricta. Los conceptos que esta app
+        // todavía no utiliza deben informarse con cero, no omitirse: son 1-1.
         hijo(doc, g, "dTotOpe", plano(factura.getTotal()));
+        hijo(doc, g, "dTotDesc", plano(totalDescuento));
+        hijo(doc, g, "dTotDescGlotem", "0");
+        hijo(doc, g, "dTotAntItem", "0");
+        hijo(doc, g, "dTotAnt", "0");
+        hijo(doc, g, "dPorcDescTotal", "0");
+        hijo(doc, g, "dDescTotal", "0");
+        hijo(doc, g, "dAnticipo", "0");
+        hijo(doc, g, "dRedon", "0");
         hijo(doc, g, "dTotGralOpe", plano(factura.getTotal()));
         hijo(doc, g, "dIVA5", plano(iva5));
         hijo(doc, g, "dIVA10", plano(iva10));
         hijo(doc, g, "dTotIVA", plano(iva5.mas(iva10)));
+        Dinero base5 = grav5.menos(iva5);
+        Dinero base10 = grav10.menos(iva10);
+        hijo(doc, g, "dBaseGrav5", plano(base5));
+        hijo(doc, g, "dBaseGrav10", plano(base10));
+        hijo(doc, g, "dTBasGraIVA", plano(base5.mas(base10)));
+    }
+
+    private static String nombreReceptor(Factura factura) {
+        if (factura.getReceptorNombre() != null && !factura.getReceptorNombre().isBlank()) {
+            return factura.getReceptorNombre().trim();
+        }
+        TipoIdentificacion tipo = factura.getReceptorTipoDocumento();
+        return tipo == null ? TipoIdentificacion.SinNombre.etiqueta() : tipo.etiqueta();
     }
 
     private static int numeroCorrelativo(Factura factura) {

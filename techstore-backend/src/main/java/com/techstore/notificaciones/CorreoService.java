@@ -1,6 +1,7 @@
 package com.techstore.notificaciones;
 
 import com.techstore.comun.PageResponse;
+import com.techstore.empresa.EmpresaConfigService;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -26,6 +27,7 @@ public class CorreoService {
     private final CorreoRepository correoRepository;
     private final ConfiguracionCorreoService configuracionCorreo;
     private final EmailTemplateService emailTemplateService;
+    private final EmpresaConfigService empresaConfig;
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
     /** Usuario SMTP por properties/env (fallback si no se configuró desde la app). */
     private final String usuarioSmtp;
@@ -34,11 +36,13 @@ public class CorreoService {
             CorreoRepository correoRepository,
             ConfiguracionCorreoService configuracionCorreo,
             EmailTemplateService emailTemplateService,
+            EmpresaConfigService empresaConfig,
             ObjectProvider<JavaMailSender> mailSenderProvider,
             @Value("${spring.mail.username:}") String usuarioSmtp) {
         this.correoRepository = correoRepository;
         this.configuracionCorreo = configuracionCorreo;
         this.emailTemplateService = emailTemplateService;
+        this.empresaConfig = empresaConfig;
         this.mailSenderProvider = mailSenderProvider;
         this.usuarioSmtp = usuarioSmtp;
     }
@@ -60,14 +64,24 @@ public class CorreoService {
     }
 
     @Transactional
-    public void enviar(TipoCorreo tipo, String destinatario, String nombre,
-                       String asunto, String cuerpo, String referencia) {
-        enviar(tipo, destinatario, nombre, asunto, cuerpo, referencia, null, null);
+    public EstadoCorreo enviar(TipoCorreo tipo, String destinatario, String nombre,
+                               String asunto, String cuerpo, String referencia) {
+        return enviar(tipo, destinatario, nombre, asunto, cuerpo, referencia, null, null);
     }
 
+    /**
+     * Devuelve en qué terminó el intento.
+     *
+     * <p>Los avisos automáticos —la factura, la bienvenida— pueden ignorarlo:
+     * que un correo no salga no tiene que voltear la venta. Pero cuando el envío
+     * <em>es</em> la acción que pidió el usuario, como mandarle el pedido a un
+     * proveedor, hay que poder decirle si salió, si quedó simulado por falta de
+     * SMTP o si el servidor lo rechazó. Antes esto era {@code void} y quien
+     * llamaba no tenía forma de saberlo.
+     */
     @Transactional
-    public void enviar(TipoCorreo tipo, String destinatario, String nombre, String asunto,
-                       String cuerpo, String referencia, byte[] adjunto, String adjuntoNombre) {
+    public EstadoCorreo enviar(TipoCorreo tipo, String destinatario, String nombre, String asunto,
+                               String cuerpo, String referencia, byte[] adjunto, String adjuntoNombre) {
         Correo correo = new Correo();
         correo.setTipo(tipo);
         correo.setDestinatario(destinatario);
@@ -93,6 +107,7 @@ public class CorreoService {
         }
 
         correoRepository.save(correo);
+        return correo.getEstado();
     }
 
     /** Envía un correo de prueba con la config actual y devuelve el resultado. */
@@ -135,6 +150,13 @@ public class CorreoService {
         MimeMessageHelper helper = new MimeMessageHelper(mensaje, adjunto != null, "UTF-8");
         // El remitente debe ser la casilla autenticada (Gmail y otros lo exigen).
         helper.setFrom(smtp.remitente());
+        // Pero las respuestas van a la casilla del negocio, que puede no ser la
+        // misma. Sin esto, contestar un pedido a proveedor mandaría el mensaje a
+        // la casilla técnica del SMTP en vez de a quien compra.
+        String casillaEmpresa = empresaConfig.actual().email();
+        if (casillaEmpresa != null && !casillaEmpresa.isBlank()) {
+            helper.setReplyTo(casillaEmpresa.trim());
+        }
         helper.setTo(destinatario);
         helper.setSubject(asunto);
         helper.setText(cuerpo, true);

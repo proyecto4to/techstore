@@ -38,5 +38,7 @@ public record EmpresaRequest(
         @Size(max = 5) String distritoCodigo,
         @Size(max = 100) String distritoNombre,
         @Size(max = 5) String ciudadCodigo,
-        @Size(max = 100) String ciudadNombre) {
+        @Size(max = 100) String ciudadNombre,
+        /** Qué se declara como identificación del comprador en las ventas a consumidor final. */
+        @Size(max = 20) String identificacionSinNombre) {
 }

@@ -6,7 +6,10 @@ import java.time.LocalDateTime;
 public record FacturaResponse(
         Long id,
         String numero,
-        String tipo,
+        /** Contado o crédito, como se lee en pantalla. */
+        String condicionVenta,
+        /** Timbrado con el que se emitió; nulo en las anteriores a que se registrara. */
+        String timbrado,
         Integer pedidoNumero,
         LocalDateTime fecha,
         String moneda,
@@ -23,7 +26,8 @@ public record FacturaResponse(
         return new FacturaResponse(
                 factura.getId(),
                 factura.getNumero(),
-                factura.getTipo(),
+                factura.getCondicionVenta().etiqueta(),
+                factura.getTimbrado(),
                 factura.getPedido().getNumero(),
                 factura.getFecha(),
                 factura.getMoneda().codigo(),

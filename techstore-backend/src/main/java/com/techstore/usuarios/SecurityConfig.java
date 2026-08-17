@@ -35,7 +35,10 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/refresh",
+                                "/api/v1/auth/logout",
                                 "/api/v1/auth/registro",
+                                "/ws",
+                                "/ws/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/api/v1/api-docs/**",
@@ -44,6 +47,9 @@ public class SecurityConfig {
                         .permitAll()
                         // El catálogo es público: es la vidriera del e-commerce.
                         .requestMatchers(HttpMethod.GET, "/api/v1/productos/**", "/api/v1/marcas/**")
+                        .permitAll()
+                        // Un visitante puede armar carrito; validar no reserva ni modifica stock.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/carrito/validar")
                         .permitAll()
                         // Fotos de producto subidas: deben verse en la tienda sin login.
                         .requestMatchers(HttpMethod.GET, "/uploads/**")

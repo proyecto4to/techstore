@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,6 +24,7 @@ class JwtServiceTest {
 
         Usuario usuario = new Usuario();
         usuario.setId(7L);
+        usuario.setTenantId(3L);
         usuario.setEmail("admin@techstore.py");
         usuario.setNombre("Admin");
         usuario.setApellido("Sistema");
@@ -38,6 +41,8 @@ class JwtServiceTest {
         assertEquals("admin@techstore.py", claims.getSubject());
         assertEquals("Admin", claims.get("rol", String.class));
         assertEquals(7L, claims.get("uid", Long.class));
+        assertEquals(3L, claims.get(JwtService.CLAIM_TENANT, Long.class));
+        assertNotNull(claims.getId());
         assertTrue(jwtService.isAccessToken(claims));
         assertFalse(jwtService.isRefreshToken(claims));
     }
@@ -50,6 +55,15 @@ class JwtServiceTest {
 
         assertTrue(jwtService.isRefreshToken(claims));
         assertFalse(jwtService.isAccessToken(claims));
+        assertNotNull(claims.getId());
+    }
+
+    @Test
+    void cadaRefreshTokenTieneUnJtiDistinto() {
+        Claims primero = jwtService.parseToken(jwtService.generateRefreshToken(usuarioDePrueba()));
+        Claims segundo = jwtService.parseToken(jwtService.generateRefreshToken(usuarioDePrueba()));
+
+        assertNotEquals(primero.getId(), segundo.getId());
     }
 
     @Test

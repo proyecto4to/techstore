@@ -40,6 +40,12 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
     @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario"})
     Optional<Pedido> findWithDetallesById(Long id);
 
+    @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario"})
+    @Query("select p from Pedido p where p.usuario.id = :usuarioId and p.idempotencyKey = :clave")
+    Optional<Pedido> findWithDetallesByUsuarioIdAndIdempotencyKey(
+            @Param("usuarioId") Long usuarioId,
+            @Param("clave") String clave);
+
     /**
      * El historial de cada proveedor resumido en una fila: cuánto tarda en
      * entregar y cuántas compras terminaron recibidas o anuladas. De acá salen

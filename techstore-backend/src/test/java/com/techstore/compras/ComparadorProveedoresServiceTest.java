@@ -69,11 +69,16 @@ class ComparadorProveedoresServiceTest {
     }
 
     private static ProveedorProducto oferta(Proveedor proveedor, Producto producto, long precio) {
+        return oferta(proveedor, producto, precio, Moneda.PYG);
+    }
+
+    private static ProveedorProducto oferta(
+            Proveedor proveedor, Producto producto, long precio, Moneda moneda) {
         ProveedorProducto o = new ProveedorProducto();
         o.setProveedor(proveedor);
         o.setProducto(producto);
-        o.setMoneda(Moneda.PYG);
-        o.setPrecio(Dinero.de(precio, Moneda.PYG));
+        o.setMoneda(moneda);
+        o.setPrecio(Dinero.de(precio, moneda));
         o.setDisponible(true);
         return o;
     }
@@ -192,5 +197,26 @@ class ComparadorProveedoresServiceTest {
         assertEquals(1, fila.cubre().size());
         assertEquals(5, fila.cubre().get(0).cantidad());
         assertEquals(new BigDecimal("400000"), fila.total());
+    }
+
+    @Test
+    @DisplayName("las monedas distintas se totalizan por separado y nunca se suman entre sí")
+    void lasMonedasDistintasNoSeMezclan() {
+        when(productoRepository.findAllById(anyCollection())).thenReturn(List.of(teclado, mouse));
+        when(ofertaRepository.findByProductoIdIn(anyCollection())).thenReturn(List.of(
+                oferta(completo, teclado, 100_000, Moneda.PYG),
+                oferta(completo, mouse, 50, Moneda.USD)));
+        lenient().when(pedidoRepository.historialPorProveedor()).thenReturn(List.of());
+
+        List<ComparacionProveedorResponse> resultado = servicio.comparar(pedir(1L, 1, 2L, 2));
+
+        assertEquals(2, resultado.size());
+        assertEquals(List.of("PYG", "USD"),
+                resultado.stream().map(ComparacionProveedorResponse::moneda).sorted().toList());
+        assertTrue(resultado.stream().noneMatch(ComparacionProveedorResponse::coberturaCompleta));
+        assertTrue(resultado.stream().anyMatch(f -> f.moneda().equals("PYG")
+                && f.total().compareTo(new BigDecimal("100000")) == 0));
+        assertTrue(resultado.stream().anyMatch(f -> f.moneda().equals("USD")
+                && f.total().compareTo(new BigDecimal("100")) == 0));
     }
 }

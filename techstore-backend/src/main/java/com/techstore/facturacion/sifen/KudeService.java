@@ -20,6 +20,7 @@ import com.techstore.comun.Dinero;
 import com.techstore.comun.LogoPdf;
 import com.techstore.comun.NumeroALetras;
 import com.techstore.comun.RucParaguayo;
+import com.techstore.comun.TipoIdentificacion;
 import com.techstore.empresa.EmpresaConfigService;
 import com.techstore.empresa.EmpresaProperties;
 import com.techstore.facturacion.Factura;
@@ -30,6 +31,7 @@ import org.springframework.stereotype.Service;
 import java.awt.Color;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
@@ -37,7 +39,12 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import javax.imageio.ImageIO;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 /**
  * Genera el KuDE (representación gráfica del Documento Electrónico) en PDF,
@@ -45,17 +52,13 @@ import javax.xml.parsers.DocumentBuilderFactory;
  * datos del emisor y timbrado, datos del receptor, condición de venta y
  * moneda, tabla de ítems con columnas Exentas / Gravadas 5% / Gravadas 10%,
  * liquidación del IVA, CDC en grupos de cuatro y código QR de consulta.
- * Demostrativo: usa un CSC de prueba y no se transmite al SIFEN.
+ * El CSC y las URLs se toman de la configuración tipada. Esta clase genera el
+ * artefacto localmente; no implementa transporte hacia el SIFEN.
  */
 @Service
 public class KudeService {
 
-    // URL de consulta del ambiente de TEST del SIFEN.
-    private static final String URL_QR = "https://ekuatia.set.gov.py/consultas-test/qr?";
-    private static final String URL_CONSULTA = "https://ekuatia.set.gov.py/consultas/";
-    // Código de Seguridad del Contribuyente (secreto entregado por la SET). De PRUEBA.
-    private static final String CSC = "ABCD0000000000000000000000000000";
-    private static final String ID_CSC = "0001";
+    private static final String NS = "http://ekuatia.set.gov.py/sifen/xsd";
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final DateTimeFormatter FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
     private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -73,10 +76,12 @@ public class KudeService {
     private static final Font F_CHICA = new Font(Font.HELVETICA, 8, Font.NORMAL, GRIS);
 
     private final EmpresaConfigService empresaConfig;
+    private final SifenProperties sifenProperties;
     private final NumberFormat formato;
 
-    public KudeService(EmpresaConfigService empresaConfig) {
+    public KudeService(EmpresaConfigService empresaConfig, SifenProperties sifenProperties) {
         this.empresaConfig = empresaConfig;
+        this.sifenProperties = sifenProperties;
         this.formato = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-PY"));
         this.formato.setMaximumFractionDigits(2);
         this.formato.setMinimumFractionDigits(0);
@@ -88,11 +93,42 @@ public class KudeService {
     }
 
     public byte[] generar(Factura factura, String cdc, String xmlFirmado) {
+        sifenProperties.exigirActivo();
+        try {
+            // El KuDE codifica exactamente el dCarQR que viaja en el XML. Así no
+            // existen dos implementaciones capaces de divergir en un parámetro.
+            String urlQr = extraerDCarQr(xmlFirmado);
+            byte[] qrPng = generarQrPng(urlQr);
+            return construirPdf(factura, cdc, qrPng);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BusinessException("sifen.kude.fallo", ex.getMessage());
+        }
+    }
+
+    /**
+     * Completa el rDE ya firmado con el grupo fuera de firma exigido por v150.
+     * La firma referencia únicamente a DE, por lo que agregar gCamFuFD después
+     * de Signature no altera el DigestValue.
+     */
+    String completarXmlConQr(Factura factura, String cdc, String xmlFirmado) {
+        sifenProperties.exigirActivo();
         try {
             String digestValue = extraerDigestValue(xmlFirmado);
             String urlQr = construirUrlQr(factura, cdc, digestValue);
-            byte[] qrPng = generarQrPng(urlQr);
-            return construirPdf(factura, cdc, qrPng);
+            org.w3c.dom.Document doc = leerXml(xmlFirmado);
+            if (doc.getElementsByTagNameNS(NS, "gCamFuFD").getLength() != 0) {
+                throw new BusinessException("sifen.kude.fallo", "El XML ya contiene gCamFuFD");
+            }
+            org.w3c.dom.Element fueraFirma = doc.createElementNS(NS, "gCamFuFD");
+            org.w3c.dom.Element caracteresQr = doc.createElementNS(NS, "dCarQR");
+            // El serializador convierte los '&' en '&amp;' como pide el manual;
+            // al parsear de nuevo se recupera la URL original para generar el QR.
+            caracteresQr.setTextContent(urlQr);
+            fueraFirma.appendChild(caracteresQr);
+            doc.getDocumentElement().appendChild(fueraFirma);
+            return serializarXml(doc);
         } catch (BusinessException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -107,7 +143,7 @@ public class KudeService {
         long items = factura.getPedido().getDetalles().size();
 
         // Parámetros a hashear (sin cHashQR), en el orden del manual.
-        String datos = "nVersion=150"
+        String datos = "nVersion=" + sifenProperties.getVersion().trim()
                 + "&Id=" + cdc
                 + "&dFeEmiDE=" + fechaHex
                 // Con RUC va el número sin dígito verificador; sin RUC, 0 (innominado).
@@ -117,10 +153,10 @@ public class KudeService {
                 + "&dTotIVA=" + plano(iva)
                 + "&cItems=" + items
                 + "&DigestValue=" + digestHex
-                + "&IdCSC=" + ID_CSC;
+                + "&IdCSC=" + sifenProperties.getQr().getIdCsc().trim();
 
-        String hashQr = sha256Hex(datos + CSC);
-        return URL_QR + datos + "&cHashQR=" + hashQr;
+        String hashQr = sha256Hex(datos + sifenProperties.getQr().getCsc().trim());
+        return conQuery(sifenProperties.getQr().getBaseUrl(), datos + "&cHashQR=" + hashQr);
     }
 
     private byte[] generarQrPng(String contenido) throws Exception {
@@ -193,7 +229,10 @@ public class KudeService {
         timbrado.setPadding(8);
         timbrado.setBorderColor(GRIS);
         timbrado.addElement(parrafo("RUC: " + empresa().ruc(), F_NEGRITA, Element.ALIGN_LEFT));
-        timbrado.addElement(parrafo("Timbrado N.º: " + empresa().timbrado(), F_NORMAL, Element.ALIGN_LEFT));
+        // El de la factura, no el vigente: reimprimir un KuDE viejo tiene que dar
+        // el mismo documento que se emitió ese día.
+        timbrado.addElement(parrafo("Timbrado N.º: " + factura.timbradoO(empresa().timbrado()),
+                F_NORMAL, Element.ALIGN_LEFT));
         timbrado.addElement(parrafo("Fecha de Inicio de Vigencia: " + fechaVigencia(), F_NORMAL, Element.ALIGN_LEFT));
         timbrado.addElement(parrafo(" ", F_MINI, Element.ALIGN_LEFT));
         timbrado.addElement(parrafo("FACTURA ELECTRÓNICA", F_TITULO, Element.ALIGN_CENTER));
@@ -206,7 +245,7 @@ public class KudeService {
     /** Datos de emisión/condición a la izquierda y datos del receptor a la derecha. */
     private PdfPTable emisionYReceptor(Factura factura) {
         Usuario cliente = factura.getPedido().getUsuario();
-        boolean contado = !"CREDITO".equalsIgnoreCase(factura.getTipo());
+        boolean contado = factura.esContado();
 
         PdfPTable tabla = new PdfPTable(new float[]{50, 50});
         tabla.setWidthPercentage(100);
@@ -232,9 +271,9 @@ public class KudeService {
         der.addElement(new Paragraph(rucReceptor == null
                 ? "RUC / Documento de Identidad: Sin identificar (Consumidor final)"
                 : "RUC / Documento de Identidad: " + rucReceptor, F_NORMAL));
-        der.addElement(new Paragraph("Nombre o Razón Social: " + (rucReceptor == null
-                ? cliente.getNombre() + " " + cliente.getApellido()
-                : factura.getReceptorNombre()), F_NORMAL));
+        // No usar pedido.usuario como identidad: en venta directa es el cajero.
+        // El KuDE representa el receptor que quedó congelado en la factura.
+        der.addElement(new Paragraph("Nombre o Razón Social: " + nombreReceptor(factura), F_NORMAL));
         // Solo si se informaron: antes salían como una raya fija, que ocupa
         // lugar sin decir nada. El manual los da como opcionales.
         if (factura.getReceptorDireccion() != null) {
@@ -296,6 +335,26 @@ public class KudeService {
             }
         }
 
+        Dinero envio = factura.getPedido().getCostoEnvio();
+        if (envio.esPositivo()) {
+            int tasa = factura.getPedido().getIvaEnvio() == null ? 0
+                    : factura.getPedido().getIvaEnvio().intValue();
+            tabla.addCell(celda("ENVIO", Element.ALIGN_CENTER));
+            tabla.addCell(celda("Servicio de entrega", Element.ALIGN_LEFT));
+            tabla.addCell(celda("UNI", Element.ALIGN_CENTER));
+            tabla.addCell(celda("1", Element.ALIGN_CENTER));
+            tabla.addCell(celda(gs(envio), Element.ALIGN_RIGHT));
+            tabla.addCell(celda("0", Element.ALIGN_RIGHT));
+            tabla.addCell(celda(tasa == 0 ? gs(envio) : "", Element.ALIGN_RIGHT));
+            tabla.addCell(celda(tasa == 5 ? gs(envio) : "", Element.ALIGN_RIGHT));
+            tabla.addCell(celda(tasa == 10 ? gs(envio) : "", Element.ALIGN_RIGHT));
+            switch (tasa) {
+                case 5 -> grav5 = grav5.mas(envio);
+                case 10 -> grav10 = grav10.mas(envio);
+                default -> exentas = exentas.mas(envio);
+            }
+        }
+
         PdfPCell etiqueta = new PdfPCell(new Phrase("SUBTOTAL", F_NEGRITA));
         etiqueta.setColspan(6);
         etiqueta.setHorizontalAlignment(Element.ALIGN_RIGHT);
@@ -340,6 +399,11 @@ public class KudeService {
                 default -> { }
             }
         }
+        Dinero envio = factura.getPedido().getCostoEnvio();
+        int tasaEnvio = factura.getPedido().getIvaEnvio() == null ? 0
+                : factura.getPedido().getIvaEnvio().intValue();
+        if (tasaEnvio == 5) grav5 = grav5.mas(envio);
+        if (tasaEnvio == 10) grav10 = grav10.mas(envio);
         Dinero iva5 = grav5.ivaIncluido(TASA_5);
         Dinero iva10 = grav10.ivaIncluido(TASA_10);
 
@@ -390,7 +454,7 @@ public class KudeService {
         texto.setVerticalAlignment(Element.ALIGN_MIDDLE);
         texto.addElement(new Paragraph(
                 "Consulte la validez de esta Factura Electrónica con el número de CDC impreso abajo en:", F_CHICA));
-        texto.addElement(new Paragraph(URL_CONSULTA, F_CHICA));
+        texto.addElement(new Paragraph(sifenProperties.getQr().getConsultaPublicaUrl(), F_CHICA));
 
         // El CDC va resaltado: es el dato que alguien va a tipear en el portal.
         PdfPTable caja = new PdfPTable(1);
@@ -421,9 +485,10 @@ public class KudeService {
                 "Si su documento electrónico presenta algún error, podrá solicitar la modificación dentro de "
                         + "las 72 horas siguientes de la emisión de este comprobante.", F_CHICA, Element.ALIGN_LEFT));
 
-        Paragraph aviso = parrafo(
-                "Documento demostrativo — firmado con certificado de PRUEBA, no transmitido al SIFEN.",
-                F_MINI, Element.ALIGN_LEFT);
+        String leyenda = sifenProperties.getModo() == SifenProperties.Modo.TEST
+                ? "Documento de TEST — no transmitido al SIFEN y sin valor tributario."
+                : "Documento generado localmente — esta aplicación no implementa transmisión al SIFEN.";
+        Paragraph aviso = parrafo(leyenda, F_MINI, Element.ALIGN_LEFT);
         aviso.setSpacingBefore(6);
         doc.add(aviso);
     }
@@ -441,6 +506,7 @@ public class KudeService {
         for (PedidoDetalle d : factura.getPedido().getDetalles()) {
             iva = iva.mas(d.getSubtotal().ivaIncluido(d.getIvaAplicado()));
         }
+        iva = iva.mas(factura.getPedido().getCostoEnvio().ivaIncluido(factura.getPedido().getIvaEnvio()));
         return iva;
     }
 
@@ -453,15 +519,56 @@ public class KudeService {
     }
 
     private String extraerDigestValue(String xmlFirmado) throws Exception {
-        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-        dbf.setNamespaceAware(true);
-        var doc = dbf.newDocumentBuilder()
-                .parse(new ByteArrayInputStream(xmlFirmado.getBytes(StandardCharsets.UTF_8)));
+        var doc = leerXml(xmlFirmado);
         var nodos = doc.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "DigestValue");
         if (nodos.getLength() == 0) {
             throw new BusinessException("sifen.xml.sin.firma");
         }
         return nodos.item(0).getTextContent().trim();
+    }
+
+    String extraerDCarQr(String xmlCompleto) throws Exception {
+        var doc = leerXml(xmlCompleto);
+        var nodos = doc.getElementsByTagNameNS(NS, "dCarQR");
+        if (nodos.getLength() != 1) {
+            throw new BusinessException("sifen.kude.fallo", "El XML no contiene un único dCarQR");
+        }
+        return nodos.item(0).getTextContent().trim();
+    }
+
+    private static org.w3c.dom.Document leerXml(String xml) throws Exception {
+        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        dbf.setNamespaceAware(true);
+        dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        dbf.setXIncludeAware(false);
+        dbf.setExpandEntityReferences(false);
+        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        return dbf.newDocumentBuilder()
+                .parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static String serializarXml(org.w3c.dom.Document doc) throws Exception {
+        TransformerFactory factory = TransformerFactory.newInstance();
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+        var transformer = factory.newTransformer();
+        transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+        StringWriter salida = new StringWriter();
+        transformer.transform(new DOMSource(doc), new StreamResult(salida));
+        return salida.toString();
+    }
+
+    static String nombreReceptor(Factura factura) {
+        if (factura.getReceptorNombre() != null && !factura.getReceptorNombre().isBlank()) {
+            return factura.getReceptorNombre().trim();
+        }
+        TipoIdentificacion tipo = factura.getReceptorTipoDocumento();
+        return tipo == null ? TipoIdentificacion.SinNombre.etiqueta() : tipo.etiqueta();
     }
 
     private PdfPCell celda(String texto, int alineacion) {
@@ -492,6 +599,14 @@ public class KudeService {
             sb.append(String.format("%02x", b));
         }
         return sb.toString();
+    }
+
+    private static String conQuery(String base, String query) {
+        String limpia = base.trim();
+        if (limpia.endsWith("?") || limpia.endsWith("&")) {
+            return limpia + query;
+        }
+        return limpia + (limpia.contains("?") ? "&" : "?") + query;
     }
 
     private static String sha256Hex(String texto) throws Exception {

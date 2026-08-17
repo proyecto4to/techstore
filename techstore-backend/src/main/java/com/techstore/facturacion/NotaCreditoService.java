@@ -149,8 +149,10 @@ public class NotaCreditoService {
         if (devueltoTotal) {
             pedido.setEstado(EstadoPedido.R);
             pedidoRepository.save(pedido);
-            factura.setEstado(EstadoFactura.Anulada);
-            facturaRepository.save(factura);
+            // Una factura compensada por una nota de crédito no es una factura
+            // anulada: ambos comprobantes deben permanecer en el libro IVA para
+            // que la venta y el crédito se neutralicen. "Anulada" se reserva
+            // para un documento que nunca tuvo efecto fiscal.
         }
 
         // Mismo motivo que en el cobro: sin el prefijo, la referencia de esta

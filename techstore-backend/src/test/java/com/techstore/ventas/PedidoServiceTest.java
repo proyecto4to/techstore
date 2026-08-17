@@ -7,8 +7,12 @@ import com.techstore.comun.BusinessException;
 import com.techstore.comun.Dinero;
 import com.techstore.comun.Moneda;
 import com.techstore.comun.ResourceNotFoundException;
-import com.techstore.notificaciones.CorreoService;
-import com.techstore.notificaciones.EmailTemplateService;
+import com.techstore.direcciones.DireccionEntrega;
+import com.techstore.direcciones.DireccionEntregaService;
+import com.techstore.envios.CotizacionEnvio;
+import com.techstore.envios.EnvioService;
+import com.techstore.envios.TipoEnvio;
+import com.techstore.notificaciones.outbox.NotificationOutboxPublisher;
 import com.techstore.usuarios.Rol;
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
@@ -21,16 +25,21 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,10 +58,13 @@ class PedidoServiceTest {
     private AutonumeradorService autonumeradorService;
 
     @Mock
-    private CorreoService correoService;
+    private NotificationOutboxPublisher notificationPublisher;
 
     @Mock
-    private EmailTemplateService emailTemplateService;
+    private DireccionEntregaService direccionEntregaService;
+
+    @Mock
+    private EnvioService envioService;
 
     private final PedidoMapper mapper = new PedidoMapperImpl();
 
@@ -65,7 +77,18 @@ class PedidoServiceTest {
     void setUp() {
         pedidoService = new PedidoService(
                 pedidoRepository, productoRepository, usuarioRepository, autonumeradorService, mapper,
-                correoService, emailTemplateService);
+                notificationPublisher, direccionEntregaService, envioService);
+
+        lenient().when(envioService.seleccionar(
+                        nullable(DireccionEntrega.class), anyMap(), any(Dinero.class),
+                        nullable(Long.class), any(MetodoEntrega.class)))
+                .thenAnswer(inv -> {
+                    Dinero subtotal = inv.getArgument(2);
+                    return new CotizacionEnvio(1L, "RETIRO", "Retiro en tienda", null,
+                            TipoEnvio.RETIRO_TIENDA, "DATABASE", null,
+                            Dinero.cero(subtotal.moneda()), BigDecimal.ZERO, true, BigDecimal.ZERO,
+                            LocalDate.now(), LocalDate.now());
+                });
 
         Rol rol = new Rol();
         rol.setId(3L);
@@ -73,6 +96,7 @@ class PedidoServiceTest {
 
         cliente = new Usuario();
         cliente.setId(2L);
+        cliente.setTenantId(1L);
         cliente.setEmail("cliente@test.py");
         cliente.setNombre("Cliente");
         cliente.setApellido("Prueba");
@@ -160,6 +184,76 @@ class PedidoServiceTest {
 
         assertThrows(BusinessException.class, () -> pedidoService.checkout("cliente@test.py",
                 new CheckoutRequest(List.of(new ItemCarrito(1L, 1)), null)));
+    }
+
+    @Test
+    void checkoutConMismaClaveDevuelveElPedidoSinDuplicarStock() {
+        AtomicReference<Pedido> guardado = new AtomicReference<>();
+        when(usuarioRepository.findByEmailForUpdate("cliente@test.py")).thenReturn(Optional.of(cliente));
+        when(pedidoRepository.findWithDetallesByUsuarioIdAndIdempotencyKey(2L, "reintento-1"))
+                .thenAnswer(inv -> Optional.ofNullable(guardado.get()));
+        when(productoRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(cpu));
+        when(autonumeradorService.siguiente("PEDIDO")).thenReturn(1);
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> {
+            Pedido pedido = inv.getArgument(0);
+            pedido.setId(10L);
+            guardado.set(pedido);
+            return pedido;
+        });
+        CheckoutRequest request = new CheckoutRequest(List.of(new ItemCarrito(1L, 1)), null);
+
+        PedidoResponse primera = pedidoService.checkout("cliente@test.py", request, "reintento-1");
+        PedidoResponse segunda = pedidoService.checkout("cliente@test.py", request, "reintento-1");
+
+        assertEquals(primera.id(), segunda.id());
+        assertEquals(1, cpu.getStockComprometido());
+        verify(productoRepository, times(1)).findAllForUpdate(anyCollection());
+        verify(pedidoRepository, times(1)).save(any(Pedido.class));
+    }
+
+    @Test
+    void checkoutRechazaReutilizarClaveConOtroContenido() {
+        AtomicReference<Pedido> guardado = new AtomicReference<>();
+        when(usuarioRepository.findByEmailForUpdate("cliente@test.py")).thenReturn(Optional.of(cliente));
+        when(pedidoRepository.findWithDetallesByUsuarioIdAndIdempotencyKey(2L, "reintento-2"))
+                .thenAnswer(inv -> Optional.ofNullable(guardado.get()));
+        when(productoRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(cpu));
+        when(autonumeradorService.siguiente("PEDIDO")).thenReturn(1);
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> {
+            Pedido pedido = inv.getArgument(0);
+            guardado.set(pedido);
+            return pedido;
+        });
+
+        pedidoService.checkout("cliente@test.py",
+                new CheckoutRequest(List.of(new ItemCarrito(1L, 1)), null), "reintento-2");
+
+        assertThrows(BusinessException.class, () -> pedidoService.checkout("cliente@test.py",
+                new CheckoutRequest(List.of(new ItemCarrito(1L, 2)), null), "reintento-2"));
+        assertEquals(1, cpu.getStockComprometido());
+    }
+
+    @Test
+    void checkoutGuardaSnapshotDeDireccionYMetodos() {
+        prepararCheckoutFeliz();
+        when(productoRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(cpu));
+        DireccionEntrega direccion = new DireccionEntrega();
+        direccion.setId(7L);
+        direccion.setNombreDestinatario("Ada Lovelace");
+        direccion.setTelefono("+595981123456");
+        direccion.setDepartamento("Central");
+        direccion.setCiudad("San Lorenzo");
+        direccion.setDireccionLinea1("Av. Principal");
+        when(direccionEntregaService.buscarPropia(cliente, 7L)).thenReturn(direccion);
+
+        PedidoResponse response = pedidoService.checkout("cliente@test.py", new CheckoutRequest(
+                List.of(new ItemCarrito(1L, 1)), null, 7L,
+                MetodoEntrega.ENVIO_DOMICILIO, MetodoPagoCheckout.TRANSFERENCIA_BANCARIA));
+
+        assertEquals(MetodoEntrega.ENVIO_DOMICILIO.name(), response.metodoEntrega());
+        assertEquals(MetodoPagoCheckout.TRANSFERENCIA_BANCARIA.name(), response.metodoPago());
+        assertEquals("+595981123456", response.direccionEntrega().telefono());
+        assertEquals("San Lorenzo", response.direccionEntrega().ciudad());
     }
 
     private Pedido pedidoPendienteDe(Usuario usuario, Producto producto, int cantidad) {

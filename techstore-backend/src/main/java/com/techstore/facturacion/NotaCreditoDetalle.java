@@ -3,6 +3,7 @@ package com.techstore.facturacion;
 import com.techstore.catalogo.Producto;
 import com.techstore.comun.ConMoneda;
 import com.techstore.comun.Dinero;
+import com.techstore.comun.LineaGravada;
 import com.techstore.comun.Moneda;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -28,7 +29,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
-public class NotaCreditoDetalle implements ConMoneda {
+public class NotaCreditoDetalle implements ConMoneda, LineaGravada {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

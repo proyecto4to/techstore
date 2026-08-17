@@ -8,9 +8,7 @@ import com.techstore.comun.Dinero;
 import com.techstore.comun.Moneda;
 import com.techstore.empresa.EmpresaConfigService;
 import com.techstore.facturacion.RegistroPagoRequest.LineaPago;
-import com.techstore.notificaciones.CorreoService;
-import com.techstore.notificaciones.EmailTemplateService;
-import com.techstore.notificaciones.TipoCorreo;
+import com.techstore.notificaciones.outbox.NotificationOutboxPublisher;
 import com.techstore.usuarios.Rol;
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
@@ -62,10 +60,7 @@ class PagoServiceTest {
     private CajaService cajaService;
 
     @Mock
-    private CorreoService correoService;
-
-    @Mock
-    private EmailTemplateService emailTemplateService;
+    private NotificationOutboxPublisher notificationPublisher;
 
     @Mock
     private com.techstore.facturacion.sifen.FacturaElectronicaService facturaElectronicaService;
@@ -82,11 +77,11 @@ class PagoServiceTest {
         EmpresaConfigService empresaConfig = FacturaPdfServiceTest.configConEmisor(
                 new com.techstore.empresa.EmpresaProperties(
                         "TechStore Paraguay", "80012345-0", null, null, null, null, null, "12345678", null,
-                        2, "001", "001", null, null, null, null, null, null, null, "2026-01-01"));
+                        2, "001", "001", null, null, null, null, null, null, null, "2026-01-01", "0"));
         var puntoExpedicionService = puntoPorDefecto();
         pagoService = new PagoService(
                 pagoRepository, facturaRepository, pedidoRepository, usuarioRepository,
-                autonumeradorService, cajaService, correoService, emailTemplateService,
+                autonumeradorService, cajaService, notificationPublisher,
                 empresaConfig, facturaElectronicaService, puntoExpedicionService);
 
         Rol rol = new Rol();
@@ -177,6 +172,25 @@ class PagoServiceTest {
     }
 
     @Test
+    void costoDeEnvioFormaParteDelCobroYDelIvaDeLaFactura() {
+        pedido.setCostoEnvio(Dinero.de(50_000, Moneda.PYG));
+        pedido.setIvaEnvio(BigDecimal.TEN);
+        pedido.setTotal(Dinero.de(2_550_000, Moneda.PYG));
+        prepararPagoFeliz();
+        RegistroPagoRequest request = new RegistroPagoRequest(List.of(
+                new LineaPago(TipoPago.Efectivo, new BigDecimal("2550000"), null)), null);
+
+        PagoResponse response = pagoService.registrarPago(10L, request, "cajero@techstore.py");
+
+        // 227.273 del producto + 4.545 del servicio de entrega.
+        assertEquals(new BigDecimal("231818"), response.factura().iva());
+        assertEquals(new BigDecimal("2318182"), response.factura().subtotal());
+        assertEquals(new BigDecimal("2550000"), response.factura().total());
+        verify(cajaService).registrarIngresoAutomatico(
+                eq(Dinero.de(2_550_000, Moneda.PYG)), any(), any(), eq(cajero), eq(TipoPago.Efectivo));
+    }
+
+    @Test
     void sinReceptorLaFacturaSaleAConsumidorFinal() {
         prepararPagoFeliz();
 
@@ -217,8 +231,7 @@ class PagoServiceTest {
         // y no hace falta RUC: puede ser un consumidor final que quiere su comprobante.
         assertEquals("mostrador@cliente.py", response.factura().receptorEmail());
         assertNull(response.factura().receptorRuc());
-        verify(correoService).enviar(
-                eq(TipoCorreo.FACTURA), eq("mostrador@cliente.py"), any(), any(), any(), any(), any(), any());
+        verify(notificationPublisher).pagoConfirmado(any(Factura.class), eq(true));
     }
 
     @Test
@@ -227,8 +240,87 @@ class PagoServiceTest {
 
         pagoService.registrarPago(10L, todoEfectivo(), "cajero@techstore.py");
 
-        verify(correoService).enviar(
-                eq(TipoCorreo.FACTURA), eq("cliente@techstore.py"), any(), any(), any(), any(), any(), any());
+        verify(notificationPublisher).pagoConfirmado(any(Factura.class), eq(true));
+    }
+
+    @Test
+    void ventaDirectaSinReceptorNoHeredaDatosFiscalesNiCorreoDelCajero() {
+        cajero.setRuc("80012345-0");
+        cajero.setRazonSocial("TechStore Caja Uno");
+        pedido.setUsuario(cajero);
+        prepararPagoFeliz();
+
+        PagoResponse response = pagoService.registrarPagoVentaDirecta(
+                10L, todoEfectivo(), "cajero@techstore.py");
+
+        assertNull(response.factura().receptorRuc());
+        assertNull(response.factura().receptorNombre());
+        assertNull(response.factura().receptorEmail());
+        assertEquals("80012345-0", cajero.getRuc());
+        assertEquals("TechStore Caja Uno", cajero.getRazonSocial());
+        verify(usuarioRepository, never()).save(any(Usuario.class));
+        verify(notificationPublisher).pagoConfirmado(any(Factura.class), eq(false));
+    }
+
+    @Test
+    void ventaDirectaConReceptorNuncaActualizaLosDatosFiscalesDelCajero() {
+        cajero.setRuc("RUC-DEL-CAJERO");
+        cajero.setRazonSocial("Razón del cajero");
+        pedido.setUsuario(cajero);
+        prepararPagoFeliz();
+
+        PagoResponse response = pagoService.registrarPagoVentaDirecta(
+                10L,
+                new RegistroPagoRequest(
+                        List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
+                        new RegistroPagoRequest.Receptor(
+                                "80012345-0", "Cliente de mostrador SA", null, null, null, true)),
+                "cajero@techstore.py");
+
+        assertEquals("80012345-0", response.factura().receptorRuc());
+        assertEquals("Cliente de mostrador SA", response.factura().receptorNombre());
+        assertEquals("RUC-DEL-CAJERO", cajero.getRuc());
+        assertEquals("Razón del cajero", cajero.getRazonSocial());
+        verify(usuarioRepository, never()).save(any(Usuario.class));
+    }
+
+    @Test
+    void ventaDirectaConRucExigeRazonSocialExplicita() {
+        pedido.setUsuario(cajero);
+        when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
+        when(pagoRepository.existsByPedidoId(10L)).thenReturn(false);
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                pagoService.registrarPagoVentaDirecta(
+                        10L,
+                        new RegistroPagoRequest(
+                                List.of(new LineaPago(
+                                        TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
+                                new RegistroPagoRequest.Receptor(
+                                        "80012345-0", "  ", null, null, null, false)),
+                        "cajero@techstore.py"));
+
+        assertEquals("facturacion.receptor.razon.social.obligatoria", ex.getClave());
+        verify(pagoRepository, never()).save(any());
+        verify(facturaRepository, never()).save(any());
+    }
+
+    @Test
+    void ventaDirectaConCorreoExplicitoEnviaLaFacturaAlReceptor() {
+        pedido.setUsuario(cajero);
+        prepararPagoFeliz();
+
+        PagoResponse response = pagoService.registrarPagoVentaDirecta(
+                10L,
+                new RegistroPagoRequest(
+                        List.of(new LineaPago(TipoPago.Efectivo, new BigDecimal("2500000.00"), null)),
+                        new RegistroPagoRequest.Receptor(
+                                null, null, "mostrador@cliente.py", null, null, false)),
+                "cajero@techstore.py");
+
+        assertEquals("mostrador@cliente.py", response.factura().receptorEmail());
+        assertNull(response.factura().receptorRuc());
+        verify(notificationPublisher).pagoConfirmado(any(Factura.class), eq(false));
     }
 
     @Test

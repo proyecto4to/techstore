@@ -30,7 +30,18 @@ public record EmpresaProperties(
         String distritoNombre,
         String ciudadCodigo,
         String ciudadNombre,
-        String timbradoInicioVigencia) {
+        String timbradoInicioVigencia,
+        /**
+         * Qué número declarar como identificación del comprador en las ventas a
+         * consumidor final.
+         *
+         * <p>El Registro de Comprobantes admite el tipo de identificación 15
+         * ("sin nombre") justamente para esas ventas —y entonces no pide el
+         * nombre—, pero el campo del número igual es obligatorio. Qué se pone
+         * ahí lo define el contador de cada empresa, así que es configurable y
+         * no una constante escondida en el código.
+         */
+        String identificacionSinNombre) {
 
     /** RUC sin el dígito verificador (parte antes del guion). */
     public String rucNumero() {

@@ -11,7 +11,6 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,20 +36,31 @@ public class ProductoController {
 
     @GetMapping
     @Operation(summary = "Listar productos",
-            description = "Catálogo paginado con búsqueda por nombre y filtro por marca. "
-                    + "incluirInactivos=true solo tiene efecto para un Admin autenticado.")
-    public PageResponse<ProductoResponse> listar(
+            description = "Catálogo público paginado, sin costo, margen ni inventario interno.")
+    public PageResponse<ProductoPublicResponse> listar(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long marcaId,
+            @RequestParam(required = false) Boolean disponible,
+            @ParameterObject @PageableDefault(size = 12, sort = "nombre") Pageable pageable) {
+        return productoService.listarPublico(search, marcaId, disponible, pageable);
+    }
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasRole('Admin')")
+    @Operation(summary = "Listar productos con datos internos (Admin)")
+    public PageResponse<ProductoResponse> listarAdmin(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Long marcaId,
             @RequestParam(required = false, defaultValue = "false") boolean incluirInactivos,
-            Authentication auth,
             @ParameterObject @PageableDefault(size = 12, sort = "nombre") Pageable pageable) {
-        return productoService.listar(search, marcaId, incluirInactivos && esAdmin(auth), pageable);
+        return productoService.listarAdmin(search, marcaId, incluirInactivos, pageable);
     }
 
-    private boolean esAdmin(Authentication auth) {
-        return auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_Admin".equals(a.getAuthority()));
+    @GetMapping("/admin/{id}")
+    @PreAuthorize("hasRole('Admin')")
+    @Operation(summary = "Obtener un producto con datos internos (Admin)")
+    public ProductoResponse obtenerAdmin(@PathVariable Long id) {
+        return productoService.obtenerAdmin(id);
     }
 
     @GetMapping("/reposicion")
@@ -63,8 +73,8 @@ public class ProductoController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtener un producto")
-    public ProductoResponse obtener(@PathVariable Long id) {
-        return productoService.obtener(id);
+    public ProductoPublicResponse obtener(@PathVariable Long id) {
+        return productoService.obtenerPublico(id);
     }
 
     @PostMapping

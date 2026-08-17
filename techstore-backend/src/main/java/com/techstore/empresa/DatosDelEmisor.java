@@ -19,6 +19,10 @@ import java.util.function.Function;
  */
 public final class DatosDelEmisor {
 
+    private static final String RUC_DEMO = "80012345-6";
+    private static final String TIMBRADO_DEMO = "12345678";
+    private static final String EMAIL_DEMO = "facturacion@techstore.py";
+
     /**
      * Campo obligatorio: cómo se lee del emisor y con qué nombre se le pide al
      * usuario que lo complete.
@@ -88,7 +92,23 @@ public final class DatosDelEmisor {
         return emisor.tipoContribuyente() == null;
     }
 
+    /**
+     * Identifica los valores ficticios distribuidos con el entorno local. Se
+     * comprueban por separado de los faltantes porque están completos desde el
+     * punto de vista de formato, pero no identifican a un contribuyente real.
+     */
+    public static boolean contieneDatosDemo(EmpresaProperties emisor) {
+        return emisor != null && (
+                igual(RUC_DEMO, emisor.ruc())
+                        || igual(TIMBRADO_DEMO, emisor.timbrado())
+                        || igual(EMAIL_DEMO, emisor.email()));
+    }
+
     private static boolean vacio(String valor) {
         return valor == null || valor.isBlank();
+    }
+
+    private static boolean igual(String esperado, String actual) {
+        return actual != null && esperado.equalsIgnoreCase(actual.trim());
     }
 }

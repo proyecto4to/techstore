@@ -42,14 +42,28 @@ public class ProductoService {
     private String uploadsDir;
 
     @Transactional(readOnly = true)
-    public PageResponse<ProductoResponse> listar(String search, Long marcaId, boolean incluirInactivos, Pageable pageable) {
+    public PageResponse<ProductoPublicResponse> listarPublico(
+            String search, Long marcaId, Boolean disponible, Pageable pageable) {
+        return PageResponse.from(
+                productoRepository.findAll(ProductoSpecs.catalogoPublico(search, marcaId, disponible), pageable)
+                        .map(productoMapper::toPublicResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ProductoResponse> listarAdmin(
+            String search, Long marcaId, boolean incluirInactivos, Pageable pageable) {
         return PageResponse.from(
                 productoRepository.findAll(ProductoSpecs.conFiltros(search, marcaId, incluirInactivos), pageable)
                         .map(productoMapper::toResponse));
     }
 
     @Transactional(readOnly = true)
-    public ProductoResponse obtener(Long id) {
+    public ProductoPublicResponse obtenerPublico(Long id) {
+        return productoMapper.toPublicResponse(buscarProductoPublico(id));
+    }
+
+    @Transactional(readOnly = true)
+    public ProductoResponse obtenerAdmin(Long id) {
         return productoMapper.toResponse(buscarProducto(id));
     }
 
@@ -166,6 +180,14 @@ public class ProductoService {
     private Producto buscarProducto(Long id) {
         return productoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("catalogo.producto.no.encontrado", id));
+    }
+
+    Producto buscarProductoPublico(Long id) {
+        Producto producto = buscarProducto(id);
+        if (!producto.visibleEnTienda()) {
+            throw new ResourceNotFoundException("catalogo.producto.no.encontrado", id);
+        }
+        return producto;
     }
 
     private void aplicarRelaciones(Producto producto, ProductoRequest request) {

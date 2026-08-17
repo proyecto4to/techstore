@@ -53,11 +53,13 @@ public class ComparadorProveedoresService {
 
         // Ofertas vigentes agrupadas por proveedor. Las apagadas (disponible =
         // false) no cotizan: son solo referencia de precio.
-        Map<Long, List<ProveedorProducto>> porProveedor = new LinkedHashMap<>();
+        Map<ProveedorMoneda, List<ProveedorProducto>> porProveedor = new LinkedHashMap<>();
         for (ProveedorProducto oferta : ofertaRepository.findByProductoIdIn(cantidades.keySet())) {
             if (Boolean.TRUE.equals(oferta.getDisponible())
                     && Boolean.TRUE.equals(oferta.getProveedor().getActivo())) {
-                porProveedor.computeIfAbsent(oferta.getProveedor().getId(), k -> new ArrayList<>()).add(oferta);
+                ProveedorMoneda clave = new ProveedorMoneda(
+                        oferta.getProveedor().getId(), oferta.getMoneda());
+                porProveedor.computeIfAbsent(clave, k -> new ArrayList<>()).add(oferta);
             }
         }
 
@@ -68,11 +70,14 @@ public class ComparadorProveedoresService {
             comparacion.add(armarFila(ofertas, cantidades, productos, historial));
         }
 
-        // Primero los que cubren todo; entre iguales, el más barato. La rapidez
-        // y la fiabilidad se muestran pero no ordenan: cuánto pesan es una
-        // decisión de quien compra, no del sistema.
+        // Primero los que cubren todo; dentro de cada moneda, el más barato. La
+        // rapidez y la fiabilidad se muestran pero no ordenan: cuánto pesan es
+        // una decisión de quien compra, no del sistema.
         comparacion.sort(Comparator
                 .comparing((ComparacionProveedorResponse c) -> !c.coberturaCompleta())
+                // Importes de monedas distintas no son comparables sin una
+                // cotización. Se agrupan por código y solo entonces por total.
+                .thenComparing(ComparacionProveedorResponse::moneda)
                 .thenComparing(ComparacionProveedorResponse::total));
         return comparacion;
     }
@@ -145,5 +150,9 @@ public class ComparadorProveedoresService {
             }
             return recibidas * 100.0 / cerradas;
         }
+    }
+
+    /** Una cotización solo puede totalizar importes de la misma moneda. */
+    private record ProveedorMoneda(Long proveedorId, Moneda moneda) {
     }
 }

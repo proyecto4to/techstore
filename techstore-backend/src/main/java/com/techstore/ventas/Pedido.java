@@ -1,5 +1,6 @@
 package com.techstore.ventas;
 
+import com.techstore.compras.CanalEnvio;
 import com.techstore.compras.Proveedor;
 import com.techstore.comun.ConMoneda;
 import com.techstore.comun.Dinero;
@@ -8,6 +9,7 @@ import com.techstore.usuarios.Usuario;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -83,6 +85,22 @@ public class Pedido implements ConMoneda {
     @Column(name = "fecha_recepcion")
     private LocalDateTime fechaRecepcion;
 
+    /**
+     * Cuándo se le mandó el pedido al proveedor, y por dónde. Nulos mientras no
+     * se haya mandado, y solo aplican a compras.
+     *
+     * <p>No son un estado: que el pedido haya salido no significa que el
+     * proveedor lo haya aceptado. La compra sigue Pendiente hasta que llega la
+     * mercadería.
+     */
+    @Column(name = "enviado_en")
+    private LocalDateTime enviadoEn;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "enviado_canal", columnDefinition = "canal_envio")
+    private CanalEnvio enviadoCanal;
+
     /** Moneda del pedido. Sus detalles heredan esta, no tienen una propia. */
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -94,6 +112,16 @@ public class Pedido implements ConMoneda {
     @Column(precision = 15, scale = 2)
     private BigDecimal total = BigDecimal.ZERO;
 
+    /** Importe logístico incluido en {@link #total}; cero para retiro gratuito. */
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @Column(name = "costo_envio", nullable = false, precision = 15, scale = 2)
+    private BigDecimal costoEnvio = BigDecimal.ZERO;
+
+    /** IVA contenido en el servicio de entrega (0, 5 o 10). */
+    @Column(name = "iva_envio", nullable = false, precision = 3)
+    private BigDecimal ivaEnvio = BigDecimal.TEN;
+
     // Solo aplica a compras a proveedores: marca si el pago ya se registró en caja.
     @Column(nullable = false)
     private Boolean pagada = false;
@@ -104,6 +132,24 @@ public class Pedido implements ConMoneda {
 
     @Column(columnDefinition = "text")
     private String notas;
+
+    /** Copia inmutable de la dirección elegida al confirmar el checkout. */
+    @Embedded
+    private DireccionPedidoSnapshot direccionEntrega;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "metodo_entrega", length = 40)
+    private MetodoEntrega metodoEntrega;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "metodo_pago_checkout", length = 40)
+    private MetodoPagoCheckout metodoPago;
+
+    @Column(name = "idempotency_key", length = 100)
+    private String idempotencyKey;
+
+    @Column(name = "idempotency_request_hash", length = 64)
+    private String idempotencyRequestHash;
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PedidoDetalle> detalles = new ArrayList<>();
@@ -127,5 +173,17 @@ public class Pedido implements ConMoneda {
 
     public void setTotal(Dinero total) {
         this.total = monto(total);
+    }
+
+    public Dinero getCostoEnvio() {
+        return importe(costoEnvio);
+    }
+
+    public void setCostoEnvio(Dinero costoEnvio) {
+        this.costoEnvio = monto(costoEnvio);
+    }
+
+    public Dinero getSubtotalProductos() {
+        return getTotal().menos(getCostoEnvio());
     }
 }

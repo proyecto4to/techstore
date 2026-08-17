@@ -110,8 +110,9 @@ public class VentaDirectaService {
         pedido.setTotal(total);
         Pedido guardado = pedidoRepository.saveAndFlush(pedido);
 
-        // Mismo cobro que una venta web: pagos, factura con su receptor, caja y correo.
-        return pagoService.registrarPago(
+        // Mismo motor de cobro, con identidad de mostrador: el cajero es responsable
+        // del pedido, pero nunca se usa como receptor fiscal ni como destinatario.
+        return pagoService.registrarPagoVentaDirecta(
                 guardado.getId(),
                 new RegistroPagoRequest(request.lineas(), request.receptor()),
                 emailCajero);

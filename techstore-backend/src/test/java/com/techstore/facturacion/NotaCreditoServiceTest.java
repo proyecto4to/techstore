@@ -6,6 +6,7 @@ import com.techstore.catalogo.Producto;
 import com.techstore.catalogo.ProductoRepository;
 import com.techstore.comun.AutonumeradorService;
 import com.techstore.comun.BusinessException;
+import com.techstore.comun.CondicionOperacion;
 import com.techstore.comun.Dinero;
 import com.techstore.comun.Moneda;
 import com.techstore.empresa.EmpresaProperties;
@@ -70,7 +71,7 @@ class NotaCreditoServiceTest {
                     "TechStore Paraguay", "80012345-6", "Avda. España 1234 c/ Brasil", "Asunción, Paraguay",
                     "(021) 555-123", "facturacion@techstore.py", "Venta de equipos e insumos informáticos", "12345678",
                     "01/01/2026 al 31/12/2026",
-                    2, "001", "001", "47411", "11", "CENTRAL", "1", "ASUNCION", "1", "ASUNCION", "2026-01-01")));
+                    2, "001", "001", "47411", "11", "CENTRAL", "1", "ASUNCION", "1", "ASUNCION", "2026-01-01", "0")));
 
     @Mock
     private AuditoriaService auditoriaService;
@@ -89,7 +90,7 @@ class NotaCreditoServiceTest {
                 productoRepository, usuarioRepository, autonumeradorService, cajaService, facturaPdfService,
                 FacturaPdfServiceTest.configConEmisor(new EmpresaProperties(
                         "TechStore Paraguay", "80012345-0", null, null, null, null, null, "12345678", null,
-                        2, "001", "001", null, null, null, null, null, null, null, "2026-01-01")),
+                        2, "001", "001", null, null, null, null, null, null, null, "2026-01-01", "0")),
                 puntoPorDefecto(),
                 auditoriaService);
 
@@ -119,7 +120,7 @@ class NotaCreditoServiceTest {
         factura = new Factura();
         factura.setId(7L);
         factura.setNumero("001-001-0000002");
-        factura.setTipo("CONTADO");
+        factura.setCondicionVenta(CondicionOperacion.Contado);
         factura.setPedido(pedido);
         factura.setSubtotal(Dinero.de(2_000_000, Moneda.PYG));
         factura.setIva(Dinero.de(200_000, Moneda.PYG));
@@ -208,7 +209,7 @@ class NotaCreditoServiceTest {
     }
 
     @Test
-    void devolucionTotalAnulaFacturaYMarcaPedidoDevuelto() {
+    void devolucionTotalMantieneFacturaYMarcaPedidoDevuelto() {
         prepararHappy();
 
         NotaCreditoResponse nc = notaCreditoService.emitir(3L,
@@ -220,7 +221,9 @@ class NotaCreditoServiceTest {
         assertEquals(11, ram.getStockReal()); // 9 + 2
         assertEquals(16, ssd.getStockReal()); // 15 + 1
         assertEquals(EstadoPedido.R, pedido.getEstado());
-        assertEquals(EstadoFactura.Anulada, factura.getEstado());
+        assertEquals(EstadoFactura.Pagada, factura.getEstado(),
+                "La factura debe seguir en el libro IVA y quedar compensada por la nota de crédito");
+        verify(facturaRepository, never()).save(factura);
     }
 
     @Test

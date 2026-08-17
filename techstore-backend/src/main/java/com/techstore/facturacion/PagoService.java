@@ -3,19 +3,19 @@ package com.techstore.facturacion;
 import com.techstore.caja.CajaService;
 import com.techstore.comun.AutonumeradorService;
 import com.techstore.comun.BusinessException;
+import com.techstore.comun.CondicionOperacion;
 import com.techstore.comun.Dinero;
 import com.techstore.comun.PageResponse;
 import com.techstore.comun.ResourceNotFoundException;
 import com.techstore.comun.RucParaguayo;
+import com.techstore.comun.TipoIdentificacion;
 import com.techstore.empresa.EmpresaConfigService;
 import com.techstore.empresa.EmpresaProperties;
 import com.techstore.empresa.PuntoExpedicion;
 import com.techstore.empresa.PuntoExpedicionService;
 import com.techstore.facturacion.sifen.CodigoControl;
 import com.techstore.facturacion.sifen.FacturaElectronicaService;
-import com.techstore.notificaciones.CorreoService;
-import com.techstore.notificaciones.EmailTemplateService;
-import com.techstore.notificaciones.TipoCorreo;
+import com.techstore.notificaciones.outbox.NotificationOutboxPublisher;
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
 import com.techstore.ventas.EstadoPedido;
@@ -23,7 +23,6 @@ import com.techstore.ventas.Pedido;
 import com.techstore.ventas.PedidoDetalle;
 import com.techstore.ventas.PedidoRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -36,18 +35,26 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PagoService {
 
     private static final String ENTIDAD_PAGO = "PAGO";
     private static final String ENTIDAD_FACTURA = "FACTURA";
-    private static final String TIPO_FACTURA_CONTADO = "CONTADO";
 
     /** Métodos de pago habilitados; Tarjeta y Cheque quedan fuera de uso. */
     private static final Set<TipoPago> METODOS_HABILITADOS =
             EnumSet.of(TipoPago.Efectivo, TipoPago.Transferencia);
+
+    /**
+     * En un pedido web el dueño del pedido sí es el cliente y puede aportar sus
+     * datos fiscales. En mostrador, en cambio, ese dueño es solo el cajero que
+     * registró la operación: nunca debe convertirse en receptor por omisión.
+     */
+    private enum PoliticaReceptor {
+        CUENTA_DEL_CLIENTE,
+        EXPLICITO
+    }
 
     private final PagoRepository pagoRepository;
     private final FacturaRepository facturaRepository;
@@ -55,8 +62,7 @@ public class PagoService {
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
     private final CajaService cajaService;
-    private final CorreoService correoService;
-    private final EmailTemplateService emailTemplateService;
+    private final NotificationOutboxPublisher notificationPublisher;
     private final EmpresaConfigService empresaConfig;
     private final FacturaElectronicaService facturaElectronicaService;
     private final PuntoExpedicionService puntoExpedicionService;
@@ -71,6 +77,25 @@ public class PagoService {
      */
     @Transactional
     public PagoResponse registrarPago(Long pedidoId, RegistroPagoRequest request, String emailCajero) {
+        return registrarPago(pedidoId, request, emailCajero, PoliticaReceptor.CUENTA_DEL_CLIENTE);
+    }
+
+    /**
+     * Cobra una venta de mostrador. El receptor se toma únicamente del cobro:
+     * si no se informó RUC, la factura sale a consumidor final. La cuenta del
+     * cajero no se consulta ni se actualiza como si fuera la del comprador.
+     */
+    @Transactional
+    public PagoResponse registrarPagoVentaDirecta(
+            Long pedidoId, RegistroPagoRequest request, String emailCajero) {
+        return registrarPago(pedidoId, request, emailCajero, PoliticaReceptor.EXPLICITO);
+    }
+
+    private PagoResponse registrarPago(
+            Long pedidoId,
+            RegistroPagoRequest request,
+            String emailCajero,
+            PoliticaReceptor politicaReceptor) {
         Pedido pedido = pedidoRepository.findWithDetallesById(pedidoId)
                 .orElseThrow(() -> new ResourceNotFoundException("ventas.pedido.no.encontrado", pedidoId));
 
@@ -82,6 +107,9 @@ public class PagoService {
         }
 
         validarLineas(request.lineas(), pedido.getTotal());
+        if (politicaReceptor == PoliticaReceptor.EXPLICITO) {
+            validarReceptorExplicito(request.receptor());
+        }
 
         Usuario cajero = usuarioRepository.findByEmail(emailCajero)
                 .orElseThrow(() -> new BadCredentialsException("Usuario no encontrado"));
@@ -116,14 +144,20 @@ public class PagoService {
                 autonumeradorService.siguiente(punto.autonumerador(ENTIDAD_FACTURA))));
         // Parte del CDC: se fija ahora para que el documento electrónico sea siempre el mismo.
         factura.setCodigoSeguridad(CodigoControl.generarCodigoSeguridad());
-        factura.setTipo(TIPO_FACTURA_CONTADO);
+        // El timbrado se congela como el resto de los datos del documento: el
+        // que rige es el vigente al emitir, y los libros de IVA de un período
+        // ya pasado tienen que seguir mostrándolo aunque hoy haya otro.
+        factura.setTimbrado(emisor.timbrado());
+        // El cobro exige el total del pedido en el acto (ver validarLineas), así
+        // que toda factura que emite el sistema es al contado.
+        factura.setCondicionVenta(CondicionOperacion.Contado);
         factura.setPedido(pedido);
         factura.setSubtotal(pedido.getTotal().menos(iva));
         factura.setIva(iva);
         factura.setTotal(pedido.getTotal());
         factura.setEstado(EstadoFactura.Pagada);
         factura.setUsuario(cajero);
-        aplicarReceptor(factura, pedido.getUsuario(), request.receptor());
+        aplicarReceptor(factura, pedido.getUsuario(), request.receptor(), politicaReceptor);
         factura = facturaRepository.save(factura);
 
         pedido.setEstado(EstadoPedido.G);
@@ -144,17 +178,22 @@ public class PagoService {
                     pago.getTipoPago());
         }
 
-        enviarFacturaPorCorreo(pedido, factura);
+        notificationPublisher.pagoConfirmado(
+                factura, politicaReceptor == PoliticaReceptor.CUENTA_DEL_CLIENTE);
 
         return PagoResponse.from(pagos, factura);
     }
 
     /**
      * Congela en la factura a quién se le emite. Si el cobro trae un RUC se
-     * factura a ese contribuyente; si no, se usa el que el cliente tenga
-     * cargado en su cuenta; y si no hay ninguno, sale a consumidor final.
+     * factura a ese contribuyente. En pedidos web puede completarse desde la
+     * cuenta del cliente; en mostrador solo se acepta lo informado en el cobro.
      */
-    private void aplicarReceptor(Factura factura, Usuario cliente, RegistroPagoRequest.Receptor receptor) {
+    private void aplicarReceptor(
+            Factura factura,
+            Usuario cliente,
+            RegistroPagoRequest.Receptor receptor,
+            PoliticaReceptor politicaReceptor) {
         String ruc = receptor == null ? null : RucParaguayo.normalizar(receptor.ruc());
         String razonSocial = receptor == null ? null : receptor.razonSocial();
 
@@ -169,26 +208,44 @@ public class PagoService {
         factura.setReceptorDireccion(receptor == null ? null : limpio(receptor.direccion()));
         factura.setReceptorTelefono(receptor == null ? null : limpio(receptor.telefono()));
 
-        if (ruc == null) {
+        if (ruc == null && politicaReceptor == PoliticaReceptor.CUENTA_DEL_CLIENTE) {
             // Sin RUC en el cobro: se cae al de la cuenta del cliente, si tiene.
             ruc = RucParaguayo.normalizar(cliente.getRuc());
             razonSocial = cliente.getRazonSocial();
         }
         if (ruc == null) {
-            return; // consumidor final: receptorRuc queda nulo
+            // Consumidor final: receptorRuc queda nulo y ante la DNIT la venta
+            // se declara como "sin nombre", que es el tipo previsto para el
+            // comprador que no se identificó.
+            factura.setReceptorTipoDocumento(TipoIdentificacion.SinNombre);
+            return;
         }
         String motivo = RucParaguayo.motivoInvalidez(ruc);
         if (motivo != null) {
             throw new BusinessException("facturacion.ruc.invalido", ruc, motivo);
         }
 
+        factura.setReceptorTipoDocumento(TipoIdentificacion.RUC);
         factura.setReceptorRuc(ruc);
         factura.setReceptorNombre(nombreReceptor(razonSocial, cliente));
 
-        if (receptor != null && Boolean.TRUE.equals(receptor.guardarEnCliente())) {
+        if (politicaReceptor == PoliticaReceptor.CUENTA_DEL_CLIENTE
+                && receptor != null
+                && Boolean.TRUE.equals(receptor.guardarEnCliente())) {
             cliente.setRuc(ruc);
             cliente.setRazonSocial(factura.getReceptorNombre());
             usuarioRepository.save(cliente);
+        }
+    }
+
+    /**
+     * Un receptor explícito con RUC también necesita un nombre fiscal explícito.
+     * No hay una cuenta de cliente válida de la cual completarlo en mostrador.
+     */
+    private static void validarReceptorExplicito(RegistroPagoRequest.Receptor receptor) {
+        String ruc = receptor == null ? null : RucParaguayo.normalizar(receptor.ruc());
+        if (ruc != null && limpio(receptor.razonSocial()) == null) {
+            throw new BusinessException("facturacion.receptor.razon.social.obligatoria");
         }
     }
 
@@ -260,51 +317,6 @@ public class PagoService {
     }
 
     /**
-     * Envía la factura recién emitida al cliente con el PDF adjunto (bandeja de salida).
-     * El adjunto es el mismo KuDE que se descarga desde el panel y desde "Mis pedidos",
-     * para que el cliente reciba exactamente el documento que ve en el sistema.
-     */
-    private void enviarFacturaPorCorreo(Pedido pedido, Factura factura) {
-        Usuario cliente = pedido.getUsuario();
-        // El cobro ya está registrado: si fallara el armado del KuDE, se manda el aviso
-        // sin adjunto en vez de tirar abajo toda la transacción del pago.
-        byte[] pdf;
-        try {
-            pdf = facturaElectronicaService.generarKude(factura.getId()).pdf();
-        } catch (Exception ex) {
-            pdf = null;
-            log.warn("No se pudo generar el KuDE de la factura {} para adjuntarlo al correo: {}",
-                    factura.getNumero(), ex.getMessage());
-        }
-        // Si se informó el correo del receptor, la factura va ahí: en una venta de
-        // mostrador el pedido es del cajero, y el comprobante es del cliente.
-        boolean aReceptor = factura.getReceptorEmail() != null;
-        String destinatario = aReceptor ? factura.getReceptorEmail() : cliente.getEmail();
-        String nombre = aReceptor
-                ? (factura.getReceptorNombre() != null ? factura.getReceptorNombre() : "cliente")
-                : cliente.getNombre() + " " + cliente.getApellido();
-
-        String cuerpo = emailTemplateService.construir(
-                TipoCorreo.FACTURA,
-                "¡Gracias por tu compra!",
-                nombre,
-                "Adjuntamos la factura " + factura.getNumero() + " correspondiente a tu compra "
-                        + "(pedido N.º " + pedido.getNumero() + ").",
-                "Total: " + factura.getTotal(),
-                aReceptor ? null : "VER MIS PEDIDOS",
-                aReceptor ? null : emailTemplateService.url("/pedidos"));
-        correoService.enviar(
-                TipoCorreo.FACTURA,
-                destinatario,
-                nombre,
-                "Tu factura " + factura.getNumero() + " — TechStore",
-                cuerpo,
-                factura.getNumero(),
-                pdf,
-                "factura-" + factura.getNumero() + ".pdf");
-    }
-
-    /**
      * El IVA contenido en el pedido, sumado detalle por detalle porque cada uno
      * puede tener su propia tasa. El cálculo y el redondeo los hace {@link Dinero}
      * según la moneda: es el mismo que usan la nota de crédito y el KuDE.
@@ -314,6 +326,7 @@ public class PagoService {
         for (PedidoDetalle detalle : pedido.getDetalles()) {
             iva = iva.mas(detalle.getSubtotal().ivaIncluido(detalle.getIvaAplicado()));
         }
+        iva = iva.mas(pedido.getCostoEnvio().ivaIncluido(pedido.getIvaEnvio()));
         return iva;
     }
 }

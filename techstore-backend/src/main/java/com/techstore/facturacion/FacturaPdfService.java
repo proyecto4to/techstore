@@ -26,6 +26,7 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -76,11 +77,17 @@ public class FacturaPdfService {
     }
 
     public byte[] generar(Factura factura) {
-        List<ItemPdf> items = factura.getPedido().getDetalles().stream()
+        List<ItemPdf> items = new ArrayList<>(factura.getPedido().getDetalles().stream()
                 .map(d -> new ItemPdf(d.getCantidad(), d.getProducto().getNombre(),
                         d.getPrecioUnitario(), d.getSubtotal(),
                         d.getIvaAplicado() == null ? 0 : d.getIvaAplicado().intValue()))
-                .toList();
+                .toList());
+        if (factura.getPedido().getCostoEnvio().esPositivo()) {
+            int tasa = factura.getPedido().getIvaEnvio() == null ? 0
+                    : factura.getPedido().getIvaEnvio().intValue();
+            items.add(new ItemPdf(1, "Servicio de entrega", factura.getPedido().getCostoEnvio(),
+                    factura.getPedido().getCostoEnvio(), tasa));
+        }
         return render(factura, "FACTURA", factura.getNumero(), factura.getFecha(),
                 null, "TOTAL A PAGAR:", items, factura.getTotal());
     }
@@ -153,7 +160,10 @@ public class FacturaPdfService {
         Paragraph ruc = new Paragraph("RUC: " + empresa().ruc(), F_NEGRITA);
         ruc.setAlignment(Element.ALIGN_CENTER);
         cajaTimbrado.addElement(ruc);
-        Paragraph timbrado = new Paragraph("TIMBRADO N.º " + empresa().timbrado(), F_NEGRITA);
+        // El de la factura, no el vigente: reimprimir una factura vieja tiene que
+        // dar el mismo papel que salió el día que se emitió.
+        Paragraph timbrado = new Paragraph(
+                "TIMBRADO N.º " + factura.timbradoO(empresa().timbrado()), F_NEGRITA);
         timbrado.setAlignment(Element.ALIGN_CENTER);
         cajaTimbrado.addElement(timbrado);
         Paragraph vigencia = new Paragraph("Vigencia: " + empresa().timbradoVigencia(), F_CHICA);
@@ -173,7 +183,7 @@ public class FacturaPdfService {
 
     private void agregarCondicionYFecha(Document documento, Factura factura,
                                         java.time.LocalDateTime fecha) throws DocumentException {
-        boolean contado = "CONTADO".equalsIgnoreCase(factura.getTipo());
+        boolean contado = factura.esContado();
         PdfPTable fila = new PdfPTable(new float[]{60, 40});
         fila.setWidthPercentage(100);
 

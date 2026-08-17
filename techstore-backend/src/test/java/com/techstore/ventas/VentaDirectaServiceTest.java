@@ -122,7 +122,7 @@ class VentaDirectaServiceTest {
     }
 
     @Test
-    void elCobroYLaFacturaLosHaceElMismoCaminoQueUnaVentaWeb() {
+    void elCobroUsaLaPoliticaDeReceptorExplicitoDeVentaDirecta() {
         prepararVentaFeliz();
         RegistroPagoRequest.Receptor receptor =
                 new RegistroPagoRequest.Receptor("80012345-0", "Ferretería Del Este SA", null, null, null, false);
@@ -135,7 +135,8 @@ class VentaDirectaServiceTest {
                 "cajero@techstore.py");
 
         ArgumentCaptor<RegistroPagoRequest> captor = ArgumentCaptor.forClass(RegistroPagoRequest.class);
-        verify(pagoService).registrarPago(eq(99L), captor.capture(), eq("cajero@techstore.py"));
+        verify(pagoService).registrarPagoVentaDirecta(
+                eq(99L), captor.capture(), eq("cajero@techstore.py"));
         // El receptor con RUC viaja tal cual al cobro, que es quien emite la factura.
         assertEquals(receptor, captor.getValue().receptor());
         assertEquals(1, captor.getValue().lineas().size());
@@ -157,7 +158,7 @@ class VentaDirectaServiceTest {
         assertArrayEquals(new Object[]{"Cable HDMI 2.0 2m", 8, 9}, ex.getArgumentos(),
                 "El mensaje tiene que decir cuántas unidades hay disponibles y cuántas se pidieron");
         assertEquals(10, cable.getStockReal());
-        verify(pagoService, never()).registrarPago(any(), any(), any());
+        verify(pagoService, never()).registrarPagoVentaDirecta(any(), any(), any());
     }
 
     @Test
@@ -169,7 +170,7 @@ class VentaDirectaServiceTest {
 
         assertThrows(BusinessException.class,
                 () -> ventaDirectaService.vender(venta(1, "45000.00"), "cajero@techstore.py"));
-        verify(pagoService, never()).registrarPago(any(), any(), any());
+        verify(pagoService, never()).registrarPagoVentaDirecta(any(), any(), any());
     }
 
     @Test
@@ -210,7 +211,25 @@ class VentaDirectaServiceTest {
                         "cajero@techstore.py"));
 
         assertEquals("ventas.descuento.mayor.al.precio", ex.getClave());
-        verify(pagoService, never()).registrarPago(any(), any(), any());
+        verify(pagoService, never()).registrarPagoVentaDirecta(any(), any(), any());
+    }
+
+    @Test
+    void elDescuentoNoPuedeDejarLaLineaEnCero() {
+        when(usuarioRepository.findByEmail("cajero@techstore.py")).thenReturn(Optional.of(cajero));
+        when(productoRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(cable));
+        when(autonumeradorService.siguiente("PEDIDO")).thenReturn(50);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> ventaDirectaService.vender(
+                        new VentaDirectaRequest(
+                                List.of(new ItemVenta(32L, 1, new BigDecimal("45000"))),
+                                List.of(new LineaPago(TipoPago.Efectivo, BigDecimal.ZERO, null)),
+                                null, null),
+                        "cajero@techstore.py"));
+
+        assertEquals("ventas.descuento.mayor.al.precio", ex.getClave());
+        verify(pagoService, never()).registrarPagoVentaDirecta(any(), any(), any());
     }
 
     @Test

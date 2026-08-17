@@ -1,6 +1,7 @@
 package com.techstore.facturacion;
 
 import com.techstore.catalogo.Producto;
+import com.techstore.comun.CondicionOperacion;
 import com.techstore.comun.Dinero;
 import com.techstore.comun.Moneda;
 import com.techstore.empresa.EmpresaConfigService;
@@ -28,20 +29,14 @@ class FacturaPdfServiceTest {
             "TechStore Paraguay", "80012345-6", "Avda. España 1234 c/ Brasil", "Asunción, Paraguay",
             "(021) 555-123", "facturacion@techstore.py", "Venta de equipos e insumos informáticos", "12345678",
             "01/01/2026 al 31/12/2026",
-            2, "001", "001", "47411", "11", "CENTRAL", "1", "ASUNCION", "1", "ASUNCION", "2026-01-01")));
+            2, "001", "001", "47411", "11", "CENTRAL", "1", "ASUNCION", "1", "ASUNCION", "2026-01-01", "0")));
 
     /**
      * Config de emisor fija, sin base de datos de por medio. El stub es lenient
      * porque hay tests que fallan antes de llegar a necesitar estos datos.
      */
     static EmpresaConfigService configConEmisor(EmpresaProperties emisor) {
-        EmpresaConfigService config = mock(EmpresaConfigService.class);
-        lenient().when(config.actual()).thenReturn(emisor);
-        // La emisión pide los datos por este otro método, que además exige que
-        // estén completos. Acá se da por bueno el emisor que arma el test: lo
-        // que se prueba es el documento, no la validación, que tiene el suyo.
-        lenient().when(config.actualParaFacturar()).thenReturn(emisor);
-        return config;
+        return com.techstore.empresa.EmisorDePrueba.config(emisor);
     }
 
     private Factura facturaDePrueba() {
@@ -74,7 +69,7 @@ class FacturaPdfServiceTest {
 
         Factura factura = new Factura();
         factura.setNumero("001-001-0000001");
-        factura.setTipo("CONTADO");
+        factura.setCondicionVenta(CondicionOperacion.Contado);
         factura.setPedido(pedido);
         factura.setFecha(LocalDateTime.of(2026, 7, 17, 10, 30));
         // 3.500.000 × 10 ÷ 110 = 318.181,81… -> 318.182 en guaraníes enteros.

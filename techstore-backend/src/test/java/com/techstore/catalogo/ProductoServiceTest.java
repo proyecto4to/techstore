@@ -103,7 +103,19 @@ class ProductoServiceTest {
     void obtenerInexistenteFalla() {
         when(productoRepository.findById(42L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> productoService.obtener(42L));
+        assertThrows(ResourceNotFoundException.class, () -> productoService.obtenerPublico(42L));
+    }
+
+    @Test
+    void obtenerPublicoOcultaProductoInactivo() {
+        Producto producto = new Producto();
+        producto.setId(9L);
+        producto.setActivo(false);
+        producto.setStockReal(5);
+        producto.setStockComprometido(0);
+        when(productoRepository.findById(9L)).thenReturn(Optional.of(producto));
+
+        assertThrows(ResourceNotFoundException.class, () -> productoService.obtenerPublico(9L));
     }
 
     private Marca marca(Long id, String nombre) {
