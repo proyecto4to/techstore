@@ -27,6 +27,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verificar secretos, credenciales, puertos y actions
         run: node scripts/ci-security-check.mjs
+      - name: Validar contrato OpenAPI compartido
+        run: node scripts/validate-openapi.mjs
 
   codeql:
     name: SAST (${{ matrix.language }})
@@ -132,3 +134,34 @@ jobs:
           path: artifacts/frontend.cdx.json
           if-no-files-found: error
           retention-days: 14
+
+  mobile:
+    name: Mobile Flutter (format + analyze + tests + APK debug)
+    needs: security
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: techstore-mobile
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Configurar Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Instalar Flutter 3.47.1
+        working-directory: .
+        run: |
+          git clone --depth 1 --branch 3.47.1 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Resolver dependencias
+        run: flutter pub get
+      - name: Verificar formato, análisis y tests
+        run: |
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze --fatal-infos
+          flutter test
+      - name: Compilar APK development
+        run: flutter build apk --debug --flavor development -t lib/main_development.dart

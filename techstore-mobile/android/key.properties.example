@@ -1,0 +1,6 @@
+# Copiar como android/key.properties y mantener fuera de Git.
+# storeFile puede ser absoluto o relativo a android/app.
+storeFile=C:/ruta/externa/techstore-upload.jks
+storePassword=REEMPLAZAR_EN_LOCAL
+keyAlias=techstore-upload
+keyPassword=REEMPLAZAR_EN_LOCAL

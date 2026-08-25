@@ -1,0 +1,102 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../core/di/providers.dart';
+import '../core/offline/offline_queue_service.dart';
+import '../features/auth/application/session_controller.dart';
+
+class ConnectivityBanner extends ConsumerStatefulWidget {
+  const ConnectivityBanner({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  ConsumerState<ConnectivityBanner> createState() => _ConnectivityBannerState();
+}
+
+class _ConnectivityBannerState extends ConsumerState<ConnectivityBanner>
+    with WidgetsBindingObserver {
+  StreamSubscription<bool>? _subscription;
+  bool _online = true;
+  int _probeGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final connectivity = ref.read(connectivityProvider);
+    unawaited(_refreshReachability());
+    _subscription = connectivity.networkAvailable.listen((_) {
+      unawaited(_refreshReachability());
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshReachability());
+    }
+  }
+
+  Future<void> _refreshReachability() async {
+    final generation = ++_probeGeneration;
+    final online = await ref.read(connectivityProvider).backendReachable();
+    if (!mounted || generation != _probeGeneration || online == _online) return;
+    setState(() => _online = online);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_subscription?.cancel());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final email = ref.watch(authSessionProvider).user?.email;
+    final token = ref.read(authSessionProvider.notifier).accessToken;
+    final pending = email == null
+        ? const Stream<int>.empty()
+        : ref
+              .watch(offlineQueueProvider)
+              .pendingCount(offlineScopeForSession(token, email));
+    return Column(
+      children: [
+        StreamBuilder<int>(
+          stream: pending,
+          initialData: 0,
+          builder: (context, snapshot) {
+            final count = snapshot.data ?? 0;
+            if (_online && count == 0) return const SizedBox.shrink();
+            final color = _online
+                ? Theme.of(context).colorScheme.tertiaryContainer
+                : Theme.of(context).colorScheme.errorContainer;
+            final message = !_online
+                ? 'Sin conexión · se muestran datos guardados'
+                : '$count operación${count == 1 ? '' : 'es'} pendiente${count == 1 ? '' : 's'} de sincronizar';
+            return Material(
+              color: color,
+              child: SafeArea(
+                bottom: false,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    child: Text(message, textAlign: TextAlign.center),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        Expanded(child: widget.child),
+      ],
+    );
+  }
+}
