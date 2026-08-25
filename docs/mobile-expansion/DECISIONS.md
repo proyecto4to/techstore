@@ -6,7 +6,7 @@ Estado: ACEPTADA
 
 - Decisión: crear `techstore-mobile/` en el repositorio TechStore.
 - Motivo: contrato, CI, documentación y evolución Web/backend/Mobile quedan atómicos.
-- Consecuencia: la app Expo externa se trata como legado independiente; no se modifica.
+- Consecuencia: la app Expo externa queda discontinuada (ver ADR-011).
 
 ## ADR-002 — Backend y PostgreSQL únicos
 
@@ -44,7 +44,7 @@ Estado: ACEPTADA
 Estado: ACEPTADA
 
 - Flutter Android usa Firebase Cloud Messaging mediante la abstracción backend `PushProvider`.
-- Expo Push queda solo como proveedor legado mientras exista la app Expo.
+- FCM es el unico proveedor de push. El proveedor Expo fue eliminado con ADR-011.
 - `google-services.json` y credenciales de servicio nunca se versionan.
 
 ## ADR-007 — Offline selectivo
@@ -85,3 +85,12 @@ Estado: ACEPTADA
 - HTTP solo se permite hacia IPv4 RFC1918 en este flavor; staging/production conservan HTTPS obligatorio.
 - La base/backend central continúa siendo la fuente de verdad; la PC debe estar accesible en la LAN.
 - Google Play, App Links y Firebase production quedan postergados sin bloquear el uso privado.
+
+## ADR-011 — Flutter es la unica app movil
+
+Estado: ACEPTADA
+
+- Decision: Flutter (`techstore-mobile/`) es el unico cliente movil de TechStore. La app Expo del repositorio externo `proyecto4to/techstore-mobile` queda discontinuada.
+- Motivo: mantener dos clientes del mismo backend duplicaba el esfuerzo y ninguno quedaba completo. Flutter llego a distribucion privada verificada en hardware real; Expo quedo en su fase 15.
+- Consecuencia: se elimino `ExpoPushProvider` y su configuracion (`push.expo-url`, `push.access-token`), porque nada podia seleccionarlo. `docs/api/mobile-auth.openapi.yaml` queda como contrato historico, no vigente.
+- Pendiente: decidir que hacer con el repositorio externo; este monorepo ya no lo referencia como Mobile vigente.

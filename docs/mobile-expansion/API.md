@@ -9,7 +9,7 @@
 - Fuente: aplicación Spring Boot en ejecución, exportada con `scripts/export-openapi.ps1`.
 - Validación reproducible: `node scripts/validate-openapi.mjs`.
 
-`docs/api/mobile-auth.openapi.yaml` se conserva como contrato histórico del cliente Expo externo. No es la fuente de verdad para el nuevo Flutter.
+`docs/api/mobile-auth.openapi.yaml` se conserva como contrato histórico del cliente Expo, discontinuado por ADR-011. No es la fuente de verdad.
 
 ## Autenticación y tenant
 

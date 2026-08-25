@@ -71,7 +71,7 @@ Fecha: 2026-08-20
 - Historial de migraciones Flyway existente; solo se agregan migraciones nuevas.
 - RLS/tenant como defensa en profundidad.
 - Scripts de backup/restore y datos reales del usuario.
-- App Expo externa: se considera legado/proyecto separado; no se modifica ni se mezcla con Flutter.
+- App Expo externa: discontinuada por ADR-011. Flutter es el unico cliente movil.
 
 ## 7. Arquitectura Flutter
 
