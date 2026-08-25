@@ -147,6 +147,13 @@ public class CompraComprobante implements ConMoneda {
     @Column(name = "asociado_timbrado", length = 8)
     private String asociadoTimbrado;
 
+    /** Nombre interno del archivo; nunca contiene una ruta provista por el cliente. */
+    @Column(name = "archivo_nombre", length = 255)
+    private String archivoNombre;
+
+    @Column(name = "archivo_content_type", length = 100)
+    private String archivoContentType;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

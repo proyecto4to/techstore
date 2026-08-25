@@ -34,7 +34,10 @@ public interface FacturaRepository extends JpaRepository<Factura, Long> {
     @EntityGraph(attributePaths = {"pedido"})
     Page<Factura> findAll(Pageable pageable);
 
-    @EntityGraph(attributePaths = {"pedido"})
+    @EntityGraph(attributePaths = {"pedido", "pedido.usuario"})
+    Page<Factura> findByPedidoUsuarioEmail(String email, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"pedido", "pedido.usuario"})
     Optional<Factura> findWithPedidoById(Long id);
 
     @EntityGraph(attributePaths = {"pedido", "pedido.detalles", "pedido.detalles.producto", "pedido.usuario", "usuario"})

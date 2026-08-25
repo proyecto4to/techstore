@@ -61,7 +61,7 @@ class MigracionesIT {
             }
         }
         assertTrue(fallidas.isEmpty(), "Migraciones fallidas: " + fallidas);
-        assertEquals(42, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
+        assertEquals(45, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
     }
 
     @Test
@@ -74,7 +74,8 @@ class MigracionesIT {
                 "notas_credito", "nota_credito_detalles",
                 "proveedores", "configuracion", "correos",
                 "audit_log", "intento_login", "autonumerador", "sesiones_refresh", "favoritos",
-                "dispositivos_moviles", "notification_outbox", "notificaciones_usuario");
+                "dispositivos_moviles", "notification_outbox", "notificaciones_usuario",
+                "domain_event_outbox");
 
         List<String> presentes = new ArrayList<>();
         try (Connection con = dataSource.getConnection();
@@ -280,6 +281,40 @@ class MigracionesIT {
         assertEquals(1, contar("SELECT count(*) FROM pg_constraint "
                 + "WHERE conname = 'ck_notification_outbox_channel' "
                 + "AND pg_get_constraintdef(oid) LIKE '%INTERNAL%'"));
+    }
+
+    @Test
+    @DisplayName("V43 creó eventos transaccionales, recuperables y aislados por tenant")
+    void domainEventOutboxSeguro() throws SQLException {
+        for (String columna : List.of("tenant_id", "event_type", "aggregate_type",
+                "aggregate_id", "payload", "status", "attempts", "next_attempt_at",
+                "claimed_at", "processed_at", "occurred_at", "last_error")) {
+            assertTrue(existeColumna("domain_event_outbox", columna), "Falta " + columna);
+        }
+        assertEquals("jsonb", tipo("domain_event_outbox", "payload"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_class WHERE relname = 'domain_event_outbox' "
+                + "AND relrowsecurity AND relforcerowsecurity"));
+        assertEquals(2, contar("SELECT count(*) FROM pg_policies WHERE tablename = 'domain_event_outbox'"));
+        assertEquals(21, contar("SELECT count(*) FROM pg_trigger WHERE tgname LIKE 'trg_sync_%' "
+                + "AND NOT tgisinternal"));
+    }
+
+    @Test
+    @DisplayName("V44 guarda solo hashes de recuperación con aislamiento tenant")
+    void passwordRecoverySeguro() throws SQLException {
+        for (String columna : java.util.List.of(
+                "tenant_id", "usuario_id", "token_hash", "creado_en", "expira_en", "usado_en")) {
+            assertTrue(existeColumna("password_reset_tokens", columna), "Falta " + columna);
+        }
+        assertEquals(2, contar("SELECT count(*) FROM pg_policies WHERE tablename = 'password_reset_tokens'"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_indexes WHERE indexname = 'idx_password_reset_user_active'"));
+    }
+
+    @Test
+    @DisplayName("V45 agrega metadatos del archivo privado del comprobante de compra")
+    void archivoComprobanteCompra() throws SQLException {
+        assertTrue(existeColumna("compra_comprobantes", "archivo_nombre"));
+        assertTrue(existeColumna("compra_comprobantes", "archivo_content_type"));
     }
 
     @Test

@@ -279,15 +279,17 @@ public class PagoService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<FacturaResponse> listarFacturas(Pageable pageable) {
-        return PageResponse.from(facturaRepository.findAll(pageable).map(FacturaResponse::from));
+    public PageResponse<FacturaResponse> listarFacturas(
+            String emailSolicitante, boolean esStaff, Pageable pageable) {
+        var facturas = esStaff
+                ? facturaRepository.findAll(pageable)
+                : facturaRepository.findByPedidoUsuarioEmail(emailSolicitante, pageable);
+        return PageResponse.from(facturas.map(FacturaResponse::from));
     }
 
     @Transactional(readOnly = true)
-    public FacturaResponse obtenerFactura(Long id) {
-        return facturaRepository.findWithPedidoById(id)
-                .map(FacturaResponse::from)
-                .orElseThrow(() -> new ResourceNotFoundException("facturacion.factura.no.encontrada", id));
+    public FacturaResponse obtenerFactura(Long id, String emailSolicitante, boolean esStaff) {
+        return FacturaResponse.from(facturaAutorizada(id, emailSolicitante, esStaff));
     }
 
     /** Número de factura + contenido PDF listos para descargar. */
@@ -295,11 +297,21 @@ public class PagoService {
     }
 
     @Transactional(readOnly = true)
-    public FacturaPdf generarPdf(Long id) {
+    public FacturaPdf generarPdf(Long id, String emailSolicitante, boolean esStaff) {
+        facturaAutorizada(id, emailSolicitante, esStaff);
         // La factura que se descarga es la representación gráfica e-kuatia (KuDE):
         // encabezado del emisor, datos del receptor, columnas por tasa de IVA, QR y CDC.
         FacturaElectronicaService.Kude kude = facturaElectronicaService.generarKude(id);
         return new FacturaPdf(kude.numero(), kude.pdf());
+    }
+
+    private Factura facturaAutorizada(Long id, String emailSolicitante, boolean esStaff) {
+        Factura factura = facturaRepository.findWithPedidoById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("facturacion.factura.no.encontrada", id));
+        if (!esStaff && !factura.getPedido().getUsuario().getEmail().equalsIgnoreCase(emailSolicitante)) {
+            throw new AccessDeniedException("No puede consultar facturas de otro usuario");
+        }
+        return factura;
     }
 
     /**

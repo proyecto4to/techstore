@@ -28,7 +28,8 @@ public record ComprobanteCompraResponse(
         BigDecimal iva5,
         BigDecimal creditoFiscal,
         String asociadoNumero,
-        String asociadoTimbrado) {
+        String asociadoTimbrado,
+        boolean archivoDisponible) {
 
     public static ComprobanteCompraResponse from(CompraComprobante c) {
         return new ComprobanteCompraResponse(
@@ -51,6 +52,7 @@ public record ComprobanteCompraResponse(
                 c.getIva5().monto(),
                 c.getCreditoFiscal().monto(),
                 c.getAsociadoNumero(),
-                c.getAsociadoTimbrado());
+                c.getAsociadoTimbrado(),
+                c.getArchivoNombre() != null);
     }
 }

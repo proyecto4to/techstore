@@ -33,6 +33,7 @@ public class StompJwtChannelInterceptor implements ChannelInterceptor, ExecutorC
     private static final Pattern DESTINO_ENVIO = Pattern.compile("/app/chat/[1-9][0-9]*");
     private static final Set<String> DESTINOS_SUSCRIPCION = Set.of(
             "/user/queue/chat", "/user/queue/chat-read", "/user/queue/chat-errors");
+    private static final Pattern DESTINO_EVENTOS = Pattern.compile("/topic/tenant/([1-9][0-9]*)/events");
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
@@ -49,10 +50,20 @@ public class StompJwtChannelInterceptor implements ChannelInterceptor, ExecutorC
                 && !DESTINO_ENVIO.matcher(String.valueOf(accessor.getDestination())).matches()) {
             throw new MessageDeliveryException("Destino STOMP no permitido");
         } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())
-                && !DESTINOS_SUSCRIPCION.contains(accessor.getDestination())) {
+                && !suscripcionPermitida(accessor)) {
             throw new MessageDeliveryException("Suscripción STOMP no permitida");
         }
         return message;
+    }
+
+    private boolean suscripcionPermitida(StompHeaderAccessor accessor) {
+        String destination = accessor.getDestination();
+        if (DESTINOS_SUSCRIPCION.contains(destination)) return true;
+        var matcher = DESTINO_EVENTOS.matcher(String.valueOf(destination));
+        if (!matcher.matches()) return false;
+        return accessor.getUser() instanceof Authentication auth
+                && auth.getDetails() instanceof StompSessionDetails details
+                && details.tenantId().equals(Long.parseLong(matcher.group(1)));
     }
 
     private void autenticar(StompHeaderAccessor accessor) {

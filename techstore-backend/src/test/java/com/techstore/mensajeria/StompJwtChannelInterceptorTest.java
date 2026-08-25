@@ -68,6 +68,17 @@ class StompJwtChannelInterceptorTest {
                 mensaje(StompCommand.SUBSCRIBE, "/queue/global", principal), channel));
     }
 
+    @Test
+    void permiteEventosSoloDelTenantAutenticado() {
+        var principal = UsernamePasswordAuthenticationToken.authenticated(
+                "cliente@techstore.py", null, List.of());
+        principal.setDetails(new StompSessionDetails(7L));
+        assertEquals("/topic/tenant/7/events", destinoPermitido(
+                StompCommand.SUBSCRIBE, "/topic/tenant/7/events", principal));
+        assertThrows(MessageDeliveryException.class, () -> interceptor.preSend(
+                mensaje(StompCommand.SUBSCRIBE, "/topic/tenant/8/events", principal), channel));
+    }
+
     private Message<byte[]> connect(String authorization) {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
         if (authorization != null) accessor.setNativeHeader("Authorization", authorization);

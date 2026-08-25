@@ -15,10 +15,19 @@ import com.techstore.ventas.Pedido;
 import com.techstore.ventas.PedidoRepository;
 import com.techstore.ventas.TipoPedido;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Carga y validación del comprobante fiscal que emitió el proveedor.
@@ -37,9 +46,16 @@ import java.time.LocalDate;
 public class ComprobanteCompraService {
 
     private static final String TIMBRADO = "\\d{1,8}";
+    private static final Map<String, String> EXTENSIONES_ARCHIVO = Map.of(
+            "image/jpeg", ".jpg",
+            "image/png", ".png",
+            "application/pdf", ".pdf");
 
     private final CompraComprobanteRepository comprobanteRepository;
     private final PedidoRepository pedidoRepository;
+
+    @Value("${app.uploads.dir}")
+    private String uploadsDir;
 
     /**
      * Asienta el comprobante de una compra, o reemplaza el que ya tenía. Se
@@ -84,6 +100,90 @@ public class ComprobanteCompraService {
                 .map(ComprobanteCompraResponse::from)
                 .orElseThrow(() -> new ResourceNotFoundException("compras.comprobante.no.cargado", compraId));
     }
+
+    /** Guarda una copia autenticada del papel; admite cámara/galería y PDF. */
+    @Transactional
+    public ComprobanteCompraResponse subirArchivo(Long compraId, MultipartFile archivo) {
+        CompraComprobante comprobante = comprobanteRepository.findByPedidoId(compraId)
+                .orElseThrow(() -> new ResourceNotFoundException("compras.comprobante.no.cargado", compraId));
+        if (archivo == null || archivo.isEmpty()) {
+            throw new BusinessException("compras.comprobante.archivo.vacio");
+        }
+        String contentType = archivo.getContentType();
+        String extension = EXTENSIONES_ARCHIVO.get(contentType);
+        if (extension == null) {
+            throw new BusinessException("compras.comprobante.archivo.formato");
+        }
+        try {
+            byte[] contenido = archivo.getBytes();
+            if (!firmaCoincide(contentType, contenido)) {
+                throw new BusinessException("compras.comprobante.archivo.formato");
+            }
+            Path carpeta = carpetaArchivos();
+            Files.createDirectories(carpeta);
+            String nombre = "comprobante-" + comprobante.getId() + "-" + UUID.randomUUID() + extension;
+            Files.write(carpeta.resolve(nombre), contenido, StandardOpenOption.CREATE_NEW);
+            String anterior = comprobante.getArchivoNombre();
+            comprobante.setArchivoNombre(nombre);
+            comprobante.setArchivoContentType(contentType);
+            ComprobanteCompraResponse response = ComprobanteCompraResponse.from(
+                    comprobanteRepository.save(comprobante));
+            borrarAnterior(anterior, carpeta);
+            return response;
+        } catch (IOException ex) {
+            throw new BusinessException("compras.comprobante.archivo.no.guardado", ex.getMessage());
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public ArchivoComprobante obtenerArchivo(Long compraId) {
+        CompraComprobante comprobante = comprobanteRepository.findByPedidoId(compraId)
+                .filter(item -> item.getArchivoNombre() != null)
+                .orElseThrow(() -> new ResourceNotFoundException("compras.comprobante.archivo.no.encontrado", compraId));
+        Path carpeta = carpetaArchivos();
+        Path archivo = carpeta.resolve(comprobante.getArchivoNombre()).normalize();
+        if (!archivo.startsWith(carpeta) || !Files.isRegularFile(archivo)) {
+            throw new ResourceNotFoundException("compras.comprobante.archivo.no.encontrado", compraId);
+        }
+        try {
+            return new ArchivoComprobante(
+                    Files.readAllBytes(archivo),
+                    comprobante.getArchivoContentType(),
+                    comprobante.getArchivoNombre());
+        } catch (IOException ex) {
+            throw new BusinessException("compras.comprobante.archivo.no.leido", ex.getMessage());
+        }
+    }
+
+    private Path carpetaArchivos() {
+        return Paths.get(uploadsDir, "comprobantes-compra").toAbsolutePath().normalize();
+    }
+
+    private static boolean firmaCoincide(String contentType, byte[] bytes) {
+        return switch (contentType) {
+            case "image/jpeg" -> bytes.length >= 3
+                    && (bytes[0] & 0xff) == 0xff && (bytes[1] & 0xff) == 0xd8 && (bytes[2] & 0xff) == 0xff;
+            case "image/png" -> bytes.length >= 8
+                    && (bytes[0] & 0xff) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4e && bytes[3] == 0x47
+                    && bytes[4] == 0x0d && bytes[5] == 0x0a && bytes[6] == 0x1a && bytes[7] == 0x0a;
+            case "application/pdf" -> bytes.length >= 5
+                    && bytes[0] == '%' && bytes[1] == 'P' && bytes[2] == 'D' && bytes[3] == 'F' && bytes[4] == '-';
+            default -> false;
+        };
+    }
+
+    private static void borrarAnterior(String nombre, Path carpeta) {
+        if (nombre == null) return;
+        Path candidato = carpeta.resolve(nombre).normalize();
+        if (!candidato.startsWith(carpeta)) return;
+        try {
+            Files.deleteIfExists(candidato);
+        } catch (IOException ignored) {
+            // El archivo nuevo ya quedó asociado; el anterior puede limpiarse luego.
+        }
+    }
+
+    public record ArchivoComprobante(byte[] contenido, String contentType, String nombre) {}
 
     private Pedido buscarCompra(Long id) {
         Pedido pedido = pedidoRepository.findWithDetallesById(id)

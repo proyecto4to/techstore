@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -146,12 +146,16 @@ public class ProductoService {
         }
 
         try {
+            byte[] contenido = archivo.getBytes();
+            if (!firmaCoincide(archivo.getContentType(), contenido)) {
+                throw new BusinessException("catalogo.imagen.formato.invalido");
+            }
             Path carpeta = Paths.get(uploadsDir, "productos").toAbsolutePath().normalize();
             Files.createDirectories(carpeta);
 
             String nombreArchivo = "producto-" + id + "-" + UUID.randomUUID() + extension;
             Path destino = carpeta.resolve(nombreArchivo);
-            Files.copy(archivo.getInputStream(), destino, StandardCopyOption.REPLACE_EXISTING);
+            Files.write(destino, contenido, StandardOpenOption.CREATE_NEW);
 
             borrarImagenSubidaAnterior(producto.getImagenUrl(), carpeta);
             producto.setImagenUrl(PREFIJO_SUBIDA + nombreArchivo);
@@ -159,6 +163,24 @@ public class ProductoService {
         } catch (IOException ex) {
             throw new BusinessException("catalogo.imagen.no.guardada", ex.getMessage());
         }
+    }
+
+    /** Impide aceptar HTML/scripts renombrados confiando únicamente en el MIME del request. */
+    private boolean firmaCoincide(String contentType, byte[] bytes) {
+        return switch (contentType) {
+            case "image/jpeg" -> bytes.length >= 3
+                    && (bytes[0] & 0xff) == 0xff && (bytes[1] & 0xff) == 0xd8 && (bytes[2] & 0xff) == 0xff;
+            case "image/png" -> bytes.length >= 8
+                    && (bytes[0] & 0xff) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4e && bytes[3] == 0x47
+                    && bytes[4] == 0x0d && bytes[5] == 0x0a && bytes[6] == 0x1a && bytes[7] == 0x0a;
+            case "image/gif" -> bytes.length >= 6
+                    && bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == '8'
+                    && (bytes[4] == '7' || bytes[4] == '9') && bytes[5] == 'a';
+            case "image/webp" -> bytes.length >= 12
+                    && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+                    && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P';
+            default -> false;
+        };
     }
 
     /** Borra el archivo anterior solo si fue subido por este mismo mecanismo (no una URL externa). */

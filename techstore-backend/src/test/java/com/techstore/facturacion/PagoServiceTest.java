@@ -22,6 +22,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -433,6 +436,46 @@ class PagoServiceTest {
                         new LineaPago(TipoPago.Efectivo, new BigDecimal("1250000.00"), null)), null),
                 "cajero@techstore.py"));
         verify(facturaRepository, never()).save(any());
+    }
+
+    @Test
+    void clienteListaSolamenteLasFacturasDeSusPedidos() {
+        Pageable pageable = Pageable.ofSize(10);
+        when(facturaRepository.findByPedidoUsuarioEmail(cliente.getEmail(), pageable))
+                .thenReturn(Page.empty(pageable));
+
+        var response = pagoService.listarFacturas(cliente.getEmail(), false, pageable);
+
+        assertEquals(0, response.totalElements());
+        verify(facturaRepository).findByPedidoUsuarioEmail(cliente.getEmail(), pageable);
+        verify(facturaRepository, never()).findAll(pageable);
+    }
+
+    @Test
+    void staffListaTodasLasFacturas() {
+        Pageable pageable = Pageable.ofSize(10);
+        when(facturaRepository.findAll(pageable)).thenReturn(Page.empty(pageable));
+
+        var response = pagoService.listarFacturas(cajero.getEmail(), true, pageable);
+
+        assertEquals(0, response.totalElements());
+        verify(facturaRepository).findAll(pageable);
+        verify(facturaRepository, never()).findByPedidoUsuarioEmail(any(), any());
+    }
+
+    @Test
+    void clienteNoPuedeConsultarNiDescargarUnaFacturaAjena() {
+        Factura factura = new Factura();
+        pedido.setUsuario(cliente);
+        factura.setPedido(pedido);
+        when(facturaRepository.findWithPedidoById(33L)).thenReturn(Optional.of(factura));
+
+        assertThrows(AccessDeniedException.class,
+                () -> pagoService.obtenerFactura(33L, "otro@techstore.py", false));
+        assertThrows(AccessDeniedException.class,
+                () -> pagoService.generarPdf(33L, "otro@techstore.py", false));
+
+        verify(facturaElectronicaService, never()).generarKude(33L);
     }
 
     @Test

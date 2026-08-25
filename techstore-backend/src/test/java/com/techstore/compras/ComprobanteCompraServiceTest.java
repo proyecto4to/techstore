@@ -15,13 +15,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.nio.file.Path;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,9 +51,13 @@ class ComprobanteCompraServiceTest {
     private ComprobanteCompraService servicio;
     private Pedido compra;
 
+    @TempDir
+    Path uploads;
+
     @BeforeEach
     void configurar() {
         servicio = new ComprobanteCompraService(comprobanteRepository, pedidoRepository);
+        ReflectionTestUtils.setField(servicio, "uploadsDir", uploads.toString());
 
         Proveedor proveedor = new Proveedor();
         proveedor.setId(3L);
@@ -278,6 +286,25 @@ class ComprobanteCompraServiceTest {
 
         assertEquals("80011111-7", r.proveedorRuc());
         assertEquals("IMPORTADORA S.A.", r.proveedorRazonSocial());
+    }
+
+    @Test
+    @DisplayName("guarda una foto válida del comprobante sin confiar en el nombre original")
+    void guardaFotoDelComprobante() {
+        CompraComprobante comprobante = new CompraComprobante();
+        comprobante.setId(50L);
+        comprobante.setPedido(compra);
+        when(comprobanteRepository.findByPedidoId(1L)).thenReturn(Optional.of(comprobante));
+        byte[] jpeg = {(byte) 0xff, (byte) 0xd8, (byte) 0xff, 0x01};
+        MockMultipartFile archivo = new MockMultipartFile(
+                "archivo", "../../factura.html", "image/jpeg", jpeg);
+
+        ComprobanteCompraResponse response = servicio.subirArchivo(1L, archivo);
+
+        org.junit.jupiter.api.Assertions.assertTrue(response.archivoDisponible());
+        org.junit.jupiter.api.Assertions.assertTrue(comprobante.getArchivoNombre().startsWith("comprobante-50-"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                uploads.resolve("comprobantes-compra").resolve(comprobante.getArchivoNombre()).toFile().isFile());
     }
 
     @Test

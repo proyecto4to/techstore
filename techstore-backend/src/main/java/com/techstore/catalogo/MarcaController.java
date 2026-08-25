@@ -1,6 +1,7 @@
 package com.techstore.catalogo;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ public class MarcaController {
     private final MarcaRepository marcaRepository;
 
     @GetMapping
+    @SecurityRequirements
     @Transactional(readOnly = true)
     @Operation(summary = "Listar marcas activas")
     public List<MarcaResponse> listar() {

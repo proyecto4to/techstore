@@ -1,6 +1,6 @@
 package com.techstore.notificaciones;
 
-/** Punto de sustitución entre Expo Push Service y un futuro FCM directo. */
+/** Punto de sustitución entre FCM para Flutter y Expo para el cliente legado. */
 public interface PushProvider {
     PushResult enviar(PushMessage mensaje);
 }

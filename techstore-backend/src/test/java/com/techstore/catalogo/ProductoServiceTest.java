@@ -5,11 +5,15 @@ import com.techstore.comun.BusinessException;
 import com.techstore.comun.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,10 +42,14 @@ class ProductoServiceTest {
 
     private ProductoService productoService;
 
+    @TempDir
+    Path uploadsDir;
+
     @BeforeEach
     void setUp() {
         productoService = new ProductoService(
                 productoRepository, marcaRepository, modeloRepository, mapper, auditoriaService);
+        ReflectionTestUtils.setField(productoService, "uploadsDir", uploadsDir.toString());
     }
 
     private ProductoRequest requestBase(Long marcaId, Long modeloId) {
@@ -116,6 +124,20 @@ class ProductoServiceTest {
         when(productoRepository.findById(9L)).thenReturn(Optional.of(producto));
 
         assertThrows(ResourceNotFoundException.class, () -> productoService.obtenerPublico(9L));
+    }
+
+    @Test
+    void rechazaImagenCuyoContenidoNoCoincideConElMime() {
+        Producto producto = new Producto();
+        producto.setId(10L);
+        producto.setActivo(true);
+        producto.setStockReal(1);
+        producto.setStockComprometido(0);
+        when(productoRepository.findById(10L)).thenReturn(Optional.of(producto));
+        MockMultipartFile archivo = new MockMultipartFile(
+                "archivo", "ataque.png", "image/png", "<script>alert(1)</script>".getBytes());
+
+        assertThrows(BusinessException.class, () -> productoService.actualizarImagen(10L, archivo));
     }
 
     private Marca marca(Long id, String nombre) {

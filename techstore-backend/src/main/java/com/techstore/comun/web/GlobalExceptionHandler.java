@@ -13,9 +13,13 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,6 +42,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ProblemDetail handleNotFound(ResourceNotFoundException ex) {
         return problema(HttpStatus.NOT_FOUND, "error.titulo.no.encontrado", ex);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleStaticNotFound(NoResourceFoundException ex) {
+        return problema(HttpStatus.NOT_FOUND, "error.titulo.no.encontrado", "error.recurso.no.encontrado");
     }
 
     @ExceptionHandler(BusinessException.class)
@@ -75,6 +84,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Errores de forma en parametros de URL: ausencia, tipo/formato invalido o
+     * restricciones de Bean Validation. Son solicitudes invalidas, no fallos
+     * internos del servidor.
+     */
+    @ExceptionHandler({
+            org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+            jakarta.validation.ConstraintViolationException.class
+    })
+    public ProblemDetail handleRequestParameterValidation(Exception ex) {
+        return problema(HttpStatus.BAD_REQUEST,
+                "error.titulo.validacion", "error.validacion.campos.invalidos");
+    }
+
+    /**
      * Credenciales inválidas. El detalle es siempre el mismo mensaje genérico y
      * no el de la excepción: distinguir "no existe el usuario" de "la
      * contraseña no coincide" le regala a quien prueba claves la mitad de la
@@ -94,6 +118,30 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ProblemDetail handleAccessDenied(AccessDeniedException ex) {
         return problema(HttpStatus.FORBIDDEN, "error.titulo.acceso.denegado", "error.sin.permisos");
+    }
+
+    /**
+     * Errores de protocolo HTTP: el cliente pide un tipo que el endpoint no
+     * produce, manda un cuerpo que no consume, o usa un metodo inexistente.
+     * Sin estos handlers caen en el catch-all y salen como 500, lo que hace
+     * parecer roto al servidor cuando el equivocado es el pedido.
+     */
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ProblemDetail handleMediaTypeNotAcceptable(HttpMediaTypeNotAcceptableException ex) {
+        return problema(HttpStatus.NOT_ACCEPTABLE,
+                "error.titulo.tipo.no.aceptable", "error.tipo.no.aceptable");
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ProblemDetail handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        return problema(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "error.titulo.tipo.no.soportado", "error.tipo.no.soportado");
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ProblemDetail handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        return problema(HttpStatus.METHOD_NOT_ALLOWED,
+                "error.titulo.metodo.no.permitido", "error.metodo.no.permitido");
     }
 
     @ExceptionHandler(Exception.class)

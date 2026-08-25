@@ -44,28 +44,34 @@ public class PagoController {
     }
 
     @GetMapping("/facturas")
-    @PreAuthorize("hasAnyRole('Admin','Cajero')")
-    @Operation(summary = "Listar facturas (Admin/Cajero)")
+    @Operation(summary = "Listar facturas",
+            description = "Admin/Cajero ven todas; los clientes solo las facturas de sus pedidos")
     public PageResponse<FacturaResponse> listarFacturas(
+            Authentication auth,
             @ParameterObject @PageableDefault(size = 10, sort = "fecha", direction = Sort.Direction.DESC) Pageable pageable) {
-        return pagoService.listarFacturas(pageable);
+        return pagoService.listarFacturas(auth.getName(), esStaff(auth), pageable);
     }
 
     @GetMapping("/facturas/{id}")
-    @PreAuthorize("hasAnyRole('Admin','Cajero')")
-    @Operation(summary = "Detalle de una factura (Admin/Cajero)")
-    public FacturaResponse obtenerFactura(@PathVariable Long id) {
-        return pagoService.obtenerFactura(id);
+    @Operation(summary = "Detalle de una factura",
+            description = "El cliente puede consultar solo una factura propia")
+    public FacturaResponse obtenerFactura(@PathVariable Long id, Authentication auth) {
+        return pagoService.obtenerFactura(id, auth.getName(), esStaff(auth));
     }
 
     @GetMapping(value = "/facturas/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
-    @PreAuthorize("hasAnyRole('Admin','Cajero')")
-    @Operation(summary = "Factura en PDF (Admin/Cajero)", description = "Descarga la factura como documento PDF imprimible")
-    public ResponseEntity<byte[]> facturaPdf(@PathVariable Long id) {
-        PagoService.FacturaPdf pdf = pagoService.generarPdf(id);
+    @Operation(summary = "Factura en PDF",
+            description = "El cliente puede descargar solo una factura propia; Admin/Cajero pueden descargar cualquiera")
+    public ResponseEntity<byte[]> facturaPdf(@PathVariable Long id, Authentication auth) {
+        PagoService.FacturaPdf pdf = pagoService.generarPdf(id, auth.getName(), esStaff(auth));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "inline; filename=\"factura-" + pdf.numero() + ".pdf\"")
                 .body(pdf.contenido());
+    }
+
+    private boolean esStaff(Authentication auth) {
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_Admin".equals(a.getAuthority()) || "ROLE_Cajero".equals(a.getAuthority()));
     }
 }

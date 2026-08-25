@@ -120,6 +120,11 @@
             <version>3.5.3</version>
         </dependency>
         <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>9.10.0</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
@@ -222,4 +227,25 @@
             </plugin>
         </plugins>
     </build>
+
+    <!--
+        Genera un ejecutable alternativo para las pruebas destructivas aisladas
+        sin reemplazar el JAR que puede estar atendiendo el entorno local.
+    -->
+    <profiles>
+        <profile>
+            <id>phase20-isolated</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <configuration>
+                            <classifier>phase20</classifier>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

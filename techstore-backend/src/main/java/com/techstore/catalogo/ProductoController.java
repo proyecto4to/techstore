@@ -2,6 +2,7 @@ package com.techstore.catalogo;
 
 import com.techstore.comun.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class ProductoController {
     private final ProductoService productoService;
 
     @GetMapping
+    @SecurityRequirements
     @Operation(summary = "Listar productos",
             description = "Catálogo público paginado, sin costo, margen ni inventario interno.")
     public PageResponse<ProductoPublicResponse> listar(
@@ -72,6 +74,7 @@ public class ProductoController {
     }
 
     @GetMapping("/{id}")
+    @SecurityRequirements
     @Operation(summary = "Obtener un producto")
     public ProductoPublicResponse obtener(@PathVariable Long id) {
         return productoService.obtenerPublico(id);

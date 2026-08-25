@@ -1,6 +1,7 @@
 package com.techstore.usuarios;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordRecoveryService passwordRecoveryService;
+
+    @PostMapping("/password/forgot")
+    @SecurityRequirements
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @Operation(summary = "Solicitar recuperación de contraseña",
+            description = "Siempre responde igual para no revelar si el correo existe")
+    public void solicitarRecuperacion(@Valid @RequestBody SolicitarRecuperacionRequest request) {
+        passwordRecoveryService.solicitar(request.email());
+    }
+
+    @PostMapping("/password/reset")
+    @SecurityRequirements
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Completar recuperación de contraseña",
+            description = "Consume un token aleatorio de un solo uso y revoca las sesiones existentes")
+    public void completarRecuperacion(@Valid @RequestBody CompletarRecuperacionRequest request) {
+        passwordRecoveryService.completar(request);
+    }
 
     @PutMapping("/password")
     @Operation(summary = "Cambiar mi contraseña",
@@ -38,6 +58,7 @@ public class AuthController {
     }
 
     @PostMapping("/registro")
+    @SecurityRequirements
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Crear cuenta", description = "Alta pública de clientes; devuelve tokens con la sesión ya iniciada")
     public AuthResponse registrar(@Valid @RequestBody RegistroRequest request) {
@@ -45,18 +66,21 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @SecurityRequirements
     @Operation(summary = "Iniciar sesión", description = "Devuelve un access token (corto) y un refresh token (largo)")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
     }
 
     @PostMapping("/refresh")
+    @SecurityRequirements
     @Operation(summary = "Renovar tokens", description = "Emite un nuevo par de tokens a partir de un refresh token válido")
     public AuthResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return authService.refresh(request);
     }
 
     @PostMapping("/logout")
+    @SecurityRequirements
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Cerrar sesión", description = "Revoca la sesión refresh actual")
     public void logout(@Valid @RequestBody RefreshTokenRequest request) {
