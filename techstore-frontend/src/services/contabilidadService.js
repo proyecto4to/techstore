@@ -7,6 +7,14 @@ async function abrirPdf(url, params) {
   setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
 }
 
+async function abrirBlob(url) {
+  const respuesta = await api.get(url, { responseType: 'blob' })
+  const tipo = respuesta.headers?.['content-type'] ?? 'application/octet-stream'
+  const blobUrl = URL.createObjectURL(new Blob([respuesta.data], { type: tipo }))
+  window.open(blobUrl, '_blank', 'noopener')
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+}
+
 /**
  * El nombre del archivo que le manda el backend importa: Marangatu lo usa para
  * saber de qué contribuyente y de qué período es lo que se sube. Por eso se lee
@@ -71,5 +79,16 @@ export const contabilidadService = {
   async guardarComprobante(compraId, comprobante) {
     const { data } = await api.put(`/compras/${compraId}/comprobante`, comprobante)
     return data
+  },
+
+  async subirArchivoComprobante(compraId, archivo) {
+    const form = new FormData()
+    form.append('archivo', archivo)
+    const { data } = await api.post(`/compras/${compraId}/comprobante/archivo`, form)
+    return data
+  },
+
+  async abrirArchivoComprobante(compraId) {
+    await abrirBlob(`/compras/${compraId}/comprobante/archivo`)
   },
 }

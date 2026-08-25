@@ -90,6 +90,15 @@ function ComprobanteCompraPanel({ compra, onListo }) {
     },
   })
 
+  const subirArchivo = useMutation({
+    mutationFn: (archivo) => contabilidadService.subirArchivoComprobante(compra.id, archivo),
+    onSuccess: () => {
+      setError(null)
+      queryClient.invalidateQueries({ queryKey: ['comprobante-compra', compra.id] })
+    },
+    onError: (err) => setError(err.response?.data?.detail ?? 'No se pudo adjuntar el archivo.'),
+  })
+
   const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
   const tipo = Number(form.tipoComprobante)
   const llevaDesglose = !SIN_DESGLOSE.includes(tipo)
@@ -145,6 +154,30 @@ function ComprobanteCompraPanel({ compra, onListo }) {
         >
           Corregir
         </button>
+        <label className="btn btn-secondary cursor-pointer text-sm">
+          {subirArchivo.isPending ? 'Adjuntando…' : cargado.archivoDisponible ? 'Reemplazar archivo' : 'Adjuntar foto/PDF'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,application/pdf"
+            capture="environment"
+            className="sr-only"
+            disabled={subirArchivo.isPending}
+            onChange={(event) => {
+              const archivo = event.target.files?.[0]
+              if (archivo) subirArchivo.mutate(archivo)
+              event.target.value = ''
+            }}
+          />
+        </label>
+        {cargado.archivoDisponible && (
+          <button
+            onClick={() => contabilidadService.abrirArchivoComprobante(compra.id)}
+            className="btn btn-secondary text-sm"
+          >
+            Ver archivo
+          </button>
+        )}
+        {error && <p className="alerta-error basis-full">{error}</p>}
       </div>
     )
   }

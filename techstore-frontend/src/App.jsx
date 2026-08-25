@@ -1,29 +1,32 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Navbar from './components/common/Navbar'
+import RealtimeSync from './components/common/RealtimeSync'
 import ProtectedRoute from './components/common/ProtectedRoute'
-import CatalogoPage from './pages/CatalogoPage'
-import ProductoDetallePage from './pages/ProductoDetallePage'
-import LoginPage from './pages/LoginPage'
-import AdminPage from './pages/AdminPage'
-import CartPage from './pages/CartPage'
-import PedidosPage from './pages/PedidosPage'
-import AdminProductosPage from './pages/AdminProductosPage'
-import AdminReportesPage from './pages/AdminReportesPage'
-import AdminContabilidadPage from './pages/AdminContabilidadPage'
-import AdminFacturasPage from './pages/AdminFacturasPage'
-import AdminCajaPage from './pages/AdminCajaPage'
-import DashboardPage from './pages/DashboardPage'
-import AdminUsuariosPage from './pages/AdminUsuariosPage'
-import AdminComprasPage from './pages/AdminComprasPage'
-import AdminVentaDirectaPage from './pages/AdminVentaDirectaPage'
-import AdminEmpresaPage from './pages/AdminEmpresaPage'
-import AdminCorreosPage from './pages/AdminCorreosPage'
-import AdminAuditoriaPage from './pages/AdminAuditoriaPage'
-import AdminMensajesPage from './pages/AdminMensajesPage'
-import CuentaPage from './pages/CuentaPage'
-import RegisterPage from './pages/RegisterPage'
 import './App.css'
+
+const CatalogoPage = lazy(() => import('./pages/CatalogoPage'))
+const ProductoDetallePage = lazy(() => import('./pages/ProductoDetallePage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+const CartPage = lazy(() => import('./pages/CartPage'))
+const PedidosPage = lazy(() => import('./pages/PedidosPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const AdminPage = lazy(() => import('./pages/AdminPage'))
+const AdminProductosPage = lazy(() => import('./pages/AdminProductosPage'))
+const AdminReportesPage = lazy(() => import('./pages/AdminReportesPage'))
+const AdminContabilidadPage = lazy(() => import('./pages/AdminContabilidadPage'))
+const AdminFacturasPage = lazy(() => import('./pages/AdminFacturasPage'))
+const AdminCajaPage = lazy(() => import('./pages/AdminCajaPage'))
+const AdminUsuariosPage = lazy(() => import('./pages/AdminUsuariosPage'))
+const AdminComprasPage = lazy(() => import('./pages/AdminComprasPage'))
+const AdminVentaDirectaPage = lazy(() => import('./pages/AdminVentaDirectaPage'))
+const AdminEmpresaPage = lazy(() => import('./pages/AdminEmpresaPage'))
+const AdminCorreosPage = lazy(() => import('./pages/AdminCorreosPage'))
+const AdminAuditoriaPage = lazy(() => import('./pages/AdminAuditoriaPage'))
+const AdminMensajesPage = lazy(() => import('./pages/AdminMensajesPage'))
+const CuentaPage = lazy(() => import('./pages/CuentaPage'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,10 +38,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <RealtimeSync />
         <div className="min-h-screen">
           <Navbar />
           <main>
-            <Routes>
+            <Suspense fallback={<div className="loading" role="status">Cargando…</div>}>
+              <Routes>
               <Route path="/" element={<CatalogoPage />} />
               <Route path="/productos/:id" element={<ProductoDetallePage />} />
               <Route path="/login" element={<LoginPage />} />
@@ -172,7 +177,8 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-            </Routes>
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </BrowserRouter>
