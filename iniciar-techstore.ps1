@@ -1,6 +1,7 @@
 # Lanzador local/portable: PostgreSQL, JAR del backend, Vite y navegador.
 param(
     [switch]$PermitirRedLocal,
+    [switch]$SinNavegador,
     # Las notificaciones push salen apagadas: en una máquina de desarrollo no se
     # quiere despertar el teléfono de nadie por cada prueba. Con esto se enciende
     # el proveedor de Expo para probarlas de verdad en un dispositivo.
@@ -83,10 +84,46 @@ function Registrar-PuertoTechStore([int]$puerto, $tipo) {
     return $false
 }
 
+function Get-JavaMajor([string]$javaPath) {
+    try {
+        $primeraLinea = (& $javaPath -version 2>&1 | Select-Object -First 1).ToString()
+        if ($primeraLinea -match 'version\s+"(?<major>\d+)') {
+            $major = [int]$Matches['major']
+            if ($major -eq 1 -and $primeraLinea -match 'version\s+"1\.(?<legacy>\d+)') {
+                return [int]$Matches['legacy']
+            }
+            return $major
+        }
+    } catch { }
+    return 0
+}
+
+function Resolve-Java21 {
+    $candidatos = @()
+    if ($env:JAVA_HOME) { $candidatos += (Join-Path $env:JAVA_HOME 'bin\java.exe') }
+    $javaPath = Get-Command java.exe -ErrorAction SilentlyContinue
+    if ($null -ne $javaPath) { $candidatos += $javaPath.Source }
+    $javaRaiz = Join-Path $env:ProgramFiles 'Java'
+    if (Test-Path -LiteralPath $javaRaiz) {
+        $candidatos += Get-ChildItem -LiteralPath $javaRaiz -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Join-Path $_.FullName 'bin\java.exe' }
+    }
+    $compatibles = foreach ($candidato in ($candidatos | Select-Object -Unique)) {
+        if (Test-Path -LiteralPath $candidato) {
+            $major = Get-JavaMajor $candidato
+            if ($major -ge 21) { [pscustomobject]@{ Path = $candidato; Major = $major } }
+        }
+    }
+    return ($compatibles | Sort-Object Major -Descending | Select-Object -First 1)
+}
+
 foreach ($requerido in @($pgCtl, $pgIsReady, $backendJar)) {
     if (-not (Test-Path -LiteralPath $requerido)) { Fallar "no se encontro $requerido" }
 }
-if (-not (Get-Command java -ErrorAction SilentlyContinue)) { Fallar 'Java 21 no esta disponible en PATH.' }
+$javaRuntime = Resolve-Java21
+if ($null -eq $javaRuntime) { Fallar 'Java 21 o superior no esta instalado.' }
+$javaExe = $javaRuntime.Path
+Write-Host "  [java] Runtime seleccionado: Java $($javaRuntime.Major)" -ForegroundColor Green
 if (-not (Get-Command node.exe -ErrorAction SilentlyContinue)) { Fallar 'Node.js no esta disponible en PATH.' }
 if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) { Fallar 'Node/npm no esta disponible en PATH.' }
 $versionNodeTexto = (& node.exe --version 2>$null).TrimStart('v')
@@ -125,9 +162,13 @@ $env:CORS_ALLOWED_ORIGINS = 'http://localhost:5173'
 if ($PermitirRedLocal) {
     Write-Host '  [red] API habilitada temporalmente en la LAN para pruebas del dispositivo.' -ForegroundColor Yellow
 }
-$env:PUSH_PROVIDER = if ($ConPush) { 'expo' } else { 'none' }
+$env:PUSH_PROVIDER = if ($ConPush) { 'fcm' } else { 'none' }
 if ($ConPush) {
-    Write-Host '  [push] Proveedor Expo activo: las notificaciones llegan a los dispositivos registrados.' -ForegroundColor Yellow
+    if ([string]::IsNullOrWhiteSpace($env:GOOGLE_APPLICATION_CREDENTIALS) -or
+        -not (Test-Path -LiteralPath $env:GOOGLE_APPLICATION_CREDENTIALS)) {
+        Fallar 'ConPush requiere GOOGLE_APPLICATION_CREDENTIALS apuntando al JSON Firebase externo.'
+    }
+    Write-Host '  [push] Firebase Cloud Messaging activo.' -ForegroundColor Yellow
 }
 New-Item -ItemType Directory -Force -Path $env:APP_UPLOADS_DIR | Out-Null
 Write-Host '  [secretos] Configuracion local segura cargada.' -ForegroundColor Green
@@ -187,8 +228,8 @@ if (Test-Url 'http://localhost:8090/actuator/health') {
     $ocupanteBackend = Get-PidPuerto 8090
     if ($null -ne $ocupanteBackend) { Fallar "el puerto 8090 ya pertenece al PID $ocupanteBackend" }
     Write-Host '  [2/3] Iniciando backend (Spring Boot)...' -NoNewline
-    $procesoBackend = Start-Process -FilePath 'java' -ArgumentList '-Dtechstore.launcher=local-portable', '-jar', 'target\techstore-backend-1.0.0.jar' `
-        -WorkingDirectory $backendDir -WindowStyle Minimized -PassThru
+    $procesoBackend = Start-Process -FilePath $javaExe -ArgumentList '-Dtechstore.launcher=local-portable', '-jar', 'target\techstore-backend-1.0.0.jar' `
+        -WorkingDirectory $backendDir -WindowStyle Hidden -PassThru
     Registrar-Proceso $procesoBackend.Id 'backend'
     $backendListo = $false
     for ($i = 0; $i -lt 70; $i++) {
@@ -215,7 +256,7 @@ if (Test-Url 'http://localhost:5173') {
     if ($null -ne $ocupanteFrontend) { Fallar "el puerto 5173 ya pertenece al PID $ocupanteFrontend" }
     Write-Host '  [3/3] Iniciando frontend (Vite)...' -NoNewline
     Start-Process -FilePath 'cmd.exe' -ArgumentList '/d', '/c', 'npm run dev' `
-        -WorkingDirectory $frontendDir -WindowStyle Minimized
+        -WorkingDirectory $frontendDir -WindowStyle Hidden
     $frontendListo = $false
     for ($i = 0; $i -lt 30; $i++) {
         if (Test-Url 'http://localhost:5173') { $frontendListo = $true; break }
@@ -235,6 +276,8 @@ Write-Host '  Tienda:  http://localhost:5173' -ForegroundColor Cyan
 Write-Host '  API:     http://localhost:8090' -ForegroundColor Cyan
 Write-Host '  Swagger: http://localhost:8090/swagger-ui.html' -ForegroundColor Cyan
 Write-Host ''
-Start-Process 'http://localhost:5173'
+if (-not $SinNavegador) {
+    Start-Process 'http://localhost:5173'
+}
 Start-Sleep -Seconds 3
 exit 0

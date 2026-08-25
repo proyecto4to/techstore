@@ -1,183 +1,209 @@
-# TechStore — E-Commerce profesional
+# TechStore — Web + Mobile Flutter
 
-Sistema de e-commerce full-stack: **Spring Boot 3.2 (Java 21) + React 18 + PostgreSQL 15**, orquestado con Docker Compose.
+TechStore es un sistema de comercio e inventario con dos clientes del mismo backend: una SPA Web React y una aplicación Android Flutter. PostgreSQL y Spring Boot son la única fuente de verdad para usuarios, permisos, catálogo, stock, ventas, compras, caja, fiscalidad y sincronización.
 
-## Stack
+## Estado verificable
 
-| Capa | Tecnología |
-|---|---|
-| Backend | Spring Boot 3.2, Spring Security (JWT), Spring Data JPA, Flyway, MapStruct, Lombok, springdoc-openapi |
-| Frontend | React 18, Vite 8.1, Tailwind CSS 3, React Router 7, TanStack Query 5, Zustand, Axios |
-| Base de datos | PostgreSQL 15 (migraciones versionadas con Flyway) |
-| Infraestructura | Docker Compose (postgres + backend + frontend) |
+- Backend: Spring Boot 3.5.16, Java 21+, PostgreSQL 15, 45 migraciones Flyway.
+- Web: React 18, Vite 8, TanStack Query, Zustand y STOMP.
+- Mobile: Flutter 3.47.1 / Dart 3.13.1, Android 24–36, Riverpod, Dio, Drift y FCM.
+- API canónica: OpenAPI 3.1 con 102 rutas y 125 operaciones.
+- Última regresión: 328 unit + 44 integration backend, 14 Web y 21 Flutter, además de E2E auth/negocio/realtime/offline/update.
 
-> 📖 ¿Buscás la guía de uso para el día a día (ventas, caja, devoluciones,
-> compras)? Está en **[MANUAL.md](MANUAL.md)**.
+La entrega privada Android está completa: APK release firmada, instalada y actualizada en un Redmi Note 8 Pro con pruebas reales de backend, offline/reconexión, cámara y biometría. Google Play/Firebase quedan postergados para una publicación futura. Ver [estado persistente](docs/mobile-expansion/PROJECT_STATUS.md).
 
-## Inicio rápido
+## Arquitectura
 
-### Opción 0 — Doble clic 🖱️
-
-En el escritorio de Windows: **TechStore** levanta PostgreSQL + backend + frontend y abre la tienda;
-**TechStore - Detener** apaga todo. (Los scripts viven en la raíz del repo:
-`iniciar-techstore.ps1` / `detener-techstore.ps1`.) Este sigue siendo el modo
-local predeterminado: conserva el JAR y los accesos directos actuales. El
-lanzador exige secretos válidos y el cierre solo detiene PIDs registrados por
-TechStore; si otro programa ocupa un puerto, se informa el conflicto sin matarlo.
-
-### Opción A — Docker (requiere Docker Desktop)
-
-```powershell
-Copy-Item .env.example .env
-# Edita .env y reemplaza todos los placeholders.
-docker compose up -d --build
+```text
+Web React ─────┐
+               ├── REST + STOMP ── Spring Boot ── PostgreSQL 15
+Flutter Android┘                         │
+                                  storage / FCM / correo
 ```
 
-El `.env.example` activa el perfil `local` (Vite con recarga). Para una
-instalación comercial se parte de `.env.commercial.example`:
+- Web y Mobile ejecutan comandos mediante la misma API `/api/v1`.
+- Las reglas críticas y la autorización siempre se verifican en backend.
+- Los cambios de dominio se guardan en un outbox transaccional y notifican por STOMP al tenant correcto.
+- Los clientes invalidan caché y vuelven a consultar REST; un evento nunca sustituye el dato autoritativo.
+- Mobile usa Drift solo para cache y cola offline idempotente, no como base paralela.
 
-```powershell
-Copy-Item .env.commercial.example .env.commercial
-# Define tres secretos fuertes, distintos cuando corresponda, y el dominio HTTPS.
-docker compose --env-file .env.commercial --profile commercial up -d --build
-```
-
-El perfil `commercial` compila el frontend y lo sirve con nginx sin privilegios.
-PostgreSQL y la API quedan ligados a `127.0.0.1`; un proxy inverso del host debe
-publicar **solo** el frontend con HTTPS. La aplicación conecta como
-`techstore_app` (sin superusuario ni `BYPASSRLS`), mientras Flyway usa el rol
-migrador. Base y archivos subidos persisten en `postgres_data` y `uploads_data`.
-
-### Opción B — Manual con PostgreSQL portable (sin Docker)
-
-El repo incluye herramientas portables en `tools/` (Maven 3.9.9 y PostgreSQL 15).
-El *data directory* vive fuera de OneDrive, en `%LOCALAPPDATA%\TechStore\pgdata`.
-
-```powershell
-# 1. Arrancar PostgreSQL (una sola vez por sesión)
-tools\pgsql\bin\pg_ctl.exe -D "$env:LOCALAPPDATA\TechStore\pgdata" -l "$env:LOCALAPPDATA\TechStore\pg.log" start
-
-# 2. Backend
-cd techstore-backend
-..\tools\apache-maven-3.9.9\bin\mvn.cmd spring-boot:run
-#   (o: java -jar target\techstore-backend-1.0.0.jar)
-
-# 3. Frontend (otra terminal)
-cd techstore-frontend
-npm run dev
-
-# Detener PostgreSQL al terminar
-tools\pgsql\bin\pg_ctl.exe -D "$env:LOCALAPPDATA\TechStore\pgdata" stop
-```
-
-### Accesos
-
-| Servicio | URL |
-|---|---|
-| Frontend | http://localhost:5173 |
-| API | http://localhost:8090 |
-| Swagger UI | http://localhost:8090/swagger-ui.html |
-| Health check | http://localhost:8090/actuator/health |
-
-**Credenciales de prueba:** `admin@techstore.py` / `admin123`
-
-## Funcionalidad implementada
-
-- **Autenticación JWT**: `POST /api/v1/auth/login` (access token 15 min + refresh token 7 días), `POST /api/v1/auth/refresh`, `GET /api/v1/auth/me`. El frontend renueva tokens automáticamente ante un 401.
-- **Catálogo de productos**: `GET /api/v1/productos` (paginado, búsqueda por nombre, filtro por marca) y `GET /api/v1/marcas` — públicos. CRUD completo de productos restringido al rol `Admin` (`POST/PUT/DELETE`). La eliminación es baja lógica.
-- **Carrito y checkout**: carrito persistente en el navegador (Zustand); `POST /api/v1/pedidos` crea el pedido en estado *Pendiente*, **compromete stock con bloqueo pesimista** (dos checkouts simultáneos no pueden sobrevender) y numera con el autonumerador transaccional. `PUT /{id}/confirmar` (Admin/Cajero) descuenta stock real; `PUT /{id}/cancelar` libera lo comprometido (el dueño anula lo suyo, un Admin cualquiera). Los usuarios ven solo sus pedidos; los Admin, todos.
-- **Pagos y facturación**: `POST /api/v1/pedidos/{id}/pago` (Admin/Cajero) cobra un pedido Confirmado y **emite la factura en la misma transacción** — numeración fiscal `001-001-0000001`, IVA incluido desglosado por tasa de cada detalle, estado del pedido pasa a *Pagado*. Doble cobro rechazado. `GET /api/v1/facturas` lista las emitidas. El panel admin del frontend gestiona todo el flujo: Confirmar → Cobrar (con tipo de pago) → factura emitida.
-- **Gestión de productos desde la web** (pestaña *Productos* del panel admin): crear, editar, desactivar y reactivar. Un Admin puede listar inactivos con `GET /api/v1/productos?incluirInactivos=true` (el parámetro se ignora para usuarios anónimos o sin rol Admin).
-- **Reportes de ventas** (pestaña *Reportes* + `GET /api/v1/reportes/ventas`, Admin/Cajero): total facturado, pedidos por estado y productos más vendidos.
-- **Manejo de errores** RFC 7807 (`ProblemDetail`) con mensajes en español y detalle de campos inválidos.
-- **Esquema completo** en `V1__init_schema.sql`: usuarios, roles, clientes, proveedores, marcas, modelos, productos, pedidos, pagos, facturas, caja y auditoría — listo para los próximos módulos.
-- **Tests unitarios** (JUnit 5 + Mockito): servicios de auth, JWT y productos.
+La descripción completa está en [ARCHITECTURE.md](docs/mobile-expansion/ARCHITECTURE.md), [API.md](docs/mobile-expansion/API.md) y [SYNC.md](docs/mobile-expansion/SYNC.md).
 
 ## Estructura
 
-```
+```text
 techstore/
-├── docker-compose.yml
-├── techstore-backend/          # API Spring Boot
-│   └── src/main/java/com/techstore/
-│       ├── config/             # Security, CORS, OpenAPI
-│       ├── controller/         # REST endpoints
-│       ├── service/            # Lógica de negocio
-│       ├── repository/         # Spring Data JPA + Specifications
-│       ├── entity/             # Entidades JPA
-│       ├── dto/                # Records request/response con validación
-│       ├── mapper/             # MapStruct
-│       ├── security/           # JWT service + filtro + UserDetails
-│       ├── exception/          # Excepciones + handler global
-│       └── util/               # PasswordHashGenerator (CLI)
-├── techstore-frontend/         # SPA React
-│   └── src/
-│       ├── pages/              # Catálogo, Login, Admin
-│       ├── components/         # Navbar, ProductCard, ProtectedRoute…
-│       ├── services/           # Cliente Axios con auto-refresh de tokens
-│       ├── store/              # Zustand (sesión persistida)
-│       └── utils/              # Formato de moneda (₲, es-PY)
-└── tools/                      # Maven portable (no versionado)
+├── techstore-backend/       API, dominio, seguridad, Flyway y tests
+├── techstore-frontend/      SPA Web React
+├── techstore-mobile/        app Flutter Android y herramientas E2E
+├── docs/api/                contrato OpenAPI canónico
+├── docs/mobile-expansion/   auditoría, fases y operación
+├── scripts/                 validación, export y release
+├── docker/                  guards y configuración de contenedores
+└── *.ps1                    operación local, backup y restauración
 ```
 
-## Aplicación móvil
+## Inicio local en Windows
 
-La aplicación móvil vive en un repositorio propio: [proyecto4to/techstore-mobile](https://github.com/proyecto4to/techstore-mobile). Ahí están el código Expo, la documentación de sus quince fases y las herramientas de build.
+El método recomendado usa el PostgreSQL portable y secretos externos al repositorio:
 
-Consume esta API, que sigue siendo la autoridad de permisos, precios, stock, pagos, tenant y fiscalidad. El contrato del que se generan sus tipos es [docs/api/mobile-auth.openapi.yaml](docs/api/mobile-auth.openapi.yaml): si cambia acá, hay que regenerarlos allá.
+1. Copiar `secrets.local.ps1.ejemplo` como `secrets.local.ps1` y reemplazar todos los valores.
+2. Configurar una vez el rol runtime con `configurar-rol-app.ps1` si aún no existe.
+3. Iniciar y detener desde la raíz:
 
-## Pruebas
+```powershell
+.\iniciar-techstore.ps1 -SinNavegador
+.\detener-techstore.ps1
+```
+
+El lanzador selecciona Java 21+, valida Node, inicia PostgreSQL, comprueba backups, ejecuta el backend con un rol sin superusuario/BYPASSRLS y levanta Vite. Solo registra y detiene procesos propios.
+
+| Servicio | URL local |
+|---|---|
+| Web | `http://localhost:5173` |
+| API | `http://localhost:8090` |
+| Swagger | `http://localhost:8090/swagger-ui.html` |
+| Health | `http://localhost:8090/actuator/health` |
+
+Las credenciales se definen localmente; no se documentan passwords operativos ni se compilan en ningún cliente.
+
+## Docker
+
+Desarrollo:
+
+```powershell
+Copy-Item .env.example .env
+# Completar secretos y valores requeridos.
+docker compose --env-file .env --profile local up -d --build
+```
+
+Instalación comercial:
+
+```powershell
+Copy-Item .env.commercial.example .env.commercial
+# Definir secretos fuertes, dominio HTTPS y perfil commercial.
+docker compose --env-file .env.commercial --profile commercial up -d --build
+```
+
+El `config-guard` rechaza perfiles cruzados, placeholders y secretos inseguros. En modo comercial PostgreSQL/API quedan ligados a loopback y un proxy inverso del host publica únicamente la Web con HTTPS. Los volúmenes `postgres_data` y `uploads_data` deben respaldarse juntos.
+
+## Desarrollo por componente
+
+Backend:
 
 ```powershell
 cd techstore-backend
-
-# Ciclo rápido: solo unitarios (segundos)
+$env:JAVA_HOME='C:\Program Files\Java\jdk-22'
 ..\tools\apache-maven-3.9.9\bin\mvn.cmd test
-
-# Completo: unitarios + integración (levanta un PostgreSQL de verdad)
 ..\tools\apache-maven-3.9.9\bin\mvn.cmd verify
 ```
 
-Las de integración (`*IT.java`) levantan **PostgreSQL 15 real** como proceso
-hijo, corren las 42 migraciones desde cero sobre una base vacía y ejercitan la
-API por HTTP con JWT. Verifican lo que ningún unitario puede: que el esquema y
-las entidades no se hayan desincronizado, que la seguridad no deje un endpoint
-abierto, y que cobrar descuente stock, mueva la caja y emita factura.
+Web:
 
-No hace falta Docker. En Windows Home, Docker Desktop exige WSL2, privilegios de
-administrador y un reinicio; esto no necesita nada de eso. Si algún día se monta
-CI con Docker, migrar a Testcontainers es reescribir `BaseDatosDePrueba` y nada
-más: el resto de los tests solo ve una URL JDBC.
-
-## Utilidades
-
-Generar un hash BCrypt (para sembrar usuarios en migraciones):
-
-```bash
-cd techstore-backend
-mvn -q org.codehaus.mojo:exec-maven-plugin:3.1.0:java \
-  -Dexec.mainClass=com.techstore.util.PasswordHashGenerator -Dexec.args=miPassword
+```powershell
+cd techstore-frontend
+npm ci
+npm run check
 ```
 
-## Antes de producción
+Flutter:
 
-- [ ] Usar `.env.commercial` con el perfil `commercial`; el modo `local` es para desarrollo/uso en esta PC.
-- [ ] Reemplazar `JWT_SECRET` y las dos contraseñas de PostgreSQL; la clave runtime debe ser distinta de la administrativa.
-- [ ] Cambiar o eliminar inmediatamente todos los usuarios y contraseñas de demostración.
-- [ ] Publicar únicamente mediante un proxy HTTPS y limitar `CORS_ALLOWED_ORIGINS` al dominio real; no exponer 5432 ni 8090.
-- [ ] Mantener Swagger desactivado (`SPRINGDOC_ENABLED=false`, exigido por el perfil comercial).
-- [ ] Automatizar respaldos externos de `postgres_data` y `uploads_data`, y ensayar una restauración antes de operar.
-- [ ] Completar revisión legal, fiscal, privacidad, monitoreo y actualizaciones de seguridad.
-- [ ] **No usar la salida SIFEN como comprobante legal:** hoy es demostrativa, usa certificado de prueba, no está homologada y no transmite a DNIT.
+```powershell
+cd techstore-mobile
+flutter pub get
+flutter analyze --fatal-infos
+flutter test
+flutter run --flavor development -t lib/main_development.dart
+```
 
-La lista operativa ampliada está en la sección **Puesta en marcha comercial** de [MANUAL.md](MANUAL.md).
+Un teléfono físico necesita una URL LAN alcanzable y el launcher con `-PermitirRedLocal`; nunca usar esa opción en una red no confiable. Staging y Production exigen HTTPS.
 
-## Roadmap
+## Configuración y secretos
 
-1. ~~Setup + esquema de BD~~ ✅
-2. ~~Autenticación JWT + catálogo de productos~~ ✅
-3. ~~Carrito de compras (Zustand) + checkout con control de stock~~ ✅
-4. ~~Pagos y facturación con IVA + panel admin de pedidos~~ ✅
-5. ~~Panel admin de productos (CRUD desde la web) y reportes de ventas~~ ✅
-6. ~~Tests de integración con PostgreSQL real + CI/CD de backend/web/mobile~~ ✅ (sin Docker local)
-7. Deploy (AWS / DigitalOcean)
+- Backend: variables de entorno de `.env*`/`secrets.local.ps1`; nunca hardcodear JWT, DB, SMTP, Firebase o certificados.
+- Web: `VITE_API_URL` solo contiene una URL pública/no secreta.
+- Mobile: `--dart-define=API_BASE_URL=https://…`; access token en memoria y refresh token en Android Keystore.
+- Firebase: `google-services.json` y cuenta de servicio permanecen fuera de Git.
+- Firma: `techstore-mobile/android/key.properties` y el upload keystore permanecen fuera de Git.
+
+Los controles y pendientes están en [SECURITY.md](docs/mobile-expansion/SECURITY.md).
+
+## Offline, realtime y actualización
+
+- Catálogo: red primero y último dato conocido como fallback.
+- Carrito/preferencias: locales; se revalidan antes de checkout.
+- Mensajes: cola FIFO idempotente con backoff y scope tenant/usuario.
+- Stock, pagos, caja, ventas, compras y CRUD sensible: `ONLINE_ONLY`.
+- Realtime: STOMP + catch-up REST por cursor; no hay polling permanente.
+- Software Mobile privado: actualización instalando un APK con `versionCode` mayor y la misma firma, sin desinstalar.
+- Software Mobile público futuro: Google Play In-App Updates flexible/inmediato según `/api/v1/app/version`.
+
+## APK Android privada
+
+Artefacto validado:
+
+`artifacts/mobile/private/TechStore-Private-1.0.1+2.apk`
+
+Para generar la siguiente versión:
+
+```powershell
+.\scripts\build-mobile-private.ps1 `
+  -ApiBaseUrl http://IP-PRIVADA-PC:8090 `
+  -VersionName 1.0.2 `
+  -VersionCode 3
+```
+
+Ejecutar el preflight con el teléfono conectado:
+
+```powershell
+.\scripts\check-mobile-private-readiness.ps1 `
+  -PhysicalNativeVerified `
+  -PrivateUpdateVerified
+```
+
+El backend debe ejecutarse en la PC y el teléfono debe compartir la misma red. Respaldar `%LOCALAPPDATA%\TechStore\mobile-signing`: perder esa firma impide actualizar instalaciones existentes.
+
+## Release público futuro
+
+Con dominio y keystore reales:
+
+```powershell
+.\scripts\build-mobile-release.ps1 `
+  -ApiBaseUrl https://api.techstore.tld `
+  -VersionName 1.0.0 `
+  -VersionCode 1
+```
+
+El pipeline público genera APK+AAB para Google Play cuando se decida publicar. Ver [RELEASE.md](docs/mobile-expansion/RELEASE.md).
+
+## Contrato y pruebas E2E
+
+```powershell
+powershell -File scripts\export-openapi.ps1
+node scripts\validate-openapi.mjs
+
+cd techstore-mobile
+$env:TECHSTORE_E2E_EMAIL='cuenta-unica@e2e.invalid'
+$env:TECHSTORE_E2E_PASSWORD='password-de-prueba-fuerte'
+dart run tool\auth_e2e.dart
+dart run tool\business_e2e.dart
+dart run tool\realtime_e2e.dart
+```
+
+Cada herramienta usa cuentas efímeras; deben eliminarse después de la ejecución. La matriz y los últimos resultados están en [TESTING.md](docs/mobile-expansion/TESTING.md).
+
+## Troubleshooting
+
+- Puerto ocupado: el launcher informa el PID y nunca mata procesos ajenos; cerrar el dueño o cambiar la configuración.
+- Backend no inicia: revisar `%LOCALAPPDATA%\TechStore\run` y `pg.log`, secretos, Java 21+ y health check.
+- Vitest no inicia workers en Windows: ejecutar `techstore-mobile\android\gradlew.bat --stop` y repetir con un worker de hilos.
+- Mobile no conecta desde teléfono: confirmar misma LAN, firewall, `-PermitirRedLocal` y una `API_BASE_URL` alcanzable.
+- Production no compila: es correcto si faltan `android/key.properties` o una URL HTTPS explícita.
+- Realtime reconectado sin cambios: comprobar JWT/tenant y el catch-up `/api/v1/sync/events`.
+- Migración falla: no editar una migración aplicada; crear la siguiente versión y validar desde una base vacía.
+
+## Límites legales/operativos
+
+La salida SIFEN actual es demostrativa: el certificado de prueba no acredita homologación ni transmisión a DNIT. Antes de operación comercial también se requieren revisión legal/fiscal, política de privacidad/Data Safety, backups externos con restauración ensayada, monitoreo y rotación de secretos.
+
+La guía de operación Web permanece en [MANUAL.md](MANUAL.md); el historial técnico de la expansión está en [CHANGELOG.md](docs/mobile-expansion/CHANGELOG.md).
