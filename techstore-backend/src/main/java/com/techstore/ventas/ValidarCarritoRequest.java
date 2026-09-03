@@ -1,5 +1,6 @@
 package com.techstore.ventas;
 
+import com.techstore.catalogo.Producto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -15,6 +16,6 @@ public record ValidarCarritoRequest(
 
     public record Item(
             @NotNull @Positive Long productoId,
-            @NotNull @Min(1) @Max(99) Integer cantidad) {
+            @NotNull @Min(1) @Max(Producto.MAXIMO_POR_PEDIDO) Integer cantidad) {
     }
 }

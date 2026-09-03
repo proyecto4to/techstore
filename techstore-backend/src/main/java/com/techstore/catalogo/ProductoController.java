@@ -66,6 +66,22 @@ public class ProductoController {
         return productoService.obtenerAdmin(id);
     }
 
+    @GetMapping("/operacion")
+    @PreAuthorize("hasAnyRole('Admin','Cajero')")
+    @Operation(summary = "Listar productos para operar mostrador y compras (Admin/Cajero)",
+            description = "Trae el inventario real, sin costo ni margen. Es lo que necesita "
+                    + "quien atiende para armar una venta o pedirle mercaderia a un "
+                    + "proveedor; el listado de administracion queda reservado a Admin "
+                    + "porque expone la rentabilidad de cada producto.")
+    public PageResponse<ProductoOperativoResponse> listarOperativo(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long marcaId,
+            @RequestParam(required = false, defaultValue = "false") boolean incluirInactivos,
+            @ParameterObject @PageableDefault(size = 12, sort = "nombre") Pageable pageable) {
+        return productoService.listarOperativo(
+                search, FiltroOpcional.id(marcaId), incluirInactivos, pageable);
+    }
+
     @GetMapping("/reposicion")
     @PreAuthorize("hasAnyRole('Admin','Cajero')")
     @Operation(summary = "Productos que llegaron a su punto de reposición (Admin/Cajero)",

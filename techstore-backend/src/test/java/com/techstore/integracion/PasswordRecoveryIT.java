@@ -57,6 +57,15 @@ class PasswordRecoveryIT {
         String body = TenantContext.comoTenant(1L, () -> jdbc.queryForObject(
                 "SELECT cuerpo FROM correos WHERE destinatario=? AND tipo='RESETEO_PASSWORD' ORDER BY id DESC LIMIT 1",
                 String.class, email));
+        // El enlace tiene que abrirse en cualquier navegador. Antes apuntaba a
+        // `techstore://`, un esquema propio que solo resuelve si la app esta
+        // instalada: quien pedia recuperar la clave desde la computadora
+        // recibia un enlace muerto.
+        assertTrue(body.contains("/password/reset?token="),
+                "El correo debe llevar a la pantalla de nueva contrasena");
+        assertFalse(body.contains("techstore://"),
+                "El enlace de recuperacion no puede depender de un esquema propio");
+
         Matcher matcher = TOKEN.matcher(body);
         assertTrue(matcher.find());
         String token = matcher.group(1);

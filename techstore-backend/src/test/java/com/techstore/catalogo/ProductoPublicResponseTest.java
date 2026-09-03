@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -37,5 +38,34 @@ class ProductoPublicResponseTest {
                 "ocultarSinStock", "activo", "createdAt"}) {
             assertFalse(respuesta.has(campo), "El DTO público filtró el campo interno " + campo);
         }
+    }
+
+    @Test
+    void maxPorPedidoReflejaLoQueQuedaCuandoEsPoco() {
+        Producto producto = new Producto();
+        producto.setStockReal(10);
+        producto.setStockComprometido(2);
+
+        assertEquals(8, mapper.toPublicResponse(producto).maxPorPedido());
+    }
+
+    @Test
+    void maxPorPedidoNoDelataElTamanoDelDeposito() {
+        Producto producto = new Producto();
+        producto.setStockReal(5_000);
+        producto.setStockComprometido(0);
+
+        assertEquals(Producto.MAXIMO_POR_PEDIDO, mapper.toPublicResponse(producto).maxPorPedido());
+    }
+
+    @Test
+    void maxPorPedidoNuncaEsNegativoAunqueLoComprometidoSupereElStock() {
+        Producto producto = new Producto();
+        producto.setStockReal(2);
+        producto.setStockComprometido(5);
+
+        ProductoPublicResponse respuesta = mapper.toPublicResponse(producto);
+        assertEquals(0, respuesta.maxPorPedido());
+        assertFalse(respuesta.disponible());
     }
 }

@@ -48,7 +48,7 @@ public class MobileReleaseService {
     }
 
     public Optional<MobileRelease> disponible() {
-        Path directorio = properties.releaseDir();
+        Path directorio = properties.releaseDirPath();
         if (directorio == null) {
             return Optional.empty();
         }

@@ -181,6 +181,24 @@ public class Producto implements ConMoneda {
     }
 
     /**
+     * Tope de unidades que admite una línea de pedido. Coincide con el @Max de
+     * ValidarCarritoRequest: si la vidriera ofreciera más de lo que el checkout
+     * acepta, el cliente elegiría una cantidad que el servidor después rechaza.
+     */
+    public static final int MAXIMO_POR_PEDIDO = 99;
+
+    /**
+     * Cuántas unidades puede pedir un cliente de una sola vez. Es el stock
+     * disponible techado por {@link #MAXIMO_POR_PEDIDO}: con 5000 unidades
+     * publica 99 y no delata el tamaño del depósito; solo cuando queda poco el
+     * número coincide con el stock, que es justo cuando el cliente necesita
+     * verlo para no elegir una cantidad imposible.
+     */
+    public int getMaxPorPedido() {
+        return Math.max(0, Math.min(getStockDisponible(), MAXIMO_POR_PEDIDO));
+    }
+
+    /**
      * Umbral que se aplica a los productos sin mínimo propio. Existe para no
      * cambiar el comportamiento anterior, cuando el aviso era este número fijo
      * para todo el catálogo.

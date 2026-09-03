@@ -17,7 +17,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class CarritoService {
 
-    private static final int CANTIDAD_MAXIMA = 99;
+    private static final int CANTIDAD_MAXIMA = Producto.MAXIMO_POR_PEDIDO;
 
     private final ProductoRepository productoRepository;
     private final ProductoMapper productoMapper;

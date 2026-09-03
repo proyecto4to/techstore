@@ -15,9 +15,26 @@ class MobileVersionControllerTest {
     private static final URI PLAY = URI.create("https://play.google.com/store/apps/details?id=test");
 
     private MobileVersionController controller(Path releaseDir) {
-        MobileUpdateProperties properties = new MobileUpdateProperties(5, 8, PLAY, releaseDir);
+        MobileUpdateProperties properties = new MobileUpdateProperties(
+                5, 8, PLAY, releaseDir == null ? null : releaseDir.toString());
         return new MobileVersionController(
                 properties, new MobileReleaseService(properties, new ObjectMapper()));
+    }
+
+    @Test
+    void aceptaUnDirectorioRelativoQueSubeDeNivel() {
+        // El valor por defecto es `../artifacts/mobile/release`. Enlazado
+        // directamente a Path, en un contexto web servlet Spring lo normalizaba
+        // a null y el contexto no arrancaba; por eso se enlaza como texto.
+        var properties = new MobileUpdateProperties(1, 1, PLAY, "../artifacts/mobile/release");
+
+        assertThat(properties.releaseDirPath()).isEqualTo(Path.of("../artifacts/mobile/release"));
+    }
+
+    @Test
+    void sinDirectorioConfiguradoNoHayDistribucionPropia() {
+        assertThat(new MobileUpdateProperties(1, 1, PLAY, null).releaseDirPath()).isNull();
+        assertThat(new MobileUpdateProperties(1, 1, PLAY, "   ").releaseDirPath()).isNull();
     }
 
     @Test

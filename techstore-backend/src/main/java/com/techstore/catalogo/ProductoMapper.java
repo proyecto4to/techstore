@@ -15,7 +15,11 @@ public interface ProductoMapper extends DineroMapper {
     ProductoResponse toResponse(Producto producto);
 
     @Mapping(target = "disponible", expression = "java(producto.getStockDisponible() > 0)")
+    @Mapping(target = "maxPorPedido", expression = "java(producto.getMaxPorPedido())")
     ProductoPublicResponse toPublicResponse(Producto producto);
+
+    @Mapping(target = "stockDisponible", expression = "java(producto.getStockDisponible())")
+    ProductoOperativoResponse toOperativoResponse(Producto producto);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "tenantId", ignore = true)

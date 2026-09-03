@@ -57,6 +57,18 @@ public class ProductoService {
                         .map(productoMapper::toResponse));
     }
 
+    /**
+     * Los productos como los ven el mostrador y el depósito: con el inventario
+     * real, sin costo ni margen.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<ProductoOperativoResponse> listarOperativo(
+            String search, Long marcaId, boolean incluirInactivos, Pageable pageable) {
+        return PageResponse.from(
+                productoRepository.findAll(ProductoSpecs.conFiltros(search, marcaId, incluirInactivos), pageable)
+                        .map(productoMapper::toOperativoResponse));
+    }
+
     @Transactional(readOnly = true)
     public ProductoPublicResponse obtenerPublico(Long id) {
         return productoMapper.toPublicResponse(buscarProductoPublico(id));
