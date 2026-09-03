@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { Search, Plus, Trash2, Printer } from 'lucide-react'
 import { productoService } from '../services/productoService'
@@ -6,27 +6,44 @@ import { ventaService } from '../services/ventaService'
 import { facturaService } from '../services/facturaService'
 import { empresaService } from '../services/empresaService'
 import { formatPrecio } from '../utils/format'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import AdminTabs from '../components/admin/AdminTabs'
 import CobroPanel from '../components/admin/CobroPanel'
 
 /**
  * Venta en mostrador: el cliente vino a la tienda sin pedido web. Se arma la
  * venta, se cobra y se emite la factura en un solo paso.
+ *
+ * Está pensada para trabajar sin sacar las manos del teclado: se escribe, la
+ * lista se filtra sola y Enter agrega el primer resultado. Con el cliente
+ * esperando de pie, cada clic de más se siente.
  */
 function AdminVentaDirectaPage() {
-  const [busqueda, setBusqueda] = useState('')
   const [texto, setTexto] = useState('')
   const [carrito, setCarrito] = useState([])
   const [emailCliente, setEmailCliente] = useState('')
   const [ultimaVenta, setUltimaVenta] = useState(null)
   const [error, setError] = useState(null)
+  const buscador = useRef(null)
   const queryClient = useQueryClient()
 
-  const { data: productos, isLoading } = useQuery({
+  // Se busca mientras escribe: antes había que apretar Enter o el botón para
+  // que la lista se moviera, un paso de más en cada artículo de cada venta.
+  const busqueda = useDebouncedValue(texto.trim())
+
+  // El foco arranca en la búsqueda y vuelve ahí después de cada alta, así se
+  // pueden cargar varios artículos seguidos sin tocar el mouse.
+  useEffect(() => {
+    buscador.current?.focus()
+  }, [])
+
+  const { data: productos, isLoading, isError, refetch } = useQuery({
     queryKey: ['venta-directa-productos', busqueda],
-    queryFn: () => productoService.listarAdmin({ search: busqueda, size: 8 }),
+    queryFn: () => productoService.listarParaOperar({ search: busqueda, size: 8 }),
     placeholderData: keepPreviousData,
   })
+
+  const disponibles = (productos?.content ?? []).filter((p) => p.stockDisponible > 0)
 
   // Si a la empresa le faltan datos, la factura no se puede emitir. Se avisa
   // acá arriba en vez de dejar que el error aparezca al final del cobro, con
@@ -68,6 +85,31 @@ function AdminVentaDirectaPage() {
         },
       ]
     })
+    // Se limpia y se vuelve al buscador: el siguiente artículo se carga
+    // escribiendo, sin tener que volver al campo con el mouse.
+    setTexto('')
+    buscador.current?.focus()
+  }
+
+  /**
+   * Enter carga el primer resultado con stock.
+   *
+   * Es el atajo que convierte cada artículo en «escribo tres letras y Enter».
+   * Si hay varios candidatos igual toma el primero, que es el que la búsqueda
+   * ya puso arriba; para elegir otro está la lista.
+   */
+  const agregarPrimerResultado = (event) => {
+    event.preventDefault()
+    const primero = disponibles[0]
+    if (!primero) {
+      setError(
+        texto.trim()
+          ? `No hay productos con stock que coincidan con "${texto.trim()}".`
+          : 'Escribí el nombre de un producto para buscarlo.',
+      )
+      return
+    }
+    agregar(primero)
   }
 
   const cambiarCantidad = (productoId, cantidad) => {
@@ -187,28 +229,45 @@ function AdminVentaDirectaPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="card">
           <h3 className="mb-3 text-lg font-semibold text-neutral-text">1. Elegí los productos</h3>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              setBusqueda(texto.trim())
-            }}
-            className="mb-4 flex gap-2"
-          >
-            <input
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-              placeholder="Buscar por nombre…"
-              className="input flex-1"
-              aria-label="Buscar productos"
-            />
-            <button type="submit" className="btn btn-primary inline-flex items-center gap-1">
-              <Search size={16} /> Buscar
-            </button>
+          <form onSubmit={agregarPrimerResultado} className="mb-2">
+            <div className="relative">
+              <Search
+                size={18}
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-muted"
+              />
+              <input
+                ref={buscador}
+                value={texto}
+                onChange={(e) => {
+                  setTexto(e.target.value)
+                  setError(null)
+                }}
+                placeholder="Escribí el nombre del producto…"
+                className="input w-full pl-10"
+                aria-label="Buscar productos"
+              />
+            </div>
           </form>
+          <p className="mb-4 text-xs text-neutral-muted">
+            La lista se filtra mientras escribís. Enter agrega el primero.
+          </p>
 
-          {isLoading && <p className="text-neutral-muted">Cargando…</p>}
-          {productos && productos.content.length === 0 && (
-            <p className="text-neutral-muted">No hay productos que coincidan.</p>
+          {isLoading && <p className="text-neutral-muted">Buscando…</p>}
+          {isError && (
+            <p className="alerta-error text-sm" role="alert">
+              No pudimos buscar productos.{' '}
+              <button type="button" onClick={refetch} className="underline">
+                Reintentar
+              </button>
+            </p>
+          )}
+          {!isLoading && productos && productos.content.length === 0 && (
+            <p className="text-neutral-muted">
+              {busqueda
+                ? `No hay productos que coincidan con "${busqueda}".`
+                : 'No hay productos cargados.'}
+            </p>
           )}
           <ul className="space-y-2">
             {productos?.content.map((p) => (
@@ -244,7 +303,10 @@ function AdminVentaDirectaPage() {
             </p>
           ) : (
             <>
-              <table className="tabla-admin mb-4">
+              {/* El scroll queda dentro de la tabla: sin esto, en una pantalla
+                  angosta la página entera se corre de costado. */}
+              <div className="mb-4 overflow-x-auto">
+              <table className="tabla-admin tabla-apilable">
                 <thead>
                   <tr>
                     <th>Producto</th>
@@ -257,8 +319,10 @@ function AdminVentaDirectaPage() {
                 <tbody>
                   {carrito.map((i) => (
                     <tr key={i.productoId}>
-                      <td className="text-neutral-text">{i.nombre}</td>
-                      <td>
+                      <td data-label="Producto" className="text-neutral-text">
+                        {i.nombre}
+                      </td>
+                      <td data-label="Cantidad">
                         <input
                           type="number"
                           min="1"
@@ -269,7 +333,7 @@ function AdminVentaDirectaPage() {
                           aria-label={`Cantidad de ${i.nombre}`}
                         />
                       </td>
-                      <td>
+                      <td data-label="Descuento c/u">
                         <input
                           type="number"
                           min="0"
@@ -282,8 +346,10 @@ function AdminVentaDirectaPage() {
                           aria-label={`Descuento por unidad de ${i.nombre}`}
                         />
                       </td>
-                      <td className="text-primary-300">{formatPrecio(subtotalDe(i))}</td>
-                      <td>
+                      <td data-label="Subtotal" className="text-primary-300">
+                        {formatPrecio(subtotalDe(i))}
+                      </td>
+                      <td className="justify-end">
                         <button
                           onClick={() => quitar(i.productoId)}
                           className="btn btn-danger px-2 py-1 text-sm"
@@ -296,6 +362,7 @@ function AdminVentaDirectaPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
 
               {totalDescuento > 0 && (
                 <p className="mb-3 text-sm text-neutral-secondary">

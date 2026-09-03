@@ -293,7 +293,7 @@ function AdminContabilidadPage() {
           </div>
 
           <div className="card mb-6 overflow-x-auto p-0">
-            <table className="tabla-admin">
+            <table className="tabla-admin tabla-apilable">
               <thead>
                 <tr>
                   <th>Libro</th>
@@ -309,14 +309,14 @@ function AdminContabilidadPage() {
               <tbody>
                 {[['Ventas', resumen.ventas], ['Compras', resumen.compras]].map(([nombre, t]) => (
                   <tr key={nombre}>
-                    <td className="font-semibold text-neutral-text">{nombre}</td>
-                    <td className="text-right">{t.comprobantes}</td>
-                    <td className="text-right">{formatPrecio(t.gravado10, resumen.moneda)}</td>
-                    <td className="text-right">{formatPrecio(t.iva10, resumen.moneda)}</td>
-                    <td className="text-right">{formatPrecio(t.gravado5, resumen.moneda)}</td>
-                    <td className="text-right">{formatPrecio(t.iva5, resumen.moneda)}</td>
-                    <td className="text-right">{formatPrecio(t.exento, resumen.moneda)}</td>
-                    <td className="text-right font-semibold">{formatPrecio(t.total, resumen.moneda)}</td>
+                    <td data-label="Libro" className="font-semibold text-neutral-text">{nombre}</td>
+                    <td data-label="Comprobantes" className="text-right">{t.comprobantes}</td>
+                    <td data-label="Gravado 10%" className="text-right">{formatPrecio(t.gravado10, resumen.moneda)}</td>
+                    <td data-label="IVA 10%" className="text-right">{formatPrecio(t.iva10, resumen.moneda)}</td>
+                    <td data-label="Gravado 5%" className="text-right">{formatPrecio(t.gravado5, resumen.moneda)}</td>
+                    <td data-label="IVA 5%" className="text-right">{formatPrecio(t.iva5, resumen.moneda)}</td>
+                    <td data-label="Exentas" className="text-right">{formatPrecio(t.exento, resumen.moneda)}</td>
+                    <td data-label="Total" className="text-right font-semibold">{formatPrecio(t.total, resumen.moneda)}</td>
                   </tr>
                 ))}
               </tbody>

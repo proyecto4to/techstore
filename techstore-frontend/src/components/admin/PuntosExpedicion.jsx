@@ -71,7 +71,7 @@ function PuntosExpedicion() {
         <p className="text-neutral-muted">Cargando…</p>
       ) : (
         <div className="mb-6 overflow-x-auto">
-          <table className="tabla-admin">
+          <table className="tabla-admin tabla-apilable">
             <thead>
               <tr>
                 <th>Prefijo</th>
@@ -83,8 +83,8 @@ function PuntosExpedicion() {
             <tbody>
               {puntos.map((p) => (
                 <tr key={p.id} className={p.activo ? '' : 'opacity-50'}>
-                  <td className="font-mono text-neutral-text">{p.prefijo}</td>
-                  <td className="text-neutral-text">
+                  <td data-label="Prefijo" className="font-mono text-neutral-text">{p.prefijo}</td>
+                  <td data-label="Nombre" className="text-neutral-text">
                     {p.nombre}
                     {p.porDefecto && (
                       <span className="ml-2 rounded-full bg-accent-400/20 px-2 py-0.5 text-xs font-semibold text-accent-400">
@@ -92,12 +92,12 @@ function PuntosExpedicion() {
                       </span>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Estado">
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${p.activo ? 'bg-emerald-400/20 text-emerald-400' : 'bg-red-400/20 text-red-400'}`}>
                       {p.activo ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Acciones">
                     {/* El por defecto no se puede desactivar: es al que caen los
                         usuarios sin punto asignado. */}
                     {p.porDefecto ? (

@@ -4,6 +4,7 @@ import { Wallet, FileText } from 'lucide-react'
 import { cajaService } from '../services/cajaService'
 import { formatPrecio } from '../utils/format'
 import AdminTabs from '../components/admin/AdminTabs'
+import ErrorDeCarga from '../components/common/ErrorDeCarga'
 import StatCard from '../components/common/StatCard'
 import CierreCajaPanel from '../components/admin/CierreCajaPanel'
 
@@ -26,7 +27,7 @@ function AdminCajaPage() {
     placeholderData: keepPreviousData,
   })
 
-  const { data: movimientos, isLoading } = useQuery({
+  const { data: movimientos, isLoading, isError, refetch } = useQuery({
     queryKey: ['caja-movimientos', desde, hasta, page],
     queryFn: () => cajaService.listar({ ...filtros, page }),
     placeholderData: keepPreviousData,
@@ -206,6 +207,7 @@ function AdminCajaPage() {
       </form>
 
       {isLoading && <p className="text-neutral-muted">Cargando movimientos…</p>}
+      {isError && <ErrorDeCarga que="los movimientos de caja" onReintentar={refetch} />}
 
       {movimientos && movimientos.content.length === 0 && (
         <p className="text-neutral-muted">Sin movimientos en el período.</p>
@@ -213,7 +215,7 @@ function AdminCajaPage() {
 
       {movimientos && movimientos.content.length > 0 && (
         <div className="card overflow-x-auto p-0">
-          <table className="tabla-admin">
+          <table className="tabla-admin tabla-apilable">
             <thead>
               <tr>
                 <th>N.º</th>
@@ -230,9 +232,9 @@ function AdminCajaPage() {
                 const esIngreso = movimiento.tipo === 'Ingreso'
                 return (
                   <tr key={movimiento.id}>
-                    <td className="font-semibold text-neutral-text">#{movimiento.numero}</td>
-                    <td>{new Date(movimiento.fecha).toLocaleString('es-PY')}</td>
-                    <td>
+                    <td data-label="N.º" className="font-semibold text-neutral-text">#{movimiento.numero}</td>
+                    <td data-label="Fecha">{new Date(movimiento.fecha).toLocaleString('es-PY')}</td>
+                    <td data-label="Tipo">
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
                           esIngreso ? 'bg-emerald-400/20 text-emerald-400' : 'bg-red-400/20 text-red-400'
@@ -241,10 +243,10 @@ function AdminCajaPage() {
                         {movimiento.tipo}
                       </span>
                     </td>
-                    <td className="text-neutral-text">{movimiento.concepto}</td>
-                    <td className="text-neutral-secondary">{movimiento.referencia ?? '—'}</td>
-                    <td className="text-neutral-secondary">{movimiento.usuarioEmail}</td>
-                    <td
+                    <td data-label="Concepto" className="text-neutral-text">{movimiento.concepto}</td>
+                    <td data-label="Referencia" className="text-neutral-secondary">{movimiento.referencia ?? '—'}</td>
+                    <td data-label="Usuario" className="text-neutral-secondary">{movimiento.usuarioEmail}</td>
+                    <td data-label="Monto"
                       className={`text-right font-semibold ${
                         esIngreso ? 'text-emerald-400' : 'text-red-400'
                       }`}

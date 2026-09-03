@@ -5,6 +5,8 @@ import { usuarioService } from '../services/usuarioService'
 import { empresaService } from '../services/empresaService'
 import { useAuthStore } from '../store/authStore'
 import AdminTabs from '../components/admin/AdminTabs'
+import { REQUISITOS_PASSWORD, errorDePassword } from '../utils/password'
+import ErrorDeCarga from '../components/common/ErrorDeCarga'
 
 /** Quiénes emiten documentos. Un Cliente nunca factura, así que no lleva punto. */
 const ROLES_QUE_EMITEN = ['Admin', 'Cajero']
@@ -28,7 +30,7 @@ function AdminUsuariosPage() {
   const { usuario: usuarioActual } = useAuthStore()
   const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-usuarios', page],
     queryFn: () => usuarioService.listar({ page }),
     placeholderData: keepPreviousData,
@@ -157,8 +159,21 @@ function AdminUsuariosPage() {
           <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="upassword">
             Contraseña *
           </label>
-          <input id="upassword" type="password" required minLength={8} value={form.password}
+          <input id="upassword" type="password" required value={form.password}
+            aria-invalid={errorDePassword(form.password) ? true : undefined}
+            aria-describedby="upassword-ayuda"
             onChange={(e) => setForm({ ...form, password: e.target.value })} className="input" />
+          {/* El `minLength` cubría solo la longitud, pero el servidor además
+              exige mayúscula, minúscula y número: el rechazo llegaba recién
+              después de enviar el alta. */}
+          <p
+            id="upassword-ayuda"
+            className={`mt-1 text-xs ${
+              errorDePassword(form.password) ? 'text-red-400' : 'text-neutral-secondary'
+            }`}
+          >
+            {errorDePassword(form.password) ?? REQUISITOS_PASSWORD}
+          </p>
         </div>
         <div>
           <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="urol">
@@ -181,10 +196,11 @@ function AdminUsuariosPage() {
       </form>
 
       {isLoading && <p className="text-neutral-muted">Cargando usuarios…</p>}
+      {isError && <ErrorDeCarga que="los usuarios" onReintentar={refetch} />}
 
       {data && (
         <div className="card overflow-x-auto p-0">
-          <table className="tabla-admin">
+          <table className="tabla-admin tabla-apilable">
             <thead>
               <tr>
                 <th>Usuario</th>
@@ -200,18 +216,18 @@ function AdminUsuariosPage() {
                 const esYo = u.email === usuarioActual?.email
                 return (
                   <tr key={u.id} className={u.activo ? '' : 'opacity-50'}>
-                    <td>
+                    <td data-label="Usuario">
                       <p className="font-medium text-neutral-text">
                         {u.nombre} {u.apellido} {esYo && <span className="text-xs text-accent-400">(vos)</span>}
                       </p>
                       <p className="text-xs text-neutral-muted">{u.email}</p>
                     </td>
-                    <td>
+                    <td data-label="Rol">
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${ESTILO_ROL[u.rol] ?? 'bg-dark-lighter text-neutral-secondary'}`}>
                         {u.rol}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Emite desde">
                       {ROLES_QUE_EMITEN.includes(u.rol) ? (
                         <select
                           aria-label={`Punto de expedición de ${u.email}`}
@@ -241,15 +257,15 @@ function AdminUsuariosPage() {
                         <span className="text-sm text-neutral-muted">—</span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Estado">
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${u.activo ? 'bg-emerald-400/20 text-emerald-400' : 'bg-red-400/20 text-red-400'}`}>
                         {u.activo ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
-                    <td className="text-neutral-secondary">
+                    <td data-label="Último acceso" className="text-neutral-secondary">
                       {u.lastLogin ? new Date(u.lastLogin).toLocaleString('es-PY') : 'Nunca'}
                     </td>
-                    <td>
+                    <td data-label="Acciones">
                       <div className="flex flex-wrap items-center gap-2">
                         {!esYo && (
                           <button
@@ -269,7 +285,7 @@ function AdminUsuariosPage() {
                               value={resetPassword}
                               onChange={(e) => setResetPassword(e.target.value)}
                               className="input w-44 py-1 text-sm"
-                            />
+                             aria-label="Nueva contraseña"/>
                             <button
                               onClick={() => resetMutation.mutate({ id: u.id, password: resetPassword })}
                               disabled={resetPassword.length < 8 || resetMutation.isPending}

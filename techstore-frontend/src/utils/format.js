@@ -25,3 +25,29 @@ export function formatPrecio(valor, moneda) {
   if (valor === null || valor === undefined) return '—'
   return formateador(moneda).format(valor)
 }
+
+const formateadorFecha = new Intl.DateTimeFormat('es-PY', {
+  day: 'numeric',
+  month: 'short',
+})
+
+/**
+ * Una fecha como la lee una persona.
+ *
+ * El servidor manda ISO (`2026-09-05`); mostrarlo tal cual es correcto pero no
+ * es castellano. Devuelve `null` si no hay fecha válida, para que quien llama
+ * decida qué poner en su lugar.
+ */
+export function formatFechaCorta(valor) {
+  if (!valor) return null
+  const fecha = new Date(valor)
+  return Number.isNaN(fecha.getTime()) ? null : formateadorFecha.format(fecha)
+}
+
+/** Rango de llegada estimada, en una frase. */
+export function formatRangoEntrega(desde, hasta) {
+  const inicio = formatFechaCorta(desde)
+  if (!inicio) return 'Fecha a confirmar'
+  const fin = formatFechaCorta(hasta)
+  return !fin || fin === inicio ? `Llega el ${inicio}` : `Llega entre el ${inicio} y el ${fin}`
+}

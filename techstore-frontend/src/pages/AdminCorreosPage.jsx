@@ -4,6 +4,7 @@ import { Mail, Paperclip, Settings, Send } from 'lucide-react'
 import { correoService } from '../services/correoService'
 import { useAuthStore } from '../store/authStore'
 import AdminTabs from '../components/admin/AdminTabs'
+import ErrorDeCarga from '../components/common/ErrorDeCarga'
 
 const ESTILO_ESTADO = {
   ENVIADO: 'bg-emerald-400/20 text-emerald-400',
@@ -77,7 +78,7 @@ function AdminCorreosPage() {
     onError,
   })
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-correos', page],
     queryFn: () => correoService.listar({ page }),
     placeholderData: keepPreviousData,
@@ -172,7 +173,7 @@ function AdminCorreosPage() {
               value={prueba}
               onChange={(e) => setPrueba(e.target.value)}
               className="input max-w-xs py-2 text-sm"
-            />
+             aria-label="Enviar prueba a"/>
             <button
               onClick={() => pruebaMutation.mutate()}
               disabled={pruebaMutation.isPending || !prueba.trim()}
@@ -197,6 +198,7 @@ function AdminCorreosPage() {
       </div>
 
       {isLoading && <p className="text-neutral-muted">Cargando correos…</p>}
+      {isError && <ErrorDeCarga que="los correos" onReintentar={refetch} />}
 
       {data && data.content.length === 0 && (
         <p className="text-neutral-muted">Todavía no se generó ningún correo.</p>
@@ -204,7 +206,7 @@ function AdminCorreosPage() {
 
       {data && data.content.length > 0 && (
         <div className="card overflow-x-auto p-0">
-          <table className="tabla-admin">
+          <table className="tabla-admin tabla-apilable">
             <thead>
               <tr>
                 <th>Fecha</th>
@@ -217,15 +219,15 @@ function AdminCorreosPage() {
             <tbody>
               {data.content.map((c) => (
                 <tr key={c.id}>
-                  <td className="whitespace-nowrap text-neutral-secondary">
+                  <td data-label="Fecha" className="whitespace-nowrap text-neutral-secondary">
                     {new Date(c.fecha).toLocaleString('es-PY')}
                   </td>
-                  <td className="text-neutral-text">{c.tipoDescripcion}</td>
-                  <td>
+                  <td data-label="Tipo" className="text-neutral-text">{c.tipoDescripcion}</td>
+                  <td data-label="Destinatario">
                     <p className="text-neutral-text">{c.destinatarioNombre ?? '—'}</p>
                     <p className="text-xs text-neutral-muted">{c.destinatario}</p>
                   </td>
-                  <td className="text-neutral-secondary">
+                  <td data-label="Asunto" className="text-neutral-secondary">
                     <span className="inline-flex items-center gap-1">
                       {c.tieneAdjunto && <Paperclip size={13} className="text-accent-400" />}
                       {c.asunto}
@@ -234,7 +236,7 @@ function AdminCorreosPage() {
                       <p className="text-xs text-red-400">{c.error}</p>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Estado">
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${ESTILO_ESTADO[c.estado] ?? 'bg-dark-lighter text-neutral-secondary'}`}>
                       {ETIQUETA_ESTADO[c.estado] ?? c.estado}
                     </span>

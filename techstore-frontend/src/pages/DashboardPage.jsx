@@ -101,7 +101,7 @@ function DashboardPage() {
                 <AlertTriangle size={18} className="text-yellow-400" /> Productos a reponer
               </h3>
               <div className="overflow-x-auto">
-                <table className="tabla-admin">
+                <table className="tabla-admin tabla-apilable">
                   <thead>
                     <tr>
                       <th>Producto</th>
@@ -114,9 +114,9 @@ function DashboardPage() {
                   <tbody>
                     {data.stockBajo.map((p) => (
                       <tr key={p.productoId}>
-                        <td className="font-medium text-neutral-text">{p.nombre}</td>
-                        <td className="text-neutral-secondary">{p.marca ?? '—'}</td>
-                        <td>
+                        <td data-label="Producto" className="font-medium text-neutral-text">{p.nombre}</td>
+                        <td data-label="Marca" className="text-neutral-secondary">{p.marca ?? '—'}</td>
+                        <td data-label="Disponible">
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-semibold ${
                               p.stockDisponible === 0
@@ -129,7 +129,7 @@ function DashboardPage() {
                         </td>
                         {/* Los días dicen más que las unidades: "quedan 3 días"
                             se entiende sin saber cuánto se vende. */}
-                        <td className="text-neutral-secondary">
+                        <td data-label="Alcanza para" className="text-neutral-secondary">
                           {p.diasDeCobertura === null || p.diasDeCobertura === undefined ? (
                             <span className="text-neutral-muted">sin datos de venta</span>
                           ) : p.diasDeCobertura <= 0 ? (
@@ -138,7 +138,7 @@ function DashboardPage() {
                             `${p.diasDeCobertura} día${p.diasDeCobertura === 1 ? '' : 's'}`
                           )}
                         </td>
-                        <td className="text-neutral-secondary">
+                        <td data-label="Reponer en" className="text-neutral-secondary">
                           {p.umbral}
                           {!p.umbralCalculado && (
                             <span className="ml-1 text-xs text-neutral-muted" title="Mínimo cargado a mano: todavía no hay ventas para calcularlo">
@@ -160,7 +160,7 @@ function DashboardPage() {
                 <TrendingUp size={18} className="text-emerald-400" /> Más vendidos del mes
               </h3>
               <div className="overflow-x-auto">
-                <table className="tabla-admin">
+                <table className="tabla-admin tabla-apilable">
                   <thead>
                     <tr>
                       <th>Producto</th>
@@ -171,9 +171,9 @@ function DashboardPage() {
                   <tbody>
                     {data.topProductosMes.map((p) => (
                       <tr key={p.productoId}>
-                        <td className="font-medium text-neutral-text">{p.nombre}</td>
-                        <td className="text-neutral-secondary">{p.unidadesVendidas}</td>
-                        <td className="text-primary-300">{formatPrecio(p.montoVendido)}</td>
+                        <td data-label="Producto" className="font-medium text-neutral-text">{p.nombre}</td>
+                        <td data-label="Unidades" className="text-neutral-secondary">{p.unidadesVendidas}</td>
+                        <td data-label="Facturado" className="text-primary-300">{formatPrecio(p.montoVendido)}</td>
                       </tr>
                     ))}
                   </tbody>

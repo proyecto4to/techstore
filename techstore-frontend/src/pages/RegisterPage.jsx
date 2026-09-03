@@ -3,6 +3,14 @@ import { Link, useNavigate } from 'react-router-dom'
 import { UserPlus } from 'lucide-react'
 import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
+import CampoTexto from '../components/common/CampoTexto'
+import {
+  REQUISITOS_PASSWORD,
+  errorDeConfirmacion,
+  errorDePassword,
+  passwordValida,
+  passwordsCoinciden,
+} from '../utils/password'
 
 function RegisterPage() {
   const [form, setForm] = useState({
@@ -17,15 +25,25 @@ function RegisterPage() {
   const setAuth = useAuthStore((state) => state.setAuth)
   const navigate = useNavigate()
 
-  const campo = (clave) => (e) => setForm({ ...form, [clave]: e.target.value })
+  const campo = (clave) => (valor) => {
+    setError(null)
+    setForm((actual) => ({ ...actual, [clave]: valor }))
+  }
+
+  // La misma regla que aplica el backend. Antes la etiqueta decía «mínimo 8
+  // caracteres» y el `minLength` lo confirmaba, pero el servidor además exige
+  // mayúscula, minúscula y número: quien ponía «12345678» pasaba la validación
+  // del navegador y recibía un rechazo genérico recién después de enviar.
+  const puedeEnviar =
+    form.nombre.trim() &&
+    form.apellido.trim() &&
+    form.email.trim() &&
+    passwordValida(form.password) &&
+    passwordsCoinciden(form.password, form.confirmar)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError(null)
-    if (form.password !== form.confirmar) {
-      setError('Las contraseñas no coinciden')
-      return
-    }
     setCargando(true)
     try {
       const { data } = await api.post('/auth/registro', {
@@ -45,7 +63,7 @@ function RegisterPage() {
       setError(
         errores
           ? Object.values(errores).join(' · ')
-          : err.response?.data?.detail ?? 'No se pudo crear la cuenta. Intente de nuevo.',
+          : err.response?.data?.detail ?? 'No se pudo crear la cuenta. Intentá de nuevo.',
       )
     } finally {
       setCargando(false)
@@ -71,68 +89,68 @@ function RegisterPage() {
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="nombre">
-                Nombre
-              </label>
-              <input id="nombre" required maxLength={100} value={form.nombre} onChange={campo('nombre')} className="input" />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="apellido">
-                Apellido
-              </label>
-              <input id="apellido" required maxLength={100} value={form.apellido} onChange={campo('apellido')} className="input" />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={form.email}
-              onChange={campo('email')}
-              className="input"
-              placeholder="tu@email.com"
+            <CampoTexto
+              etiqueta="Nombre"
+              requerido
+              maxLength={100}
+              autoComplete="given-name"
+              valor={form.nombre}
+              onChange={campo('nombre')}
+              validar={(v) => (v.trim() ? null : 'Escribí tu nombre.')}
+            />
+            <CampoTexto
+              etiqueta="Apellido"
+              requerido
+              maxLength={100}
+              autoComplete="family-name"
+              valor={form.apellido}
+              onChange={campo('apellido')}
+              validar={(v) => (v.trim() ? null : 'Escribí tu apellido.')}
             />
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="password">
-              Contraseña (mínimo 8 caracteres)
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              value={form.password}
-              onChange={campo('password')}
-              className="input"
-            />
-          </div>
+          <CampoTexto
+            etiqueta="Correo electrónico"
+            type="email"
+            requerido
+            autoComplete="email"
+            valor={form.email}
+            onChange={campo('email')}
+            validar={(v) =>
+              !v.trim()
+                ? 'Escribí tu correo.'
+                : v.includes('@') && v.length > 4
+                  ? null
+                  : 'Escribí un correo válido, como nombre@correo.com'
+            }
+          />
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="confirmar">
-              Confirmar contraseña
-            </label>
-            <input
-              id="confirmar"
-              type="password"
-              required
-              autoComplete="new-password"
-              value={form.confirmar}
-              onChange={campo('confirmar')}
-              className="input"
-            />
-          </div>
+          <CampoTexto
+            etiqueta="Contraseña"
+            type="password"
+            requerido
+            autoComplete="new-password"
+            ayuda={REQUISITOS_PASSWORD}
+            valor={form.password}
+            onChange={campo('password')}
+            validar={errorDePassword}
+          />
 
-          <button type="submit" disabled={cargando} className="btn btn-primary w-full">
+          <CampoTexto
+            etiqueta="Repetí la contraseña"
+            type="password"
+            requerido
+            autoComplete="new-password"
+            valor={form.confirmar}
+            onChange={campo('confirmar')}
+            validar={(v) => errorDeConfirmacion(form.password, v)}
+          />
+
+          <button
+            type="submit"
+            disabled={cargando || !puedeEnviar}
+            className="btn btn-primary w-full disabled:cursor-not-allowed"
+          >
             {cargando ? 'Creando cuenta…' : 'Crear cuenta'}
           </button>
 

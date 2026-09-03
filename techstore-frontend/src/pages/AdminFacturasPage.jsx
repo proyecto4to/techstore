@@ -70,7 +70,7 @@ function AdminFacturasPage() {
 
       {data && data.content.length > 0 && (
         <div className="card overflow-x-auto p-0">
-          <table className="tabla-admin">
+          <table className="tabla-admin tabla-apilable">
             <thead>
               <tr>
                 <th>Factura</th>
@@ -88,10 +88,10 @@ function AdminFacturasPage() {
             <tbody>
               {data.content.map((factura) => (
                 <tr key={factura.id}>
-                  <td className="font-mono font-semibold text-neutral-text">{factura.numero}</td>
-                  <td className="text-neutral-secondary">{factura.condicionVenta}</td>
-                  <td>N.º {factura.pedidoNumero}</td>
-                  <td>
+                  <td data-label="Factura" className="font-mono font-semibold text-neutral-text">{factura.numero}</td>
+                  <td data-label="Condición" className="text-neutral-secondary">{factura.condicionVenta}</td>
+                  <td data-label="Pedido">N.º {factura.pedidoNumero}</td>
+                  <td data-label="Emitida a">
                     {factura.receptorRuc ? (
                       <>
                         <span className="font-mono text-neutral-text">{factura.receptorRuc}</span>
@@ -101,11 +101,11 @@ function AdminFacturasPage() {
                       <span className="text-neutral-muted">Consumidor final</span>
                     )}
                   </td>
-                  <td>{new Date(factura.fecha).toLocaleString('es-PY')}</td>
-                  <td>{formatPrecio(factura.subtotal)}</td>
-                  <td>{formatPrecio(factura.iva)}</td>
-                  <td className="font-semibold text-primary-300">{formatPrecio(factura.total)}</td>
-                  <td>
+                  <td data-label="Fecha">{new Date(factura.fecha).toLocaleString('es-PY')}</td>
+                  <td data-label="Subtotal">{formatPrecio(factura.subtotal)}</td>
+                  <td data-label="IVA">{formatPrecio(factura.iva)}</td>
+                  <td data-label="Total" className="font-semibold text-primary-300">{formatPrecio(factura.total)}</td>
+                  <td data-label="Estado">
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${
                         ESTILOS_FACTURA[factura.estado] ?? 'bg-dark-lighter text-neutral-secondary'
@@ -171,7 +171,7 @@ function AdminFacturasPage() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="tabla-admin">
+            <table className="tabla-admin tabla-apilable">
               <thead>
                 <tr>
                   <th>N.º NC</th>
@@ -186,12 +186,12 @@ function AdminFacturasPage() {
               <tbody>
                 {notasCredito.content.map((nc) => (
                   <tr key={nc.id}>
-                    <td className="font-mono font-semibold text-neutral-text">{nc.numero}</td>
-                    <td className="font-mono text-neutral-secondary">{nc.facturaNumero}</td>
-                    <td>N.º {nc.pedidoNumero}</td>
-                    <td className="text-neutral-secondary">{nc.motivo}</td>
-                    <td>{new Date(nc.fecha).toLocaleString('es-PY')}</td>
-                    <td className="text-right font-semibold text-orange-400">
+                    <td data-label="N.º NC" className="font-mono font-semibold text-neutral-text">{nc.numero}</td>
+                    <td data-label="Factura afectada" className="font-mono text-neutral-secondary">{nc.facturaNumero}</td>
+                    <td data-label="Pedido">N.º {nc.pedidoNumero}</td>
+                    <td data-label="Motivo" className="text-neutral-secondary">{nc.motivo}</td>
+                    <td data-label="Fecha">{new Date(nc.fecha).toLocaleString('es-PY')}</td>
+                    <td data-label="Total" className="text-right font-semibold text-orange-400">
                       − {formatPrecio(nc.total)}
                     </td>
                     <td>

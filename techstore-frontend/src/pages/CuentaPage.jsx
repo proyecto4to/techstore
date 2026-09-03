@@ -2,7 +2,14 @@ import { useState } from 'react'
 import { KeyRound, Receipt } from 'lucide-react'
 import { usuarioService } from '../services/usuarioService'
 import { useAuthStore } from '../store/authStore'
-import { passwordValida, passwordsCoinciden } from '../utils/password'
+import CampoTexto from '../components/common/CampoTexto'
+import {
+  REQUISITOS_PASSWORD,
+  errorDeConfirmacion,
+  errorDePassword,
+  passwordValida,
+  passwordsCoinciden,
+} from '../utils/password'
 
 function CuentaPage() {
   const { usuario, setUsuario } = useAuthStore()
@@ -42,18 +49,18 @@ function CuentaPage() {
     }
   }
 
+  // Lo que el botón necesita para dejarse apretar. Los motivos concretos ya
+  // aparecen debajo de cada campo mientras la persona completa el formulario,
+  // así que acá no hace falta repetirlos al enviar.
+  const puedeCambiar =
+    form.actual &&
+    passwordValida(form.nueva) &&
+    passwordsCoinciden(form.nueva, form.confirmar)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setMensaje(null)
     setError(null)
-    if (!passwordsCoinciden(form.nueva, form.confirmar)) {
-      setError('Las contraseñas nuevas no coinciden')
-      return
-    }
-    if (!passwordValida(form.nueva)) {
-      setError('Usá al menos 8 caracteres, con mayúscula, minúscula y número.')
-      return
-    }
     setGuardando(true)
     try {
       await usuarioService.cambiarMiPassword(form.actual, form.nueva)
@@ -126,31 +133,51 @@ function CuentaPage() {
         {mensaje && <p className="alerta-ok mb-0 text-sm" role="status">{mensaje}</p>}
         {error && <p className="alerta-error mb-0 text-sm" role="alert">{error}</p>}
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="actual">
-            Contraseña actual
-          </label>
-          <input id="actual" type="password" required autoComplete="current-password"
-            value={form.actual} onChange={(e) => setForm({ ...form, actual: e.target.value })} className="input" />
-        </div>
+        <CampoTexto
+          etiqueta="Contraseña actual"
+          type="password"
+          requerido
+          autoComplete="current-password"
+          valor={form.actual}
+          onChange={(valor) => {
+            setError(null)
+            setForm({ ...form, actual: valor })
+          }}
+          validar={(v) => (v ? null : 'Escribí tu contraseña actual.')}
+        />
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="nueva">
-            Contraseña nueva (mayúscula, minúscula y número)
-          </label>
-          <input id="nueva" type="password" required minLength={8} autoComplete="new-password"
-            value={form.nueva} onChange={(e) => setForm({ ...form, nueva: e.target.value })} className="input" />
-        </div>
+        <CampoTexto
+          etiqueta="Contraseña nueva"
+          type="password"
+          requerido
+          autoComplete="new-password"
+          ayuda={REQUISITOS_PASSWORD}
+          valor={form.nueva}
+          onChange={(valor) => {
+            setError(null)
+            setForm({ ...form, nueva: valor })
+          }}
+          validar={errorDePassword}
+        />
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="confirmar">
-            Confirmar contraseña nueva
-          </label>
-          <input id="confirmar" type="password" required autoComplete="new-password"
-            value={form.confirmar} onChange={(e) => setForm({ ...form, confirmar: e.target.value })} className="input" />
-        </div>
+        <CampoTexto
+          etiqueta="Repetí la contraseña nueva"
+          type="password"
+          requerido
+          autoComplete="new-password"
+          valor={form.confirmar}
+          onChange={(valor) => {
+            setError(null)
+            setForm({ ...form, confirmar: valor })
+          }}
+          validar={(v) => errorDeConfirmacion(form.nueva, v)}
+        />
 
-        <button type="submit" disabled={guardando} className="btn btn-primary w-full">
+        <button
+          type="submit"
+          disabled={guardando || !puedeCambiar}
+          className="btn btn-primary w-full disabled:cursor-not-allowed"
+        >
           {guardando ? 'Guardando…' : 'Cambiar contraseña'}
         </button>
       </form>

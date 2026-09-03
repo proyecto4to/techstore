@@ -6,20 +6,25 @@ import { notaCreditoService } from '../services/facturaService'
 import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
 import AdminTabs from '../components/admin/AdminTabs'
+import ErrorDeCarga from '../components/common/ErrorDeCarga'
 import PedidoDetallePanel from '../components/admin/PedidoDetallePanel'
 import CobroPanel from '../components/admin/CobroPanel'
 import DevolucionPanel from '../components/admin/DevolucionPanel'
+import DialogoConfirmacion from '../components/common/DialogoConfirmacion'
 
 function AdminPage() {
   const [page, setPage] = useState(0)
   const [cobroPedidoId, setCobroPedidoId] = useState(null)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
   const [ncPedidoId, setNcPedidoId] = useState(null)
+  // Anular libera el stock comprometido y no se puede deshacer: se pregunta
+  // antes, diciendo qué va a pasar.
+  const [pedidoAAnular, setPedidoAAnular] = useState(null)
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
   const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-pedidos', page],
     queryFn: () => pedidoService.listar({ page }),
     placeholderData: keepPreviousData,
@@ -70,9 +75,13 @@ function AdminPage() {
     onSuccess: (pedido) => {
       setError(null)
       setMensaje(`Pedido N.º ${pedido.numero} anulado: stock liberado.`)
+      setPedidoAAnular(null)
       refrescar()
     },
-    onError,
+    onError: (err) => {
+      setPedidoAAnular(null)
+      onError(err)
+    },
   })
 
   const devolverMutation = useMutation({
@@ -112,12 +121,13 @@ function AdminPage() {
       )}
 
       {isLoading && <p className="text-neutral-muted">Cargando pedidos…</p>}
+      {isError && <ErrorDeCarga que="los pedidos" onReintentar={refetch} />}
 
       {data && data.content.length === 0 && <p className="text-neutral-muted">No hay pedidos aún.</p>}
 
       {data && data.content.length > 0 && (
         <div className="card overflow-x-auto p-0">
-          <table className="tabla-admin">
+          <table className="tabla-admin tabla-apilable">
             <thead>
               <tr>
                 <th>N.º</th>
@@ -146,15 +156,19 @@ function AdminPage() {
                         #{pedido.numero}
                       </button>
                     </td>
-                    <td>{new Date(pedido.fecha).toLocaleString('es-PY')}</td>
-                    <td className="text-neutral-secondary">{pedido.usuarioEmail}</td>
-                    <td>
+                    <td data-label="Fecha">{new Date(pedido.fecha).toLocaleString('es-PY')}</td>
+                    <td data-label="Cliente" className="text-neutral-secondary">
+                      {pedido.usuarioEmail}
+                    </td>
+                    <td data-label="Estado">
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${estado.clase}`}>
                         {estado.label}
                       </span>
                     </td>
-                    <td className="font-semibold text-primary-300">{formatPrecio(pedido.total)}</td>
-                    <td>
+                    <td data-label="Total" className="font-semibold text-primary-300">
+                      {formatPrecio(pedido.total)}
+                    </td>
+                    <td className="flex-wrap justify-end gap-2">
                       {pedido.estado === 'P' && (
                         <div className="flex gap-2">
                           <button
@@ -165,7 +179,7 @@ function AdminPage() {
                             Confirmar
                           </button>
                           <button
-                            onClick={() => anularMutation.mutate(pedido.id)}
+                            onClick={() => setPedidoAAnular(pedido)}
                             disabled={ocupado}
                             className="btn btn-danger text-sm"
                           >
@@ -276,6 +290,19 @@ function AdminPage() {
         <strong className="text-neutral-secondary">Cobrar</strong> (registra el pago y emite la
         factura con IVA desglosado).
       </p>
+
+      <DialogoConfirmacion
+        abierto={Boolean(pedidoAAnular)}
+        titulo={`¿Anular el pedido N.º ${pedidoAAnular?.numero}?`}
+        descripcion={
+          `El pedido de ${pedidoAAnular?.usuarioEmail} deja de procesarse y los productos ` +
+          'vuelven a quedar disponibles para otros clientes. No se puede reabrir.'
+        }
+        etiquetaConfirmar="Anular el pedido"
+        ocupado={anularMutation.isPending}
+        onConfirmar={() => anularMutation.mutate(pedidoAAnular.id)}
+        onCancelar={() => setPedidoAAnular(null)}
+      />
     </div>
   )
 }

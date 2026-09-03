@@ -140,7 +140,7 @@ function CierreCajaPanel() {
               maxLength={1000}
               placeholder="Notas de la apertura (opcional)"
               className="input max-w-xs flex-1"
-            />
+             aria-label="Efectivo inicial en caja"/>
             <button
               onClick={() => abrirMutation.mutate()}
               disabled={saldoInicial === '' || abrirMutation.isPending}
@@ -218,7 +218,7 @@ function CierreCajaPanel() {
               maxLength={1000}
               placeholder="Notas del cierre (opcional)"
               className="input max-w-xs flex-1"
-            />
+             aria-label="Efectivo contado en caja"/>
             {diferencia !== null && (
               <p
                 className={`text-sm font-semibold ${
@@ -246,7 +246,7 @@ function CierreCajaPanel() {
       {cierres && cierres.content.length > 0 && (
         <div className="mt-6 overflow-x-auto">
           <p className="mb-2 text-sm font-semibold text-neutral-secondary">Cierres anteriores</p>
-          <table className="tabla-admin">
+          <table className="tabla-admin tabla-apilable">
             <thead>
               <tr>
                 <th>N.º</th>
@@ -262,20 +262,20 @@ function CierreCajaPanel() {
             <tbody>
               {cierres.content.map((c) => (
                 <tr key={c.id}>
-                  <td className="font-semibold text-neutral-text">#{c.numero}</td>
-                  <td>{new Date(c.fechaCierre).toLocaleString('es-PY')}</td>
-                  <td className="text-neutral-secondary">{c.usuarioEmail}</td>
-                  <td className="text-neutral-secondary">{formatPrecio(c.saldoInicial)}</td>
-                  <td>{formatPrecio(c.efectivoTeorico)}</td>
-                  <td>{formatPrecio(c.efectivoContado)}</td>
-                  <td
+                  <td data-label="N.º" className="font-semibold text-neutral-text">#{c.numero}</td>
+                  <td data-label="Cierre">{new Date(c.fechaCierre).toLocaleString('es-PY')}</td>
+                  <td data-label="Cajero" className="text-neutral-secondary">{c.usuarioEmail}</td>
+                  <td data-label="Saldo inicial" className="text-neutral-secondary">{formatPrecio(c.saldoInicial)}</td>
+                  <td data-label="Teórico">{formatPrecio(c.efectivoTeorico)}</td>
+                  <td data-label="Contado">{formatPrecio(c.efectivoContado)}</td>
+                  <td data-label="Diferencia"
                     className={`font-semibold ${
                       c.diferencia === 0 ? 'text-emerald-400' : c.diferencia > 0 ? 'text-accent-400' : 'text-red-400'
                     }`}
                   >
                     {c.diferencia > 0 ? '+' : ''}{formatPrecio(c.diferencia)}
                   </td>
-                  <td className="text-neutral-secondary">
+                  <td data-label="Neto banco" className="text-neutral-secondary">
                     {formatPrecio(c.ingresosTransferencia - c.egresosTransferencia)}
                   </td>
                 </tr>

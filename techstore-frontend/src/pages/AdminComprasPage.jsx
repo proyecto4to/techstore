@@ -6,6 +6,8 @@ import { productoService } from '../services/productoService'
 import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
 import AdminTabs from '../components/admin/AdminTabs'
+import ErrorDeCarga from '../components/common/ErrorDeCarga'
+import DialogoConfirmacion from '../components/common/DialogoConfirmacion'
 import ComparadorProveedores from '../components/admin/ComparadorProveedores'
 import PedidoDetallePanel from '../components/admin/PedidoDetallePanel'
 import CobroPanel from '../components/admin/CobroPanel'
@@ -31,6 +33,8 @@ function AdminComprasPage() {
   const [mostrarNuevoProveedor, setMostrarNuevoProveedor] = useState(false)
   const [nuevoProveedor, setNuevoProveedor] = useState(PROVEEDOR_VACIO)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
+  // Anular una compra no se deshace: se pregunta antes.
+  const [compraAAnular, setCompraAAnular] = useState(null)
   const [comprobanteCompraId, setComprobanteCompraId] = useState(null)
   const [envioCompraId, setEnvioCompraId] = useState(null)
   const [pagoCompraId, setPagoCompraId] = useState(null)
@@ -45,10 +49,10 @@ function AdminComprasPage() {
 
   const { data: productos } = useQuery({
     queryKey: ['productos-para-compra'],
-    queryFn: () => productoService.listarAdmin({ size: 100, incluirInactivos: true }),
+    queryFn: () => productoService.listarParaOperar({ size: 100, incluirInactivos: true }),
   })
 
-  const { data: compras, isLoading } = useQuery({
+  const { data: compras, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-compras', page],
     queryFn: () => compraService.listar({ page }),
     placeholderData: keepPreviousData,
@@ -151,9 +155,13 @@ function AdminComprasPage() {
     onSuccess: (compra) => {
       setError(null)
       setMensaje(`Compra N.º ${compra.numero} anulada.`)
+      setCompraAAnular(null)
       refrescar()
     },
-    onError,
+    onError: (err) => {
+      setCompraAAnular(null)
+      onError(err)
+    },
   })
 
   const agregarItem = () => {
@@ -202,14 +210,14 @@ function AdminComprasPage() {
         {mostrarNuevoProveedor && (
           <div className="mb-4 grid grid-cols-1 gap-3 rounded-md border border-dark-border bg-dark-bg/40 p-4 md:grid-cols-4">
             <input placeholder="Razón social *" value={nuevoProveedor.razonSocial}
-              onChange={(e) => setNuevoProveedor({ ...nuevoProveedor, razonSocial: e.target.value })} className="input" />
+              onChange={(e) => setNuevoProveedor({ ...nuevoProveedor, razonSocial: e.target.value })} className="input"  aria-label="Razón social"/>
             <input placeholder="RUC" value={nuevoProveedor.ruc}
-              onChange={(e) => setNuevoProveedor({ ...nuevoProveedor, ruc: e.target.value })} className="input" />
+              onChange={(e) => setNuevoProveedor({ ...nuevoProveedor, ruc: e.target.value })} className="input"  aria-label="RUC"/>
             <input placeholder="Teléfono" value={nuevoProveedor.telefono}
-              onChange={(e) => setNuevoProveedor({ ...nuevoProveedor, telefono: e.target.value })} className="input" />
+              onChange={(e) => setNuevoProveedor({ ...nuevoProveedor, telefono: e.target.value })} className="input"  aria-label="Teléfono"/>
             <div className="flex gap-2">
               <input placeholder="Email" type="email" value={nuevoProveedor.email}
-                onChange={(e) => setNuevoProveedor({ ...nuevoProveedor, email: e.target.value })} className="input" />
+                onChange={(e) => setNuevoProveedor({ ...nuevoProveedor, email: e.target.value })} className="input"  aria-label="Email"/>
               <button
                 onClick={() => crearProveedorMutation.mutate({ ...nuevoProveedor, razonSocial: nuevoProveedor.razonSocial.trim() })}
                 disabled={!nuevoProveedor.razonSocial.trim() || crearProveedorMutation.isPending}
@@ -254,17 +262,17 @@ function AdminComprasPage() {
 
         {items.length > 0 && (
           <div className="mb-4 overflow-x-auto rounded-md border border-dark-border">
-            <table className="tabla-admin">
+            <table className="tabla-admin tabla-apilable">
               <thead>
                 <tr><th>Producto</th><th>Cant.</th><th>Costo unit.</th><th className="text-right">Subtotal</th><th></th></tr>
               </thead>
               <tbody>
                 {items.map((i) => (
                   <tr key={i.producto.id}>
-                    <td className="text-neutral-text">{i.producto.nombre}</td>
-                    <td>{i.cantidad}</td>
-                    <td>{formatPrecio(i.costo)}</td>
-                    <td className="text-right font-semibold text-primary-300">{formatPrecio(Number(i.costo) * i.cantidad)}</td>
+                    <td data-label="Producto" className="text-neutral-text">{i.producto.nombre}</td>
+                    <td data-label="Cant.">{i.cantidad}</td>
+                    <td data-label="Costo unit.">{formatPrecio(i.costo)}</td>
+                    <td data-label="Subtotal" className="text-right font-semibold text-primary-300">{formatPrecio(Number(i.costo) * i.cantidad)}</td>
                     <td>
                       <button onClick={() => setItems(items.filter((x) => x.producto.id !== i.producto.id))}
                         className="text-red-400 hover:text-red-300 text-sm">Quitar</button>
@@ -284,7 +292,7 @@ function AdminComprasPage() {
 
         <div className="flex flex-wrap items-center gap-4">
           <input placeholder="Notas (opcional)" value={notas} onChange={(e) => setNotas(e.target.value)}
-            maxLength={1000} className="input max-w-md flex-1" />
+            maxLength={1000} className="input max-w-md flex-1"  aria-label="Notas (opcional)"/>
           <p className="text-lg font-bold text-neutral-text">
             Total: <span className="gradient-text">{formatPrecio(totalCompra)}</span>
           </p>
@@ -306,11 +314,12 @@ function AdminComprasPage() {
       </div>
 
       {isLoading && <p className="text-neutral-muted">Cargando compras…</p>}
+      {isError && <ErrorDeCarga que="las compras" onReintentar={refetch} />}
       {compras && compras.content.length === 0 && <p className="text-neutral-muted">No hay compras registradas.</p>}
 
       {compras && compras.content.length > 0 && (
         <div className="card overflow-x-auto p-0">
-          <table className="tabla-admin">
+          <table className="tabla-admin tabla-apilable">
             <thead>
               <tr>
                 <th>N.º</th>
@@ -338,15 +347,19 @@ function AdminComprasPage() {
                           #{compra.numero}
                         </button>
                       </td>
-                      <td>{new Date(compra.fecha).toLocaleString('es-PY')}</td>
-                      <td className="text-neutral-secondary">{compra.proveedorRazonSocial ?? '—'}</td>
-                      <td>
+                      <td data-label="Fecha">{new Date(compra.fecha).toLocaleString('es-PY')}</td>
+                      <td data-label="Proveedor" className="text-neutral-secondary">
+                        {compra.proveedorRazonSocial ?? '—'}
+                      </td>
+                      <td data-label="Estado">
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${etiqueta.clase}`}>
                           {etiqueta.label}
                         </span>
                       </td>
-                      <td className="font-semibold text-primary-300">{formatPrecio(compra.total)}</td>
-                      <td>
+                      <td data-label="Total" className="font-semibold text-primary-300">
+                        {formatPrecio(compra.total)}
+                      </td>
+                      <td className="justify-end">
                         <div className="flex flex-wrap items-center gap-2">
                           {compra.estado === 'P' && (
                             <button
@@ -412,7 +425,7 @@ function AdminComprasPage() {
 
                           {compra.estado === 'P' && !compra.pagada && (
                             <button
-                              onClick={() => anularMutation.mutate(compra.id)}
+                              onClick={() => setCompraAAnular(compra)}
                               disabled={anularMutation.isPending}
                               className="btn btn-danger text-sm"
                             >
@@ -491,6 +504,20 @@ function AdminComprasPage() {
         <strong className="text-neutral-secondary">Pagar</strong> registra el egreso al proveedor en la caja
         (podés repartirlo entre efectivo y transferencia). Recibir y Pagar son independientes.
       </p>
+
+      <DialogoConfirmacion
+        abierto={Boolean(compraAAnular)}
+        titulo={`¿Anular la compra N.º ${compraAAnular?.numero}?`}
+        descripcion={
+          `La compra a ${compraAAnular?.proveedorRazonSocial ?? 'este proveedor'} deja de estar ` +
+          'pendiente y no vas a poder recibirla. Si la mercadería llega igual, vas a tener que ' +
+          'cargarla de nuevo.'
+        }
+        etiquetaConfirmar="Anular la compra"
+        ocupado={anularMutation.isPending}
+        onConfirmar={() => anularMutation.mutate(compraAAnular.id)}
+        onCancelar={() => setCompraAAnular(null)}
+      />
     </div>
   )
 }

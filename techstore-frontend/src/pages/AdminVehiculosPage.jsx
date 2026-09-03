@@ -3,6 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Car, History, Pencil, Plus } from 'lucide-react'
 import AdminTabs from '../components/admin/AdminTabs'
 import { vehiculoService } from '../services/vehiculoService'
+// Con alias: `estadoVehiculo` ya se usa acá como nombre de parámetro al
+// resolver un evento, y el import lo taparía dentro de esa función.
+import {
+  estadoVehiculo as etiquetaEstado,
+  eventoVehiculo as etiquetaEvento,
+} from '../utils/pedidoEstados'
 
 const EMPTY = {
   matricula: '', marca: '', modelo: '', anio: '', tipo: '', color: '', numeroChasis: '',
@@ -118,9 +124,11 @@ export default function AdminVehiculosPage() {
               className="input mt-2"
             >
               {['DISPONIBLE', 'MANTENIMIENTO', 'FUERA_DE_SERVICIO', 'INACTIVO'].map((estado) => (
-                <option key={estado} value={estado}>{estado.replaceAll('_', ' ')}</option>
+                <option key={estado} value={estado}>{etiquetaEstado(estado).label}</option>
               ))}
-              {editando?.estado === 'EN_USO' && <option value="EN_USO">EN USO</option>}
+              {editando?.estado === 'EN_USO' && (
+                <option value="EN_USO">{etiquetaEstado('EN_USO').label}</option>
+              )}
             </select>
           </label>
           <label className="block text-sm font-medium text-neutral-text md:col-span-2">
@@ -154,8 +162,10 @@ export default function AdminVehiculosPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="text-xl font-semibold text-neutral-text">{vehiculo.matricula}</h2>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${stateClass(vehiculo.estado)}`}>
-                    {vehiculo.estado.replaceAll('_', ' ')}
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${etiquetaEstado(vehiculo.estado).clase}`}
+                  >
+                    {etiquetaEstado(vehiculo.estado).label}
                   </span>
                 </div>
                 <p>{vehiculo.marca} {vehiculo.modelo} {vehiculo.anio ? `· ${vehiculo.anio}` : ''}</p>
@@ -240,7 +250,7 @@ function VehicleHistory({ loading, data, busy, onClose, onResolve }) {
                   detail={`${new Date(item.fechaInicio).toLocaleString('es-PY')} · ${item.kmInicio} km → ${item.kmFin ?? 'en curso'} km`} />
               ) : (
                 <div key={`e-${item.id}`}>
-                  <Timeline title={item.tipo.replaceAll('_', ' ')}
+                  <Timeline title={etiquetaEvento(item.tipo)}
                     detail={`${new Date(item.fecha).toLocaleString('es-PY')} · ${item.kilometraje} km · ${item.descripcion}`} />
                   {item.requiereAtencion && !item.resuelto && (
                     <div className="ml-2 mt-2 rounded-md border border-amber-400/30 p-3">
@@ -248,14 +258,15 @@ function VehicleHistory({ loading, data, busy, onClose, onResolve }) {
                       <div className="flex flex-wrap gap-2">
                         <select value={resolution[item.id]?.state ?? 'DISPONIBLE'}
                           onChange={(event) => setResolution({ ...resolution, [item.id]: { ...resolution[item.id], state: event.target.value } })}
-                          className="input w-auto py-1 text-sm">
+                          className="input w-auto py-1 text-sm"
+                          aria-label="Estado en que queda el vehículo">
                           <option value="DISPONIBLE">Disponible</option>
                           <option value="MANTENIMIENTO">Mantenimiento</option>
                           <option value="FUERA_DE_SERVICIO">Fuera de servicio</option>
                         </select>
                         <input value={resolution[item.id]?.note ?? ''} placeholder="Resolución / observación"
                           onChange={(event) => setResolution({ ...resolution, [item.id]: { ...resolution[item.id], note: event.target.value } })}
-                          className="input min-w-56 flex-1 py-1 text-sm" />
+                          className="input min-w-56 flex-1 py-1 text-sm"  aria-label="Resolución / observación"/>
                         <button disabled={busy} onClick={() => onResolve(item.id, resolution[item.id]?.state ?? 'DISPONIBLE', resolution[item.id]?.note)}
                           className="btn btn-primary text-sm">Resolver</button>
                       </div>
@@ -280,10 +291,3 @@ function Timeline({ title, detail }) {
   )
 }
 
-const stateClass = (state) => ({
-  DISPONIBLE: 'bg-emerald-400/20 text-emerald-300',
-  EN_USO: 'bg-blue-400/20 text-blue-300',
-  MANTENIMIENTO: 'bg-amber-400/20 text-amber-300',
-  FUERA_DE_SERVICIO: 'bg-red-400/20 text-red-300',
-  INACTIVO: 'bg-neutral-400/20 text-neutral-300',
-}[state] ?? 'bg-dark-lighter text-neutral-secondary')

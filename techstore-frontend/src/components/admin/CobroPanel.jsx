@@ -80,7 +80,7 @@ function CobroPanel({
             onChange={(e) => setEfectivo(e.target.value)}
             className="input w-40 py-1 text-sm"
             placeholder="0"
-          />
+           aria-label="💵 Efectivo"/>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-neutral-text">🏦 Transferencia</label>
@@ -91,7 +91,7 @@ function CobroPanel({
             onChange={(e) => setTransferencia(e.target.value)}
             className="input w-40 py-1 text-sm"
             placeholder="0"
-          />
+           aria-label="🏦 Transferencia"/>
         </div>
         {nTransferencia > 0 && (
           <div>
@@ -102,7 +102,7 @@ function CobroPanel({
               maxLength={50}
               className="input w-40 py-1 text-sm"
               placeholder="Opcional"
-            />
+             aria-label="Nº comprobante"/>
           </div>
         )}
       </div>

@@ -51,7 +51,7 @@ function CatalogoPage() {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             className="input pl-11"
-          />
+           aria-label="Buscar productos"/>
         </div>
         <select
           value={marcaId}
@@ -60,6 +60,7 @@ function CatalogoPage() {
             setMarcaId(e.target.value)
           }}
           className="input sm:w-56"
+          aria-label="Filtrar por marca"
         >
           <option value="">Todas las marcas</option>
           {marcas.map((marca) => (

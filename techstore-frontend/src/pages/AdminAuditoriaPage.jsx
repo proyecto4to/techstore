@@ -138,7 +138,7 @@ function AdminAuditoriaPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="tabla-admin">
+                <table className="tabla-admin tabla-apilable">
                   <thead>
                     <tr>
                       <th>Cuándo</th>
@@ -151,11 +151,11 @@ function AdminAuditoriaPage() {
                   <tbody>
                     {data.content.map((registro) => (
                       <tr key={registro.id}>
-                        <td className="whitespace-nowrap text-neutral-secondary">
+                        <td data-label="Cuándo" className="whitespace-nowrap text-neutral-secondary">
                           {formatFecha(registro.fecha)}
                         </td>
-                        <td className="text-neutral-text">{registro.usuarioEmail}</td>
-                        <td>
+                        <td data-label="Quién" className="text-neutral-text">{registro.usuarioEmail}</td>
+                        <td data-label="Acción">
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-semibold ${
                               ESTILO_ACCION[registro.accion] ?? 'bg-neutral-muted/20 text-neutral-muted'
@@ -164,14 +164,14 @@ function AdminAuditoriaPage() {
                             {registro.accion}
                           </span>
                         </td>
-                        <td className="text-neutral-text">
+                        <td data-label="Qué pasó" className="text-neutral-text">
                           {registro.detalle ?? '—'}
                           <span className="ml-1 text-xs text-neutral-muted">
                             ({registro.entidad}
                             {registro.entidadId ? ` #${registro.entidadId}` : ''})
                           </span>
                         </td>
-                        <td>
+                        <td data-label="Cambios">
                           <Cambios cambios={registro.cambios} />
                         </td>
                       </tr>

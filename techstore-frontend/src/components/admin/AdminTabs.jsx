@@ -1,51 +1,98 @@
 import { NavLink } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 
-const tabs = [
-  { to: '/admin/inicio', label: 'Inicio' },
-  { to: '/admin', label: 'Pedidos', end: true },
-  { to: '/admin/venta', label: 'Venta directa' },
-  { to: '/admin/compras', label: 'Compras' },
-  { to: '/admin/productos', label: 'Productos', soloAdmin: true },
-  { to: '/admin/facturas', label: 'Facturas' },
-  { to: '/admin/caja', label: 'Caja' },
-  { to: '/admin/solicitudes', label: 'Solicitudes', soloCajero: true },
-  { to: '/admin/vehiculos', label: 'Vehículos', soloAdmin: true },
-  { to: '/admin/usuarios', label: 'Usuarios', soloAdmin: true },
-  { to: '/admin/empresa', label: 'Empresa', soloAdmin: true },
-  { to: '/admin/correos', label: 'Correos' },
-  { to: '/admin/mensajes', label: 'Mensajes' },
-  { to: '/admin/reportes', label: 'Reportes' },
-  { to: '/admin/contabilidad', label: 'Contabilidad', soloAdmin: true },
-  { to: '/admin/auditoria', label: 'Auditoría', soloAdmin: true },
+/**
+ * Navegación del panel, agrupada por tipo de trabajo.
+ *
+ * Antes eran dieciséis destinos en una fila plana, donde «Auditoría» pesaba lo
+ * mismo que «Venta directa». Los grupos no esconden nada —todo sigue a un solo
+ * clic— pero ponen primero lo que se usa todos los días y dejan atrás lo que se
+ * abre de vez en cuando.
+ *
+ * El orden dentro de «Mostrador» sigue la jornada real: se miran los pedidos
+ * que entraron, se atiende al que vino en persona, se factura y se cierra caja.
+ * No se le quitó ningún destino al cajero: el backend lo habilita en compras,
+ * reportes, caja y facturación, así que ocultárselos le sacaría capacidad real.
+ */
+const grupos = [
+  {
+    nombre: 'Mostrador',
+    tabs: [
+      { to: '/admin', label: 'Pedidos', end: true },
+      { to: '/admin/venta', label: 'Venta directa' },
+      { to: '/admin/facturas', label: 'Facturas' },
+      { to: '/admin/caja', label: 'Caja' },
+      { to: '/admin/solicitudes', label: 'Solicitudes', soloCajero: true },
+    ],
+  },
+  {
+    nombre: 'Catálogo',
+    tabs: [
+      { to: '/admin/productos', label: 'Productos', soloAdmin: true },
+      { to: '/admin/compras', label: 'Compras' },
+      { to: '/admin/vehiculos', label: 'Vehículos', soloAdmin: true },
+    ],
+  },
+  {
+    nombre: 'Contacto',
+    tabs: [
+      { to: '/admin/mensajes', label: 'Mensajes' },
+      { to: '/admin/correos', label: 'Correos' },
+    ],
+  },
+  {
+    nombre: 'Administración',
+    tabs: [
+      { to: '/admin/reportes', label: 'Reportes' },
+      { to: '/admin/contabilidad', label: 'Contabilidad', soloAdmin: true },
+      { to: '/admin/usuarios', label: 'Usuarios', soloAdmin: true },
+      { to: '/admin/empresa', label: 'Empresa', soloAdmin: true },
+      { to: '/admin/auditoria', label: 'Auditoría', soloAdmin: true },
+    ],
+  },
 ]
+
+const claseTab = ({ isActive }) =>
+  `rounded-md px-4 py-2 text-sm font-semibold transition-all ${
+    isActive
+      ? 'bg-gradient-to-r from-primary-400 to-secondary-400 text-white'
+      : 'text-neutral-secondary hover:bg-primary-400/10 hover:text-primary-300'
+  }`
 
 function AdminTabs() {
   const { usuario } = useAuthStore()
-  const visibles = tabs.filter(
-    (tab) =>
-      (!tab.soloAdmin || usuario?.rol === 'Admin') &&
-      (!tab.soloCajero || usuario?.rol === 'Cajero'),
-  )
+  const puede = (tab) =>
+    (!tab.soloAdmin || usuario?.rol === 'Admin') &&
+    (!tab.soloCajero || usuario?.rol === 'Cajero')
+
+  const visibles = grupos
+    .map((grupo) => ({ ...grupo, tabs: grupo.tabs.filter(puede) }))
+    .filter((grupo) => grupo.tabs.length > 0)
+
   return (
-    <div className="mb-6 flex flex-wrap gap-2 border-b border-dark-border pb-2">
-      {visibles.map((tab) => (
-        <NavLink
-          key={tab.to}
-          to={tab.to}
-          end={tab.end}
-          className={({ isActive }) =>
-            `rounded-md px-4 py-2 text-sm font-semibold transition-all ${
-              isActive
-                ? 'bg-gradient-to-r from-primary-400 to-secondary-400 text-white'
-                : 'text-neutral-secondary hover:bg-primary-400/10 hover:text-primary-300'
-            }`
-          }
-        >
-          {tab.label}
+    <nav aria-label="Secciones del panel" className="mb-6 border-b border-dark-border pb-3">
+      <div className="mb-3">
+        <NavLink to="/admin/inicio" className={claseTab}>
+          Inicio
         </NavLink>
-      ))}
-    </div>
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-3">
+        {visibles.map((grupo) => (
+          <div key={grupo.nombre}>
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-muted">
+              {grupo.nombre}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {grupo.tabs.map((tab) => (
+                <NavLink key={tab.to} to={tab.to} end={tab.end} className={claseTab}>
+                  {tab.label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </nav>
   )
 }
 

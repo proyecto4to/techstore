@@ -11,11 +11,34 @@ export const productoService = {
     return data
   },
 
+  /** Listado con datos internos, incluidos costo y margen. Solo para Admin. */
   async listarAdmin({ search = '', marcaId = null, page = 0, size = 12, incluirInactivos = false } = {}) {
     const params = { page, size, incluirInactivos }
     if (search) params.search = search
     if (marcaId) params.marcaId = marcaId
     const { data } = await api.get('/productos/admin', { params })
+    return data
+  },
+
+  /**
+   * Listado para operar el mostrador y las compras: trae el inventario real,
+   * sin costo ni margen.
+   *
+   * La venta directa y las compras usaban `listarAdmin`, que el backend reserva
+   * a Admin, así que a un cajero le devolvían 403 y la lista de productos nunca
+   * cargaba: no podía vender ni cargar una compra.
+   */
+  async listarParaOperar({
+    search = '',
+    marcaId = null,
+    page = 0,
+    size = 12,
+    incluirInactivos = false,
+  } = {}) {
+    const params = { page, size, incluirInactivos }
+    if (search) params.search = search
+    if (marcaId) params.marcaId = marcaId
+    const { data } = await api.get('/productos/operacion', { params })
     return data
   },
 

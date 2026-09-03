@@ -195,7 +195,7 @@ function ComprobanteCompraPanel({ compra, onListo }) {
           <label className="mb-1 block text-xs text-neutral-muted" htmlFor={`tipo-${compra.id}`}>
             Tipo
           </label>
-          <select id={`tipo-${compra.id}`} value={form.tipoComprobante} onChange={set('tipoComprobante')} className="input">
+          <select id={`tipo-${compra.id}`} value={form.tipoComprobante} onChange={set('tipoComprobante')} className="input" aria-label="Tipo">
             {TIPOS.map((t) => (
               <option key={t.codigo} value={t.codigo}>{t.etiqueta}</option>
             ))}
@@ -207,7 +207,7 @@ function ComprobanteCompraPanel({ compra, onListo }) {
               Timbrado *
             </label>
             <input id={`timbrado-${compra.id}`} value={form.timbrado} onChange={set('timbrado')}
-              maxLength={8} placeholder="12345678" className="input w-32 font-mono" />
+              maxLength={8} placeholder="12345678" className="input w-32 font-mono"  aria-label="Timbrado"/>
           </div>
         )}
         {tipo !== 107 && tipo !== 112 && (
@@ -216,7 +216,7 @@ function ComprobanteCompraPanel({ compra, onListo }) {
               Número *
             </label>
             <input id={`numero-${compra.id}`} value={form.numero} onChange={set('numero')}
-              placeholder="001-001-0000250" className="input w-44 font-mono" />
+              placeholder="001-001-0000250" className="input w-44 font-mono"  aria-label="Número"/>
           </div>
         )}
         <div>
@@ -224,13 +224,13 @@ function ComprobanteCompraPanel({ compra, onListo }) {
             Fecha de emisión *
           </label>
           <input id={`fecha-${compra.id}`} type="date" value={form.fechaEmision}
-            onChange={set('fechaEmision')} className="input" />
+            onChange={set('fechaEmision')} className="input"  aria-label="Fecha de emisión"/>
         </div>
         <div>
           <label className="mb-1 block text-xs text-neutral-muted" htmlFor={`condicion-${compra.id}`}>
             Condición
           </label>
-          <select id={`condicion-${compra.id}`} value={form.condicion} onChange={set('condicion')} className="input">
+          <select id={`condicion-${compra.id}`} value={form.condicion} onChange={set('condicion')} className="input" aria-label="Condición">
             <option value="Contado">Contado</option>
             <option value="Credito">Crédito</option>
           </select>
@@ -244,14 +244,14 @@ function ComprobanteCompraPanel({ compra, onListo }) {
               Corrige al comprobante *
             </label>
             <input id={`asoc-num-${compra.id}`} value={form.asociadoNumero} onChange={set('asociadoNumero')}
-              placeholder="001-001-0000240" className="input w-44 font-mono" />
+              placeholder="001-001-0000240" className="input w-44 font-mono"  aria-label="Corrige al comprobante"/>
           </div>
           <div>
             <label className="mb-1 block text-xs text-neutral-muted" htmlFor={`asoc-tim-${compra.id}`}>
               Timbrado del corregido *
             </label>
             <input id={`asoc-tim-${compra.id}`} value={form.asociadoTimbrado} onChange={set('asociadoTimbrado')}
-              maxLength={8} className="input w-32 font-mono" />
+              maxLength={8} className="input w-32 font-mono"  aria-label="Timbrado del corregido"/>
           </div>
         </div>
       )}
@@ -264,21 +264,21 @@ function ComprobanteCompraPanel({ compra, onListo }) {
                 Gravado 10% (IVA incl.)
               </label>
               <input id={`g10-${compra.id}`} type="number" min="0" value={form.gravado10}
-                onChange={set('gravado10')} className="input w-36" />
+                onChange={set('gravado10')} className="input w-36"  aria-label="Gravado 10% (IVA incl.)"/>
             </div>
             <div>
               <label className="mb-1 block text-xs text-neutral-muted" htmlFor={`g5-${compra.id}`}>
                 Gravado 5% (IVA incl.)
               </label>
               <input id={`g5-${compra.id}`} type="number" min="0" value={form.gravado5}
-                onChange={set('gravado5')} className="input w-36" />
+                onChange={set('gravado5')} className="input w-36"  aria-label="Gravado 5% (IVA incl.)"/>
             </div>
             <div>
               <label className="mb-1 block text-xs text-neutral-muted" htmlFor={`ex-${compra.id}`}>
                 Exentas
               </label>
               <input id={`ex-${compra.id}`} type="number" min="0" value={form.exento}
-                onChange={set('exento')} className="input w-36" />
+                onChange={set('exento')} className="input w-36"  aria-label="Exentas"/>
             </div>
           </>
         )}
@@ -287,7 +287,7 @@ function ComprobanteCompraPanel({ compra, onListo }) {
             Total
           </label>
           <input id={`tot-${compra.id}`} type="number" min="0" value={form.total}
-            onChange={set('total')} className="input w-36" />
+            onChange={set('total')} className="input w-36"  aria-label="Total"/>
         </div>
       </div>
 

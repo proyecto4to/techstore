@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Trash2, PartyPopper } from 'lucide-react'
-import { maximoComprable, productoDisponible, useCartStore, selectTotalMonto } from '../store/cartStore'
+import {
+  maximoComprable,
+  muestraUnidadesRestantes,
+  productoDisponible,
+  useCartStore,
+  selectTotalMonto,
+} from '../store/cartStore'
 import { useAuthStore } from '../store/authStore'
 import { pedidoService } from '../services/pedidoService'
-import { formatPrecio } from '../utils/format'
+import { formatPrecio, formatRangoEntrega } from '../utils/format'
 import { checkoutService } from '../services/checkoutService'
 
 const DIRECCION_VACIA = {
@@ -13,11 +19,12 @@ const DIRECCION_VACIA = {
 }
 
 function CartPage() {
-  const { items, setCantidad, quitar, vaciar } = useCartStore()
+  const { items, setCantidad, quitar, vaciar, aplicarDisponibilidad } = useCartStore()
   const total = useCartStore(selectTotalMonto)
   const { usuario } = useAuthStore()
   const navigate = useNavigate()
 
+  const [avisoStock, setAvisoStock] = useState(null)
   const [notas, setNotas] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState(null)
@@ -33,6 +40,29 @@ function CartPage() {
   const [direccionForm, setDireccionForm] = useState(DIRECCION_VACIA)
   const intentoCheckout = useRef(null)
   const hayProductoSinStock = items.some(({ producto }) => !productoDisponible(producto))
+
+  // El stock pudo cambiar desde que se agregaron las cosas. Se revisa al
+  // abrir el carrito para mostrarlo ya corregido, en vez de que el cliente se
+  // entere recién cuando el checkout le rechaza la compra.
+  //
+  // Corre una sola vez al montar: depender de `items` lo volvería a disparar
+  // con cada ajuste de cantidad, incluidos los que hace esta misma revisión.
+  const revisado = useRef(false)
+  useEffect(() => {
+    if (revisado.current) return
+    revisado.current = true
+    const actuales = useCartStore.getState().items
+    if (actuales.length === 0) return
+    checkoutService
+      .disponibilidad(actuales)
+      .then(({ topePorProducto }) => {
+        const reporte = aplicarDisponibilidad(topePorProducto)
+        if (reporte.huboCambios) setAvisoStock(reporte.mensaje)
+      })
+      // Sin conexión el carrito guardado sigue sirviendo: no se molesta al
+      // cliente acá, porque el checkout vuelve a validar antes de cobrar.
+      .catch(() => {})
+  }, [aplicarDisponibilidad])
 
   useEffect(() => {
     if (!usuario || metodoEntrega !== 'ENVIO_DOMICILIO') return
@@ -89,8 +119,22 @@ function CartPage() {
       return
     }
     setError(null)
+    setAvisoStock(null)
     setEnviando(true)
     try {
+      // Última revisión antes de comprometer stock: entre que armó el carrito
+      // y este momento pudo cambiar la disponibilidad.
+      const { valido, topePorProducto } = await checkoutService.disponibilidad(items)
+      if (!valido) {
+        const reporte = aplicarDisponibilidad(topePorProducto)
+        setAvisoStock(
+          reporte.huboCambios
+            ? reporte.mensaje
+            : 'La disponibilidad de tu carrito cambió. Revisá las cantidades antes de continuar.',
+        )
+        return
+      }
+
       const firma = JSON.stringify({
         items: items.map(({ producto, cantidad }) => [producto.id, cantidad]).sort(([a], [b]) => a - b),
         notas: notas || null,
@@ -182,11 +226,30 @@ function CartPage() {
 
   return (
     <div className="container mx-auto px-6 py-8">
-      <h1 className="mb-6 text-4xl font-bold text-neutral-text">Carrito</h1>
+      <h1 className="mb-2 text-4xl font-bold text-neutral-text">Finalizar compra</h1>
+      {/* Los tres pasos están a la vista en la misma página, pero numerados:
+          en una pantalla grande verlo todo junto es una ventaja, y el número
+          igual dice dónde está parado y qué falta. */}
+      <p className="mb-6 text-sm text-neutral-secondary">
+        Revisá lo que llevás, elegí cómo lo recibís y confirmá. Son tres pasos.
+      </p>
+
+      <h2 className="mb-3 text-xl font-semibold text-neutral-text">
+        <span className="mr-2 text-primary-300">1.</span>
+        Lo que llevás
+      </h2>
 
       {error && (
         <p className="alerta-error" role="alert">
           {error}
+        </p>
+      )}
+      {avisoStock && (
+        <p
+          role="status"
+          className="mb-4 rounded-md border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-300"
+        >
+          {avisoStock}
         </p>
       )}
       {hayProductoSinStock && (
@@ -196,7 +259,7 @@ function CartPage() {
       )}
 
       <div className="card overflow-x-auto p-0">
-        <table className="tabla-admin">
+        <table className="tabla-admin tabla-apilable">
           <thead>
             <tr>
               <th>Producto</th>
@@ -210,9 +273,11 @@ function CartPage() {
             {items.map(({ producto, cantidad }) => {
               const maximo = maximoComprable(producto)
               return <tr key={producto.id}>
-                <td className="font-medium text-neutral-text">{producto.nombre}</td>
-                <td>{formatPrecio(producto.precio)}</td>
-                <td>
+                <td data-label="Producto" className="font-medium text-neutral-text">
+                  {producto.nombre}
+                </td>
+                <td data-label="Precio">{formatPrecio(producto.precio)}</td>
+                <td data-label="Cantidad" className="flex-col items-start">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setCantidad(producto.id, cantidad - 1)}
@@ -227,23 +292,34 @@ function CartPage() {
                     <button
                       onClick={() => setCantidad(producto.id, cantidad + 1)}
                       disabled={cantidad >= maximo}
-                      title={cantidad >= maximo ? 'Límite por línea alcanzado' : undefined}
+                      title={
+                        cantidad >= maximo
+                          ? 'No hay más unidades disponibles'
+                          : `Sumar uno de ${producto.nombre}`
+                      }
                       className="h-7 w-7 rounded border border-dark-border text-neutral-text hover:border-primary-400 hover:bg-primary-400/10 disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label={`Sumar uno de ${producto.nombre}`}
                     >
                       +
                     </button>
                   </div>
-                  <p className={`mt-1 text-xs ${cantidad >= maximo ? 'text-orange-400' : 'text-neutral-muted'}`}>
-                    {cantidad >= maximo
-                      ? `Máximo por línea: ${maximo}`
-                      : 'Stock y precio se revalidan al finalizar'}
-                  </p>
+                  {/* El número solo se dice cuando refleja escasez real: con
+                      stock alto el tope es un límite por pedido, no lo que
+                      queda en góndola. */}
+                  {cantidad >= maximo && (
+                    <p className="mt-1 text-xs text-orange-400">
+                      {muestraUnidadesRestantes(producto)
+                        ? maximo === 1
+                          ? 'Queda 1 unidad disponible'
+                          : `Quedan ${maximo} unidades disponibles`
+                        : `Podés llevar hasta ${maximo} por pedido`}
+                    </p>
+                  )}
                 </td>
-                <td className="font-semibold text-primary-300">
+                <td data-label="Subtotal" className="font-semibold text-primary-300">
                   {formatPrecio(producto.precio * cantidad)}
                 </td>
-                <td>
+                <td className="justify-end">
                   <button
                     onClick={() => quitar(producto.id)}
                     className="text-red-400 hover:text-red-300"
@@ -259,7 +335,10 @@ function CartPage() {
       </div>
 
       <section className="card mt-6 space-y-5">
-        <h2 className="text-xl font-semibold text-neutral-text">Entrega y pago</h2>
+        <h2 className="text-xl font-semibold text-neutral-text">
+          <span className="mr-2 text-primary-300">2.</span>
+          Cómo lo recibís y cómo lo pagás
+        </h2>
         <div className="grid gap-4 md:grid-cols-2">
           <label className="block text-sm font-medium text-neutral-text">
             Modalidad de entrega
@@ -290,7 +369,7 @@ function CartPage() {
               </button>
             </div>
             {direcciones.length > 0 && (
-              <select value={direccionId} onChange={(event) => setDireccionId(event.target.value)} className="input">
+              <select value={direccionId} onChange={(event) => setDireccionId(event.target.value)} className="input" aria-label="Dirección de entrega">
                 {direcciones.map((direccion) => (
                   <option key={direccion.id} value={direccion.id}>
                     {direccion.direccionLinea1}{direccion.numeroCasa ? ` ${direccion.numeroCasa}` : ''} · {direccion.ciudad}
@@ -339,7 +418,12 @@ function CartPage() {
                       <strong className="text-neutral-text">{cotizacion.nombre}</strong>
                       <span className="ml-2 text-primary-300">{formatPrecio(cotizacion.costo)}</span>
                       <span className="mt-1 block text-xs text-neutral-muted">
-                        {cotizacion.fechaEstimadaDesde ? `Estimado ${cotizacion.fechaEstimadaDesde} a ${cotizacion.fechaEstimadaHasta}` : cotizacion.descripcion}
+                        {cotizacion.fechaEstimadaDesde
+                          ? formatRangoEntrega(
+                              cotizacion.fechaEstimadaDesde,
+                              cotizacion.fechaEstimadaHasta,
+                            )
+                          : cotizacion.descripcion}
                       </span>
                     </label>
                   ))}
@@ -350,13 +434,19 @@ function CartPage() {
         )}
       </section>
 
-      <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+      <h2 className="mb-3 mt-8 text-xl font-semibold text-neutral-text">
+        <span className="mr-2 text-primary-300">3.</span>
+        Confirmá tu compra
+      </h2>
+
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <textarea
           value={notas}
           onChange={(e) => setNotas(e.target.value)}
-          placeholder="Notas para el pedido (opcional)"
+          placeholder="Por ejemplo, una referencia para llegar"
           rows={3}
           className="input md:max-w-md"
+          aria-label="Aclaraciones para el pedido"
         />
         <div className="text-right">
           <p className="mb-3 text-2xl font-bold text-neutral-text">

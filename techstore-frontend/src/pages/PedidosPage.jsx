@@ -4,9 +4,12 @@ import { FileText } from 'lucide-react'
 import { pedidoService } from '../services/pedidoService'
 import { formatPrecio } from '../utils/format'
 import { estadoPedido } from '../utils/pedidoEstados'
+import DialogoConfirmacion from '../components/common/DialogoConfirmacion'
 
 function PedidosPage() {
   const [page, setPage] = useState(0)
+  // Anular no se puede deshacer: se pregunta antes, diciendo qué implica.
+  const [pedidoAAnular, setPedidoAAnular] = useState(null)
   const queryClient = useQueryClient()
 
   const { data, isLoading, isError } = useQuery({
@@ -17,7 +20,11 @@ function PedidosPage() {
 
   const cancelarMutation = useMutation({
     mutationFn: (id) => pedidoService.cancelar(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pedidos'] }),
+    onSuccess: () => {
+      setPedidoAAnular(null)
+      queryClient.invalidateQueries({ queryKey: ['pedidos'] })
+    },
+    onError: () => setPedidoAAnular(null),
   })
 
   return (
@@ -37,8 +44,8 @@ function PedidosPage() {
       )}
 
       {data && data.content.length > 0 && (
-        <div className="card overflow-x-auto p-0">
-          <table className="tabla-admin">
+        <div className="card overflow-x-auto p-0 md:p-0">
+          <table className="tabla-admin tabla-apilable">
             <thead>
               <tr>
                 <th>N.º</th>
@@ -53,18 +60,22 @@ function PedidosPage() {
                 const estado = estadoPedido(pedido.estado)
                 return (
                   <tr key={pedido.id}>
-                    <td className="font-semibold text-neutral-text">#{pedido.numero}</td>
-                    <td>{new Date(pedido.fecha).toLocaleString('es-PY')}</td>
-                    <td>
+                    <td data-label="Pedido" className="font-semibold text-neutral-text">
+                      #{pedido.numero}
+                    </td>
+                    <td data-label="Fecha">{new Date(pedido.fecha).toLocaleString('es-PY')}</td>
+                    <td data-label="Estado">
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${estado.clase}`}>
                         {estado.label}
                       </span>
                     </td>
-                    <td className="font-semibold text-primary-300">{formatPrecio(pedido.total)}</td>
-                    <td>
+                    <td data-label="Total" className="font-semibold text-primary-300">
+                      {formatPrecio(pedido.total)}
+                    </td>
+                    <td className="flex-wrap gap-2">
                       {pedido.estado === 'P' && (
                         <button
-                          onClick={() => cancelarMutation.mutate(pedido.id)}
+                          onClick={() => setPedidoAAnular(pedido)}
                           disabled={cancelarMutation.isPending}
                           className="btn btn-danger text-sm"
                         >
@@ -109,6 +120,21 @@ function PedidosPage() {
           </button>
         </div>
       )}
+
+      <DialogoConfirmacion
+        abierto={Boolean(pedidoAAnular)}
+        titulo={`¿Anular tu pedido N.º ${pedidoAAnular?.numero}?`}
+        descripcion={
+          'El pedido deja de procesarse y los productos vuelven a quedar disponibles para ' +
+          'otros clientes. No se puede reabrir: si lo querés igual, vas a tener que hacerlo ' +
+          'de nuevo.'
+        }
+        etiquetaConfirmar="Anular el pedido"
+        etiquetaCancelar="Mantener el pedido"
+        ocupado={cancelarMutation.isPending}
+        onConfirmar={() => cancelarMutation.mutate(pedidoAAnular.id)}
+        onCancelar={() => setPedidoAAnular(null)}
+      />
     </div>
   )
 }

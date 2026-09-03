@@ -4,6 +4,7 @@ import { Truck } from 'lucide-react'
 import { usuarioService } from '../../services/usuarioService'
 import { repartoService } from '../../services/repartoService'
 import { useAuthStore } from '../../store/authStore'
+import { estadoEntrega } from '../../utils/pedidoEstados'
 
 export default function AsignacionRepartoPanel({ pedido }) {
   const { usuario } = useAuthStore()
@@ -90,7 +91,7 @@ export default function AsignacionRepartoPanel({ pedido }) {
           maxLength={1000}
           className="input"
           placeholder="Observaciones opcionales"
-        />
+         aria-label="Observaciones opcionales"/>
         <button
           type="submit"
           disabled={!repartidorId || asignar.isPending}
@@ -119,7 +120,7 @@ export default function AsignacionRepartoPanel({ pedido }) {
                     ? 'Actual: '
                     : ''}
                   <strong className="text-neutral-text">{item.repartidor}</strong>
-                  {' · '}orden {item.ordenEntrega} · {item.estadoEntrega.replaceAll('_', ' ')}
+                  {' · '}orden {item.ordenEntrega} · {estadoEntrega(item.estadoEntrega).label}
                 </span>
                 <time dateTime={item.fechaAsignacion}>
                   {new Date(item.fechaAsignacion).toLocaleString('es-PY')}

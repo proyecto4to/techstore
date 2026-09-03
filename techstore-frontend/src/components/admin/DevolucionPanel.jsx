@@ -78,6 +78,7 @@ function DevolucionPanel({ pedidoId, onEmitir, onCancelar, ocupado }) {
                           value={cantidades[l.productoId] ?? 0}
                           onChange={(e) => setCantidad(l.productoId, l.disponible, e.target.value)}
                           className="input w-20 py-1 text-sm"
+                          aria-label={`Cantidad a devolver de ${l.productoNombre}`}
                         />
                         <button
                           type="button"
@@ -110,7 +111,7 @@ function DevolucionPanel({ pedidoId, onEmitir, onCancelar, ocupado }) {
               maxLength={255}
               placeholder="Ej.: producto con falla de fábrica"
               className="input w-full py-1 text-sm"
-            />
+             aria-label="Motivo"/>
           </div>
         </div>
       )}

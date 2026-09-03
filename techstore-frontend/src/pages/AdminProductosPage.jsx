@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { productoService } from '../services/productoService'
 import { formatPrecio } from '../utils/format'
 import AdminTabs from '../components/admin/AdminTabs'
+import ErrorDeCarga from '../components/common/ErrorDeCarga'
+import DialogoConfirmacion from '../components/common/DialogoConfirmacion'
 
 const FORM_VACIO = {
   id: null,
@@ -24,6 +26,8 @@ function AdminProductosPage() {
   const [archivoImagen, setArchivoImagen] = useState(null)
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
+  // Desactivar saca el producto de la tienda: se pregunta antes.
+  const [productoADesactivar, setProductoADesactivar] = useState(null)
   const queryClient = useQueryClient()
 
   const { data: marcas = [] } = useQuery({
@@ -32,7 +36,7 @@ function AdminProductosPage() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-productos', page],
     queryFn: () => productoService.listarAdmin({ page, size: 10, incluirInactivos: true }),
     placeholderData: keepPreviousData,
@@ -96,6 +100,7 @@ function AdminProductosPage() {
     onSuccess: () => {
       setError(null)
       setMensaje('Producto desactivado (baja lógica).')
+      setProductoADesactivar(null)
       refrescar()
     },
     onError,
@@ -250,6 +255,7 @@ function AdminProductosPage() {
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 onChange={(e) => setArchivoImagen(e.target.files?.[0] ?? null)}
                 className="input"
+                aria-label="Foto del producto"
               />
               <button
                 type="button"
@@ -364,10 +370,11 @@ function AdminProductosPage() {
       </form>
 
       {isLoading && <p className="text-neutral-muted">Cargando productos…</p>}
+      {isError && <ErrorDeCarga que="los productos" onReintentar={refetch} />}
 
       {data && (
         <div className="card overflow-x-auto p-0">
-          <table className="tabla-admin">
+          <table className="tabla-admin tabla-apilable">
             <thead>
               <tr>
                 <th>Producto</th>
@@ -382,7 +389,7 @@ function AdminProductosPage() {
             <tbody>
               {data.content.map((producto) => (
                 <tr key={producto.id} className={producto.activo ? '' : 'opacity-50'}>
-                  <td className="font-medium text-neutral-text">
+                  <td data-label="Producto" className="font-medium text-neutral-text">
                     <div className="flex items-center gap-3">
                       <img
                         src={producto.imagenUrl || '/img/productos/default.svg'}
@@ -393,9 +400,9 @@ function AdminProductosPage() {
                       {producto.nombre}
                     </div>
                   </td>
-                  <td className="text-neutral-secondary">{producto.marca?.nombre ?? '—'}</td>
-                  <td className="text-primary-300">{formatPrecio(producto.precio)}</td>
-                  <td>
+                  <td data-label="Marca" className="text-neutral-secondary">{producto.marca?.nombre ?? '—'}</td>
+                  <td data-label="Precio" className="text-primary-300">{formatPrecio(producto.precio)}</td>
+                  <td data-label="Stock">
                     <span className="inline-flex items-center gap-2">
                       {producto.stockReal}
                       {producto.necesitaReposicion && (
@@ -408,8 +415,8 @@ function AdminProductosPage() {
                       )}
                     </span>
                   </td>
-                  <td>{producto.stockComprometido}</td>
-                  <td>
+                  <td data-label="Comprometido">{producto.stockComprometido}</td>
+                  <td data-label="Estado">
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${
                         producto.activo
@@ -420,14 +427,14 @@ function AdminProductosPage() {
                       {producto.activo ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Acciones">
                     <div className="flex gap-2">
                       <button onClick={() => editar(producto)} className="btn btn-secondary text-sm">
                         Editar
                       </button>
                       {producto.activo ? (
                         <button
-                          onClick={() => desactivarMutation.mutate(producto.id)}
+                          onClick={() => setProductoADesactivar(producto)}
                           disabled={desactivarMutation.isPending}
                           className="btn btn-danger text-sm"
                         >
@@ -472,6 +479,19 @@ function AdminProductosPage() {
           </button>
         </div>
       )}
+
+      <DialogoConfirmacion
+        abierto={Boolean(productoADesactivar)}
+        titulo={`¿Desactivar "${productoADesactivar?.nombre}"?`}
+        descripcion={
+          'Deja de aparecer en la tienda y no se va a poder vender. Los pedidos y las facturas ' +
+          'que ya lo incluyen no cambian, y podés volver a activarlo cuando quieras.'
+        }
+        etiquetaConfirmar="Desactivar el producto"
+        ocupado={desactivarMutation.isPending}
+        onConfirmar={() => desactivarMutation.mutate(productoADesactivar.id)}
+        onCancelar={() => setProductoADesactivar(null)}
+      />
     </div>
   )
 }

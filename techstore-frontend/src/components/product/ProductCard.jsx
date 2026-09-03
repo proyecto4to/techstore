@@ -2,23 +2,41 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ShoppingCart, Check } from 'lucide-react'
 import { formatPrecio } from '../../utils/format'
-import { useCartStore } from '../../store/cartStore'
-import { productoDisponible } from '../../store/cartStore'
+import {
+  maximoComprable,
+  muestraUnidadesRestantes,
+  productoDisponible,
+  selectCantidadDe,
+  useCartStore,
+} from '../../store/cartStore'
 
 const IMAGEN_DEFAULT = '/img/productos/default.svg'
 
 function ProductCard({ producto }) {
   const disponible = productoDisponible(producto)
   const agregar = useCartStore((state) => state.agregar)
+  const enCarrito = useCartStore(selectCantidadDe(producto.id))
   const [agregado, setAgregado] = useState(false)
+  const [aviso, setAviso] = useState(null)
   const [imgError, setImgError] = useState(false)
   const navigate = useNavigate()
 
+  const maximo = maximoComprable(producto)
+  // Lo que ya está en el carrito descuenta del margen: sin esto el botón sigue
+  // habilitado y cada clic recorta en silencio.
+  const margen = Math.max(0, maximo - enCarrito)
+  const escasez = muestraUnidadesRestantes(producto)
+
   const handleAgregar = (e) => {
     e.stopPropagation()
-    agregar(producto)
-    setAgregado(true)
-    setTimeout(() => setAgregado(false), 1200)
+    const resultado = agregar(producto)
+    if (resultado.agregadas > 0) {
+      setAgregado(true)
+      setTimeout(() => setAgregado(false), 1200)
+    }
+    // Solo se avisa cuando no entró lo pedido: en el caso normal el propio
+    // botón ya confirma y repetirlo sería ruido.
+    setAviso(resultado.resultado === 'agregado' ? null : resultado.mensaje)
   }
 
   const irAlDetalle = () => navigate(`/productos/${producto.id}`)
@@ -55,8 +73,12 @@ function ProductCard({ producto }) {
         )}
       </div>
 
+      {/* Recortada a dos líneas: la tarjeta es para decidir si abrir el
+          producto, y una descripción larga empuja el precio y el botón. */}
       {producto.descripcion && (
-        <p className="mb-4 flex-1 text-sm text-neutral-secondary">{producto.descripcion}</p>
+        <p className="mb-4 line-clamp-2 flex-1 text-sm text-neutral-secondary">
+          {producto.descripcion}
+        </p>
       )}
 
       <div className="mt-auto">
@@ -70,13 +92,19 @@ function ProductCard({ producto }) {
               disponible ? 'bg-emerald-400/20 text-emerald-400' : 'bg-red-400/20 text-red-400'
             }`}
           >
-            {disponible ? 'Disponible' : 'Agotado'}
+            {!disponible ? 'Agotado' : escasez ? `Quedan ${maximo}` : 'Disponible'}
           </span>
         </div>
         <button
           onClick={handleAgregar}
-          disabled={!disponible}
-          title={!disponible ? 'Sin stock disponible por el momento' : undefined}
+          disabled={!disponible || margen === 0}
+          title={
+            !disponible
+              ? 'Sin stock disponible por el momento'
+              : margen === 0
+                ? 'Ya tenés todo el stock disponible en el carrito'
+                : undefined
+          }
           className="btn btn-primary w-full text-sm disabled:cursor-not-allowed"
         >
           {agregado ? (
@@ -89,6 +117,11 @@ function ProductCard({ producto }) {
             </span>
           )}
         </button>
+        {aviso && (
+          <p role="status" className="mt-2 text-xs text-amber-300">
+            {aviso}
+          </p>
+        )}
       </div>
     </div>
   )

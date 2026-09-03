@@ -121,7 +121,7 @@ function AdminReportesPage() {
               <p className="text-neutral-muted">Sin facturación en el período elegido.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="tabla-admin">
+                <table className="tabla-admin tabla-apilable">
                   <thead>
                     <tr>
                       <th>Fecha</th>
@@ -133,14 +133,14 @@ function AdminReportesPage() {
                   <tbody>
                     {data.ventasPorDia.map((dia) => (
                       <tr key={dia.fecha}>
-                        <td className="text-neutral-text">
+                        <td data-label="Fecha" className="text-neutral-text">
                           {new Date(`${dia.fecha}T00:00:00`).toLocaleDateString('es-PY')}
                         </td>
-                        <td>{dia.cantidadFacturas}</td>
+                        <td data-label="Facturas">{dia.cantidadFacturas}</td>
                         <td>
                           <BarraMagnitud valor={dia.total} maximo={maxDia} />
                         </td>
-                        <td className="text-right font-semibold text-primary-300">
+                        <td data-label="Total" className="text-right font-semibold text-primary-300">
                           {formatPrecio(dia.total)}
                         </td>
                       </tr>
@@ -179,7 +179,7 @@ function AdminReportesPage() {
                 <p className="text-neutral-muted">Sin ventas en el período.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="tabla-admin">
+                  <table className="tabla-admin tabla-apilable">
                     <thead>
                       <tr>
                         <th>Producto</th>
@@ -191,12 +191,12 @@ function AdminReportesPage() {
                     <tbody>
                       {data.topProductos.map((producto) => (
                         <tr key={producto.productoId}>
-                          <td className="font-medium text-neutral-text">{producto.nombre}</td>
-                          <td>{producto.unidadesVendidas}</td>
+                          <td data-label="Producto" className="font-medium text-neutral-text">{producto.nombre}</td>
+                          <td data-label="Unid.">{producto.unidadesVendidas}</td>
                           <td>
                             <BarraMagnitud valor={producto.unidadesVendidas} maximo={maxUnidades} />
                           </td>
-                          <td className="text-right font-semibold text-primary-300">
+                          <td data-label="Monto" className="text-right font-semibold text-primary-300">
                             {formatPrecio(producto.montoVendido)}
                           </td>
                         </tr>
@@ -213,7 +213,7 @@ function AdminReportesPage() {
                 <p className="text-neutral-muted">Sin compras en el período.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="tabla-admin">
+                  <table className="tabla-admin tabla-apilable">
                     <thead>
                       <tr>
                         <th>Cliente</th>
@@ -225,15 +225,15 @@ function AdminReportesPage() {
                     <tbody>
                       {data.topClientes.map((cliente) => (
                         <tr key={cliente.email}>
-                          <td>
+                          <td data-label="Cliente">
                             <p className="font-medium text-neutral-text">{cliente.nombre}</p>
                             <p className="text-xs text-neutral-muted">{cliente.email}</p>
                           </td>
-                          <td>{cliente.pedidos}</td>
+                          <td data-label="Pedidos">{cliente.pedidos}</td>
                           <td>
                             <BarraMagnitud valor={cliente.monto} maximo={maxCliente} />
                           </td>
-                          <td className="text-right font-semibold text-primary-300">
+                          <td data-label="Monto" className="text-right font-semibold text-primary-300">
                             {formatPrecio(cliente.monto)}
                           </td>
                         </tr>
@@ -278,7 +278,7 @@ function AdminReportesPage() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="tabla-admin">
+            <table className="tabla-admin tabla-apilable">
               <thead>
                 <tr>
                   <th>Producto</th>
@@ -291,11 +291,11 @@ function AdminReportesPage() {
               <tbody>
                 {stockBajo.map((producto) => (
                   <tr key={producto.productoId}>
-                    <td className="font-medium text-neutral-text">{producto.nombre}</td>
-                    <td className="text-neutral-secondary">{producto.marca ?? '—'}</td>
-                    <td>{producto.stockReal}</td>
-                    <td>{producto.stockComprometido}</td>
-                    <td>
+                    <td data-label="Producto" className="font-medium text-neutral-text">{producto.nombre}</td>
+                    <td data-label="Marca" className="text-neutral-secondary">{producto.marca ?? '—'}</td>
+                    <td data-label="Stock real">{producto.stockReal}</td>
+                    <td data-label="Comprometido">{producto.stockComprometido}</td>
+                    <td data-label="Disponible">
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
                           producto.stockDisponible === 0
