@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/di/providers.dart';
 import '../core/update/app_update_service.dart';
+import '../core/update/self_hosted_updater.dart';
+import 'update_progress_dialog.dart';
 
 class AppUpdateGate extends ConsumerStatefulWidget {
   const AppUpdateGate({required this.child, super.key});
@@ -113,7 +115,72 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate> {
 
   Future<void> _install(UpdatePolicy policy) async {
     setState(() => _installing = true);
-    await ref.read(appUpdateServiceProvider).install(policy);
+    // Cuando el artefacto lo publica el propio servidor, la app lo descarga,
+    // lo verifica y se lo entrega al instalador de Android. Si no, sigue el
+    // camino de Google Play de siempre.
+    if (policy.seInstalaDesdeLaApp) {
+      await _installFromApp(policy);
+    } else {
+      await ref.read(appUpdateServiceProvider).install(policy);
+    }
     if (mounted) setState(() => _installing = false);
+  }
+
+  Future<void> _installFromApp(UpdatePolicy policy) async {
+    final updater = ref.read(selfHostedUpdaterProvider);
+    final avance = ValueNotifier<(int, int)>((0, policy.sizeBytes));
+    final fallo = ValueNotifier<String?>(null);
+
+    final dialogo = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ValueListenableBuilder<String?>(
+        valueListenable: fallo,
+        builder: (context, error, _) => ValueListenableBuilder<(int, int)>(
+          valueListenable: avance,
+          builder: (context, datos, _) => PopScope(
+            canPop: error != null,
+            child: UpdateProgressDialog(
+              policy: policy,
+              recibidos: datos.$1,
+              total: datos.$2,
+              error: error,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final resultado = await updater.actualizar(
+      policy,
+      onProgress: (recibidos, total) => avance.value = (recibidos, total),
+    );
+
+    switch (resultado) {
+      case UpdateHandedToAndroid():
+        // Android toma el control y muestra su confirmación; el diálogo ya no
+        // aporta nada.
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      case UpdateNeedsPermission():
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
+        await _pedirPermisoDeInstalacion(policy);
+      case UpdateFailed(:final motivo):
+        fallo.value = motivo;
+    }
+    await dialogo;
+    avance.dispose();
+    fallo.dispose();
+  }
+
+  Future<void> _pedirPermisoDeInstalacion(UpdatePolicy policy) async {
+    if (!mounted) return;
+    final acepta = await showDialog<bool>(
+      context: context,
+      builder: (context) => const InstallPermissionDialog(),
+    );
+    if (acepta != true) return;
+    await ref.read(selfHostedUpdaterProvider).pedirPermiso();
+    // No se reintenta solo: el usuario vuelve de los ajustes cuando quiere, y
+    // relanzar la descarga sin que lo pida sería invasivo.
   }
 }

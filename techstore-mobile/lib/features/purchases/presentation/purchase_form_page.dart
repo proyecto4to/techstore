@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
+import '../../../core/native/haptics_service.dart';
+import '../../../core/widgets/image_origin_sheet.dart';
+import '../../../core/widgets/voice_dictation_button.dart';
 import '../../catalog/application/catalog_providers.dart';
 import '../../catalog/domain/product.dart';
 
@@ -100,9 +103,13 @@ class _PurchaseFormPageState extends ConsumerState<PurchaseFormPage> {
                   TextField(
                     controller: controller,
                     focusNode: focusNode,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Agregar producto',
-                      prefixIcon: Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: VoiceDictationButton(
+                        controller: controller,
+                        tooltip: 'Buscar producto por voz',
+                      ),
                     ),
                   ),
             ),
@@ -223,6 +230,7 @@ class _PurchaseFormPageState extends ConsumerState<PurchaseFormPage> {
       final quantity = int.tryParse(line.quantity.text);
       final cost = double.tryParse(line.cost.text.replaceAll(',', '.'));
       if (quantity == null || quantity < 1 || cost == null || cost <= 0) {
+        await ref.read(hapticsServiceProvider).play(HapticCue.error);
         _message('Revisá cantidad y costo de cada producto');
         return;
       }
@@ -234,7 +242,7 @@ class _PurchaseFormPageState extends ConsumerState<PurchaseFormPage> {
     }
     setState(() => _busy = true);
     try {
-      await ref
+      final response = await ref
           .read(apiClientProvider)
           .post<Object?>(
             '/api/v1/compras',
@@ -248,12 +256,61 @@ class _PurchaseFormPageState extends ConsumerState<PurchaseFormPage> {
         line.dispose();
       }
       _lines.clear();
+      final data = response.data;
+      final purchaseId = data is Map ? (data['id'] as num?)?.toInt() : null;
+      await ref.read(hapticsServiceProvider).play(HapticCue.success);
       _message('Compra registrada');
       setState(() {});
+      if (purchaseId != null) await _offerReceipt(purchaseId);
     } on AppFailure catch (failure) {
+      await ref.read(hapticsServiceProvider).play(HapticCue.error);
       _message(failure.message);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Propone fotografiar el comprobante en el momento, mientras el papel sigue
+  /// en la mano, en vez de obligar a buscar la compra después en el panel.
+  Future<void> _offerReceipt(int purchaseId) async {
+    if (!mounted) return;
+    final wanted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Adjuntar comprobante'),
+        content: const Text(
+          '¿Querés fotografiar ahora el comprobante de esta compra?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Más tarde'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.document_scanner_outlined),
+            label: const Text('Fotografiar'),
+          ),
+        ],
+      ),
+    );
+    if (wanted != true || !mounted) return;
+    final origin = await pickImageOrigin(
+      context,
+      cameraLabel: 'Fotografiar comprobante',
+      cameraIcon: Icons.document_scanner_outlined,
+    );
+    if (origin == null || !mounted) return;
+    try {
+      final uploaded = await ref
+          .read(imageUploadServiceProvider)
+          .pickAndUploadPurchaseReceipt(purchaseId, origin);
+      if (!uploaded) return;
+      await ref.read(hapticsServiceProvider).play(HapticCue.success);
+      _message('Comprobante adjuntado');
+    } catch (error) {
+      await ref.read(hapticsServiceProvider).play(HapticCue.error);
+      _message('No se pudo adjuntar el comprobante: $error');
     }
   }
 

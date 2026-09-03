@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
+import '../../../core/native/haptics_service.dart';
 
 class CashActionsPage extends ConsumerStatefulWidget {
   const CashActionsPage({super.key});
@@ -56,8 +59,10 @@ class _CashActionsPageState extends ConsumerState<CashActionsPage> {
       ],
     );
     if (values == null) return;
+    final amount = _decimal(values['saldoInicial']);
+    if (amount == null) return;
     await _run('/api/v1/caja/apertura', {
-      'saldoInicial': _decimal(values['saldoInicial']),
+      'saldoInicial': amount,
       'notas': values['notas'],
     });
   }
@@ -74,9 +79,11 @@ class _CashActionsPageState extends ConsumerState<CashActionsPage> {
       ],
     );
     if (values == null) return;
+    final amount = _decimal(values['monto']);
+    if (amount == null) return;
     await _run('/api/v1/caja/movimientos', {
       'tipo': values['tipo'],
-      'monto': _decimal(values['monto']),
+      'monto': amount,
       'concepto': values['concepto'],
       'referencia': values['referencia'],
       'medio': values['medio']?.isEmpty == true ? null : values['medio'],
@@ -84,21 +91,38 @@ class _CashActionsPageState extends ConsumerState<CashActionsPage> {
   }
 
   Future<void> _close() async {
-    final preview = await ref
-        .read(apiClientProvider)
-        .get<Map<String, Object?>>('/api/v1/caja/cierres/preview');
+    Object? expected;
+    try {
+      final preview = await ref
+          .read(apiClientProvider)
+          .get<Map<String, Object?>>('/api/v1/caja/cierres/preview');
+      expected = preview.data?['efectivoEsperado'];
+    } on AppFailure catch (failure) {
+      await _cue(HapticCue.error);
+      _message(failure.message);
+      return;
+    }
     if (!mounted) return;
     final values = await _showForm(
-      title:
-          'Cerrar caja · esperado ${preview.data?['efectivoEsperado'] ?? '-'}',
+      title: 'Cerrar caja · esperado ${expected ?? '-'}',
       fields: const [
         ('efectivoContado', 'Efectivo contado'),
         ('notas', 'Notas (opcional)'),
       ],
     );
     if (values == null) return;
+    final counted = _decimal(values['efectivoContado']);
+    if (counted == null) return;
+    final confirmed = await ref
+        .read(biometricServiceProvider)
+        .confirmOperation(reason: 'Confirmá el cierre de caja');
+    if (!confirmed) {
+      await _cue(HapticCue.error);
+      _message('Cierre cancelado: no se validó la identidad');
+      return;
+    }
     await _run('/api/v1/caja/cierres', {
-      'efectivoContado': _decimal(values['efectivoContado']),
+      'efectivoContado': counted,
       'notas': values['notas'],
     });
   }
@@ -115,16 +139,29 @@ class _CashActionsPageState extends ConsumerState<CashActionsPage> {
     setState(() => _busy = true);
     try {
       await ref.read(apiClientProvider).post<void>(path, data: data);
+      await _cue(HapticCue.success);
       _message('Operación registrada');
     } on AppFailure catch (failure) {
+      await _cue(HapticCue.error);
       _message(failure.message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  double _decimal(String? value) =>
-      double.parse((value ?? '').replaceAll(',', '.'));
+  Future<void> _cue(HapticCue cue) =>
+      ref.read(hapticsServiceProvider).play(cue);
+
+  /// Devuelve `null` y avisa cuando el importe tipeado no es un número, en
+  /// lugar de dejar escapar la excepción de parseo.
+  double? _decimal(String? value) {
+    final parsed = double.tryParse((value ?? '').trim().replaceAll(',', '.'));
+    if (parsed == null) {
+      unawaited(_cue(HapticCue.error));
+      _message('Ingresá un importe válido');
+    }
+    return parsed;
+  }
 
   void _message(String value) {
     if (mounted) {

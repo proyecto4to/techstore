@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
+import '../../../core/native/haptics_service.dart';
 import '../../../core/offline/offline_queue_service.dart';
+import '../../../core/widgets/voice_dictation_button.dart';
 import '../../auth/application/session_controller.dart';
 import '../data/chat_repository.dart';
 
@@ -188,6 +190,12 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                       ),
                     ),
                   ),
+                  VoiceDictationButton(
+                    controller: _message,
+                    tooltip: 'Dictar mensaje',
+                    append: true,
+                    dictation: true,
+                  ),
                   IconButton.filled(
                     onPressed: _busy ? null : _send,
                     icon: const Icon(Icons.send),
@@ -209,17 +217,23 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           .read(chatRepositoryProvider)
           .send(widget.conversationId, _message.text);
       _message.clear();
+      final haptics = ref.read(hapticsServiceProvider);
       if (result == ChatSendResult.sent) {
+        await haptics.play(HapticCue.success);
         ref.invalidate(messagesProvider(widget.conversationId));
         ref.invalidate(conversationsProvider);
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mensaje guardado. Se enviará al reconectar.'),
-          ),
-        );
+      } else {
+        await haptics.play(HapticCue.warning);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Mensaje guardado. Se enviará al reconectar.'),
+            ),
+          );
+        }
       }
     } on AppFailure catch (failure) {
+      await ref.read(hapticsServiceProvider).play(HapticCue.error);
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(failure.message)));
@@ -257,7 +271,15 @@ class _NewConversationDialogState extends State<_NewConversationDialog> {
         TextField(
           controller: _message,
           maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Mensaje'),
+          decoration: InputDecoration(
+            labelText: 'Mensaje',
+            suffixIcon: VoiceDictationButton(
+              controller: _message,
+              tooltip: 'Dictar mensaje',
+              append: true,
+              dictation: true,
+            ),
+          ),
         ),
         TextField(
           controller: _order,

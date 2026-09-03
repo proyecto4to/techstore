@@ -7,6 +7,7 @@ final class BiometricService {
     : _authentication = authentication ?? LocalAuthentication();
 
   static const _enabledKey = 'techstore.biometric_enabled';
+  static const _guardKey = 'techstore.biometric_guard_operations';
 
   final SecureStore _store;
   final LocalAuthentication _authentication;
@@ -20,7 +21,26 @@ final class BiometricService {
     }
   }
 
+  /// Biometrías realmente inscriptas, para describir el sensor en la UI.
+  Future<List<BiometricType>> enrolled() async {
+    try {
+      return await _authentication.getAvailableBiometrics();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<bool> isEnabled() async => await _store.read(_enabledKey) == 'true';
+
+  /// Nombre del sensor disponible, para que la UI no hable de "huella" en un
+  /// equipo que en realidad usa la cara.
+  Future<String> sensorLabel() async {
+    final types = await enrolled();
+    if (types.contains(BiometricType.face)) return 'reconocimiento facial';
+    if (types.contains(BiometricType.fingerprint)) return 'tu huella';
+    if (types.contains(BiometricType.iris)) return 'lectura de iris';
+    return 'la biometría del dispositivo';
+  }
 
   Future<void> setEnabled(bool enabled) async {
     if (enabled) {
@@ -30,16 +50,56 @@ final class BiometricService {
       await _store.write(_enabledKey, 'true');
     } else {
       await _store.delete(_enabledKey);
+      await _store.delete(_guardKey);
     }
   }
 
+  /// Si está activo, las operaciones sensibles piden una confirmación extra.
+  ///
+  /// Apagado por omisión: ningún flujo existente cambia hasta que el usuario
+  /// lo habilita desde Mi cuenta.
+  Future<bool> isOperationGuardEnabled() async =>
+      await _store.read(_guardKey) == 'true';
+
+  Future<void> setOperationGuard(bool enabled) async {
+    if (enabled) {
+      if (!await isAvailable()) {
+        throw StateError('Este equipo no tiene biometría disponible.');
+      }
+      if (!await confirmIdentity(reason: 'Confirmá tu identidad')) {
+        throw StateError('No se pudo validar la biometría.');
+      }
+      await _store.write(_guardKey, 'true');
+    } else {
+      await _store.delete(_guardKey);
+    }
+  }
+
+  /// Confirmación puntual antes de una operación sensible.
+  ///
+  /// Devuelve `true` — dejando pasar la operación — cuando la guarda está
+  /// apagada o el equipo no tiene biometría, para no bloquear a quien no puede
+  /// usarla. Solo cuando el usuario la activó explícitamente y el sensor
+  /// responde, un rechazo detiene la operación.
+  Future<bool> confirmOperation({required String reason}) async {
+    if (!await isOperationGuardEnabled()) return true;
+    if (!await isAvailable()) return true;
+    return confirmIdentity(reason: reason);
+  }
+
+  /// Verificación con biometría admitiendo el PIN/patrón del equipo como
+  /// alternativa, para que un dedo húmedo no deje al cajero trabado.
+  Future<bool> confirmIdentity({required String reason}) =>
+      authenticate(reason: reason, biometricOnly: false);
+
   Future<bool> authenticate({
     String reason = 'Desbloqueá TechStore para continuar',
+    bool biometricOnly = true,
   }) async {
     try {
       return await _authentication.authenticate(
         localizedReason: reason,
-        biometricOnly: true,
+        biometricOnly: biometricOnly,
         persistAcrossBackgrounding: true,
       );
     } catch (_) {

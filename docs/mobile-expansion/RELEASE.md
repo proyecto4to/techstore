@@ -4,13 +4,13 @@ ESTADO: RELEASE PRIVADO COMPLETED; publicación pública postergada.
 
 ## APK privada vigente
 
-- Archivo: `artifacts/mobile/private/TechStore-Private-1.0.2+3.apk`.
+- Archivo: `artifacts/mobile/private/TechStore-Private-1.0.7+8.apk`.
 - Application ID: `py.com.techstore.app.private`.
-- SHA-256: `ff30bd3958ca11f821718a2c6e4f3793b1a4ddc6e549354e716e3386e69641b2`.
+- SHA-256: `ec80ab0489612052d5652a84e39275158983362d2fac2c0240ef7196010b2587`.
 - Certificado SHA-256: `c4a098390fc9f299a68dd51b79741ad931485ea012828e613afc7f801aabf0a2`.
 - API LAN: `http://192.168.100.8:8090`.
 - Instalación y actualización `1.0.0+1` → `1.0.1+2`: verificadas en Android físico.
-- Actualización `1.0.2+3`: artefacto firmado con el mismo certificado y listo; instalación física pendiente porque el dispositivo no estuvo visible por ADB al finalizar el build.
+- Actualización `1.0.7+8`: incluye el nuevo fondo visual del login y quedó instalada y validada en un Motorola moto g42 con Android 13; catálogo, detalle e imagen real de producto cargaron desde el backend LAN sin ANR ni errores fatales.
 - Preflight: `scripts/check-mobile-private-readiness.ps1`, `7/7 PASS`.
 
 Para recompilar se usa `scripts/build-mobile-private.ps1`. HTTP solo se acepta hacia IPv4 privada RFC1918; el flavor production continúa exigiendo HTTPS.

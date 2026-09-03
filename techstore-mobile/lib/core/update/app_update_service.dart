@@ -17,8 +17,18 @@ final class UpdatePolicy {
     required this.updateAvailable,
     required this.mandatory,
     required this.storeUrl,
+    this.distribution = 'GOOGLE_PLAY',
+    this.latestVersionName,
+    this.downloadPath,
+    this.sha256,
+    this.sizeBytes = 0,
+    this.publishedAt,
+    this.notes = const [],
   });
 
+  /// Los datos del artefacto son opcionales a propósito: un servidor que todavía
+  /// reparte por Google Play no los envía, y la app tiene que seguir
+  /// entendiendo esa respuesta.
   factory UpdatePolicy.fromJson(Map<String, Object?> json) => UpdatePolicy(
     currentVersionCode: (json['currentVersionCode'] as num).toInt(),
     minimumVersionCode: (json['minimumVersionCode'] as num).toInt(),
@@ -26,6 +36,16 @@ final class UpdatePolicy {
     updateAvailable: json['updateAvailable'] as bool,
     mandatory: json['mandatory'] as bool,
     storeUrl: Uri.parse(json['storeUrl']! as String),
+    distribution: json['distribution'] as String? ?? 'GOOGLE_PLAY',
+    latestVersionName: json['latestVersionName'] as String?,
+    downloadPath: json['downloadUrl'] as String?,
+    sha256: (json['sha256'] as String?)?.toLowerCase(),
+    sizeBytes: (json['sizeBytes'] as num?)?.toInt() ?? 0,
+    publishedAt: DateTime.tryParse(json['publishedAt'] as String? ?? ''),
+    notes: [
+      for (final nota in (json['notes'] as List<Object?>? ?? const []))
+        nota.toString(),
+    ],
   );
 
   final int currentVersionCode;
@@ -34,6 +54,20 @@ final class UpdatePolicy {
   final bool updateAvailable;
   final bool mandatory;
   final Uri storeUrl;
+  final String distribution;
+  final String? latestVersionName;
+  final String? downloadPath;
+  final String? sha256;
+  final int sizeBytes;
+  final DateTime? publishedAt;
+  final List<String> notes;
+
+  /// Solo se descarga e instala por cuenta propia cuando el servidor publica el
+  /// artefacto y dice con qué hash verificarlo. Sin hash no se instala nada.
+  bool get seInstalaDesdeLaApp =>
+      distribution == 'SELF_HOSTED' &&
+      (downloadPath?.isNotEmpty ?? false) &&
+      sha256?.length == 64;
 
   UpdatePolicy forCurrentVersion(int code) => UpdatePolicy(
     currentVersionCode: code,
@@ -42,6 +76,13 @@ final class UpdatePolicy {
     updateAvailable: code < latestVersionCode,
     mandatory: code < minimumVersionCode,
     storeUrl: storeUrl,
+    distribution: distribution,
+    latestVersionName: latestVersionName,
+    downloadPath: downloadPath,
+    sha256: sha256,
+    sizeBytes: sizeBytes,
+    publishedAt: publishedAt,
+    notes: notes,
   );
 }
 

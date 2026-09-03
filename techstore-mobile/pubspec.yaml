@@ -34,6 +34,8 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  # Verificación SHA-256 del APK descargado antes de instalarlo.
+  crypto: ^3.0.6
   flutter_riverpod: ^3.4.2
   riverpod_annotation: ^4.0.6
   dio: ^5.11.0
@@ -59,6 +61,7 @@ dependencies:
   in_app_update: 5.0.0
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.2
+  speech_to_text: ^7.4.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -77,6 +80,7 @@ dev_dependencies:
   mocktail: ^1.0.5
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.8
+  local_auth_platform_interface: ^1.1.0
 
 flutter_launcher_icons:
   android: true
@@ -109,6 +113,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/images/login_background.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

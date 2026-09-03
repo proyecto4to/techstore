@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/di/providers.dart';
+import '../../../core/native/haptics_service.dart';
 import '../../../core/widgets/async_states.dart';
+import '../../../core/widgets/voice_dictation_button.dart';
 import '../../auth/application/session_controller.dart';
 import '../../cart/application/cart_controller.dart';
 import '../application/catalog_providers.dart';
@@ -18,8 +22,25 @@ class CatalogPage extends ConsumerStatefulWidget {
 }
 
 class _CatalogPageState extends ConsumerState<CatalogPage> {
+  final _searchController = TextEditingController();
   String _search = '';
   int? _brandId;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _applySearch(String value) {
+    if (value == _search) return;
+    setState(() => _search = value);
+  }
+
+  void _addToCart(Product product) {
+    ref.read(cartProvider.notifier).add(product);
+    unawaited(ref.read(hapticsServiceProvider).play(HapticCue.success));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,18 +75,26 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: SearchBar(
+                  controller: _searchController,
                   hintText: 'Buscar productos',
                   leading: const Icon(Icons.search),
-                  onSubmitted: (value) => setState(() => _search = value),
-                  trailing: _search.isEmpty
-                      ? null
-                      : [
-                          IconButton(
-                            tooltip: 'Limpiar búsqueda',
-                            onPressed: () => setState(() => _search = ''),
-                            icon: const Icon(Icons.clear),
-                          ),
-                        ],
+                  onSubmitted: _applySearch,
+                  trailing: [
+                    if (_search.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Limpiar búsqueda',
+                        onPressed: () {
+                          _searchController.clear();
+                          _applySearch('');
+                        },
+                        icon: const Icon(Icons.clear),
+                      ),
+                    VoiceDictationButton(
+                      controller: _searchController,
+                      tooltip: 'Buscar por voz',
+                      onFinalResult: _applySearch,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -121,9 +150,7 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                           onOpen: () =>
                               context.push('/products/${products[index].id}'),
                           onAdd: products[index].available
-                              ? () => ref
-                                    .read(cartProvider.notifier)
-                                    .add(products[index])
+                              ? () => _addToCart(products[index])
                               : null,
                         ),
                       ),
@@ -170,6 +197,11 @@ class ProductDetailPage extends ConsumerWidget {
               onPressed: item.available
                   ? () {
                       ref.read(cartProvider.notifier).add(item);
+                      unawaited(
+                        ref
+                            .read(hapticsServiceProvider)
+                            .play(HapticCue.success),
+                      );
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Producto agregado')),
                       );
@@ -192,6 +224,9 @@ class ProductDetailPage extends ConsumerWidget {
                   } else {
                     await repository.add(item.id);
                   }
+                  await ref
+                      .read(hapticsServiceProvider)
+                      .play(isFavorite ? HapticCue.tap : HapticCue.selection);
                   ref.invalidate(favoritesProvider);
                 },
                 icon: Icon(

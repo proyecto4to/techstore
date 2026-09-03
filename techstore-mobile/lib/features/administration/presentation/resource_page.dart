@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/native/document_service.dart';
-import '../../../core/native/image_upload_service.dart';
+import '../../../core/widgets/image_origin_sheet.dart';
 import '../domain/resource_definition.dart';
 
 final resourceProvider = FutureProvider.autoDispose
@@ -453,25 +453,7 @@ class ResourcePage extends ConsumerWidget {
     WidgetRef ref,
     int productId,
   ) async {
-    final origin = await showModalBottomSheet<ImageOrigin>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Tomar foto'),
-              onTap: () => Navigator.pop(context, ImageOrigin.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Elegir de la galería'),
-              onTap: () => Navigator.pop(context, ImageOrigin.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
+    final origin = await pickImageOrigin(context);
     if (origin == null || !context.mounted) return;
     try {
       final uploaded = await ref
@@ -495,24 +477,10 @@ class ResourcePage extends ConsumerWidget {
     WidgetRef ref,
     int purchaseId,
   ) async {
-    final origin = await showModalBottomSheet<ImageOrigin>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.document_scanner_outlined),
-              title: const Text('Fotografiar comprobante'),
-              onTap: () => Navigator.pop(context, ImageOrigin.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Elegir de la galería'),
-              onTap: () => Navigator.pop(context, ImageOrigin.gallery),
-            ),
-          ],
-        ),
-      ),
+    final origin = await pickImageOrigin(
+      context,
+      cameraLabel: 'Fotografiar comprobante',
+      cameraIcon: Icons.document_scanner_outlined,
     );
     if (origin == null || !context.mounted) return;
     try {

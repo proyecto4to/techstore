@@ -44,7 +44,17 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             onChanged: _busy
                 ? (_) {}
                 : (value) {
-                    if (value != null) setState(() => _delivery = value);
+                    if (value != null) {
+                      setState(() {
+                        _delivery = value;
+                        if (_delivery && _payment == 'PAGO_EN_LOCAL') {
+                          _payment = 'PAGO_EFECTIVO_REPARTIDOR';
+                        } else if (!_delivery &&
+                            _payment == 'PAGO_EFECTIVO_REPARTIDOR') {
+                          _payment = 'PAGO_EN_LOCAL';
+                        }
+                      });
+                    }
                   },
             child: const Column(
               children: [
@@ -100,19 +110,28 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           const SizedBox(height: 20),
           Text('Pago', style: Theme.of(context).textTheme.titleLarge),
           DropdownButtonFormField<String>(
+            key: ValueKey('payment-$_delivery'),
             initialValue: _payment,
             decoration: const InputDecoration(labelText: 'Método de pago'),
-            items: const [
-              DropdownMenuItem(
-                value: 'PAGO_EN_LOCAL',
-                child: Text('Pago en el local'),
-              ),
+            items: [
+              if (!_delivery)
+                const DropdownMenuItem(
+                  value: 'PAGO_EN_LOCAL',
+                  child: Text('Pago en el local'),
+                ),
+              if (_delivery)
+                const DropdownMenuItem(
+                  value: 'PAGO_EFECTIVO_REPARTIDOR',
+                  child: Text('Efectivo al repartidor'),
+                ),
               DropdownMenuItem(
                 value: 'TRANSFERENCIA_BANCARIA',
                 child: Text('Transferencia bancaria'),
               ),
             ],
-            onChanged: (value) => setState(() => _payment = value!),
+            onChanged: _busy
+                ? null
+                : (value) => setState(() => _payment = value!),
           ),
           const SizedBox(height: 16),
           TextField(

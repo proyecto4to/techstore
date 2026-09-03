@@ -39,13 +39,14 @@ AVANCE GLOBAL: 22/22 fases COMPLETED (100%)
 
 ### Entrega privada cerrada
 
-- APK: `artifacts/mobile/private/TechStore-Private-1.0.2+3.apk`.
-- SHA-256: `ff30bd3958ca11f821718a2c6e4f3793b1a4ddc6e549354e716e3386e69641b2`.
+- APK: `artifacts/mobile/private/TechStore-Private-1.0.7+8.apk`.
+- SHA-256: `ec80ab0489612052d5652a84e39275158983362d2fac2c0240ef7196010b2587`.
 - Package: `py.com.techstore.app.private`.
 - Backend LAN: `http://192.168.100.8:8090`.
-- Dispositivo validado: Xiaomi Redmi Note 8 Pro, Android 11.
+- Dispositivos validados: Xiaomi Redmi Note 8 Pro, Android 11; Motorola moto g42, Android 13.
 - Preflight: `PRIVATE_RELEASE_READY=True BLOCKED=0`.
 - Módulo Facturas: lista paginada, detalle, PDF (abrir/compartir/imprimir), deep link y refresco en tiempo real; clientes limitados en backend a sus documentos.
+- Login Mobile: fondo gráfico original de TechStore, contraste adaptado y formulario responsive accesible.
 
 ## BLOQUEOS
 
@@ -63,16 +64,18 @@ AVANCE GLOBAL: 22/22 fases COMPLETED (100%)
 - El navegador integrado no estuvo disponible (`[]`); React quedó cubierto por lint, 14 tests, build e integración REST/STOMP.
 - La APK usa la IP LAN `192.168.100.8`; conviene reservarla en el router.
 - El build registra `gitDirty=true`; el artefacto es verificable por hash, pero se recomienda crear un commit de release cuando el usuario lo autorice.
-- La versión `1.0.2+3` no se instaló físicamente en esta sesión porque ADB no detectó el teléfono; la actualización anterior `1.0.0+1` → `1.0.1+2` sí quedó validada en el mismo dispositivo y usa el mismo certificado.
+- La versión `1.0.7+8` quedó instalada físicamente en el Motorola moto g42 y convive con la aplicación GeneXus gracias a sus identificadores de paquete distintos.
 
 ## ÚLTIMAS PRUEBAS
 
 - Backend: suite completa y pruebas nuevas de acceso a facturas por propietario, 0 fallos.
 - Web: lint + 14/14 tests + build, 0 fallos.
-- Flutter: analyze limpio + 22 tests ejecutados; 2 E2E condicionados omitidos sin su ambiente externo.
+- Flutter: analyze limpio + 23 tests aprobados; 2 E2E condicionados omitidos sin su ambiente externo.
 - OpenAPI: 102 rutas / 125 operaciones válido; Mobile sin discrepancias.
 - APK privada: archivo y firma verificados, certificado no-debug, escaneo sin incidencias.
-- APK `1.0.2+3`: build release ofuscado, firma y seguridad PASS; backend LAN actualizado y `UP`.
+- APK `1.0.7+8`: build release ofuscado, firma y seguridad PASS; configurada para el backend LAN vigente.
+- APK `1.0.7+8` en Motorola moto g42: instalación ADB, arranque en frío, catálogo público, detalle e imagen real de producto, PASS; sin ANR ni errores fatales.
+- Imágenes del catálogo: `37/37` rutas responden HTTP 200 con contenido `image/*`; las 33 fotos empaquetadas y las 4 subidas fueron verificadas desde la LAN, y Flutter mostró correctamente una ruta antes bloqueada.
 - Instalación `1.0.0+1` y actualización `1.0.1+2` sin desinstalar: PASS.
 - Registro/login, catálogo, carrito, sesión y segundo plano: PASS.
 - Offline con caché, banner y reconexión: PASS después de corregir el sondeo del backend.
@@ -82,7 +85,7 @@ AVANCE GLOBAL: 22/22 fases COMPLETED (100%)
 
 ## SIGUIENTE ACCIÓN
 
-- Conectar el Android por USB y actualizar con `adb install -r "artifacts/mobile/private/TechStore-Private-1.0.2+3.apk"`, o copiar y abrir el APK desde el dispositivo.
+- Ninguna para la entrega privada actual; mantener el teléfono en la misma red que `192.168.100.8:8090` mientras el backend sea local.
 
 ## CONTROL DE FASES
 

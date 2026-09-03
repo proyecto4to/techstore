@@ -1,16 +1,19 @@
 enum AppRole {
   admin,
   cashier,
-  customer;
+  customer,
+  courier;
 
   factory AppRole.fromBackend(String role) => switch (role.toLowerCase()) {
     'admin' => AppRole.admin,
     'cajero' => AppRole.cashier,
+    'repartidor' => AppRole.courier,
     _ => AppRole.customer,
   };
 
   bool get canOperateStore => this == admin || this == cashier;
   bool get canAdminister => this == admin;
+  bool get isCourier => this == courier;
 }
 
 final class AuthUser {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/application/session_controller.dart';
+import '../features/courier/presentation/courier_dashboard_page.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({required this.environmentLabel, super.key});
@@ -12,6 +13,7 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authSessionProvider).user!;
+    if (user.role.isCourier) return const CourierDashboardPage();
     final modules = <_ModuleCard>[
       _ModuleCard(
         icon: Icons.storefront_outlined,

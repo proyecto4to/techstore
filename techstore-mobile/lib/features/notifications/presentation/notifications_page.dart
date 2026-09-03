@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../app/deep_links.dart';
 import '../../../core/di/providers.dart';
 
 final notificationsProvider = FutureProvider.autoDispose((ref) async {
@@ -76,16 +78,30 @@ class NotificationsPage extends ConsumerWidget {
                           ? null
                           : Theme.of(context).colorScheme.primaryContainer
                                 .withValues(alpha: .35),
-                      onTap: read
-                          ? null
-                          : () async {
-                              await ref
-                                  .read(apiClientProvider)
-                                  .put<void>(
-                                    '/api/v1/notificaciones/${item['id']}/leida',
-                                  );
-                              ref.invalidate(notificationsProvider);
-                            },
+                      // Cada aviso trae el enlace de la pantalla que lo
+                      // originó; antes se descartaba y la fila quedaba muerta
+                      // una vez leída.
+                      onTap: () async {
+                        if (!read) {
+                          await ref
+                              .read(apiClientProvider)
+                              .put<void>(
+                                '/api/v1/notificaciones/${item['id']}/leida',
+                              );
+                          ref.invalidate(notificationsProvider);
+                        }
+                        final enlace = item['deepLink']?.toString();
+                        final destino = enlace == null || enlace.isEmpty
+                            ? null
+                            : rutaDeEnlaceTechstore(Uri.parse(enlace));
+                        // El aviso genérico apunta al propio centro: no
+                        // tiene sentido apilarlo sobre sí mismo.
+                        if (destino != null &&
+                            destino != '/notifications' &&
+                            context.mounted) {
+                          await context.push<void>(destino);
+                        }
+                      },
                     );
                   },
                 ),

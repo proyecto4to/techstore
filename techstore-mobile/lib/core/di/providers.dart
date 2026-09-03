@@ -9,13 +9,17 @@ import '../database/app_database.dart';
 import '../logging/app_logger.dart';
 import '../native/biometric_service.dart';
 import '../native/document_service.dart';
+import '../native/haptics_service.dart';
 import '../native/image_upload_service.dart';
+import '../native/voice_input_service.dart';
 import '../network/api_client.dart';
 import '../network/connectivity_service.dart';
 import '../offline/offline_queue_service.dart';
 import '../push/push_service.dart';
 import '../storage/secure_store.dart';
+import '../update/apk_installer.dart';
 import '../update/app_update_service.dart';
+import '../update/self_hosted_updater.dart';
 
 final environmentProvider = Provider<AppEnvironment>((ref) {
   throw StateError('AppEnvironment no fue configurado en bootstrap');
@@ -67,6 +71,16 @@ final appUpdateServiceProvider = Provider<AppUpdateService>(
   ),
 );
 
+/// Actualización cuando el APK lo publica el propio servidor. Convive con el
+/// camino de Google Play: la política que devuelve el backend decide cuál usar.
+final selfHostedUpdaterProvider = Provider<SelfHostedUpdater>(
+  (ref) => SelfHostedUpdater(
+    ref.watch(apiClientProvider),
+    const AndroidApkInstaller(),
+    ref.watch(loggerProvider),
+  ),
+);
+
 final biometricServiceProvider = Provider<BiometricService>(
   (ref) => BiometricService(ref.watch(secureStoreProvider)),
 );
@@ -86,5 +100,15 @@ final pushServiceProvider = Provider<PushService>((ref) {
     ref.watch(loggerProvider),
   );
   ref.onDispose(() => unawaited(service.dispose()));
+  return service;
+});
+
+final hapticsServiceProvider = Provider<HapticsService>(
+  (ref) => HapticsService(ref.watch(secureStoreProvider)),
+);
+
+final voiceInputServiceProvider = Provider<VoiceInputService>((ref) {
+  final service = VoiceInputService(ref.watch(loggerProvider));
+  ref.onDispose(() => unawaited(service.cancel()));
   return service;
 });

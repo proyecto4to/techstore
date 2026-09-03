@@ -5,15 +5,26 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
-    <!-- Plugins multimedia pueden declarar acceso a audio/video; TechStore
-         solo selecciona imágenes y no debe conservar permisos innecesarios. -->
+    <!-- Dictado por voz: el motor del sistema procesa el audio y solo devuelve
+         texto. TechStore no graba, no guarda ni sube audio. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Plugins multimedia pueden declarar acceso a archivos de audio/video;
+         TechStore solo selecciona imágenes y no debe conservar permisos
+         innecesarios. -->
     <uses-permission
         android:name="android.permission.READ_MEDIA_AUDIO"
         tools:node="remove" />
     <uses-permission
         android:name="android.permission.READ_MEDIA_VIDEO"
         tools:node="remove" />
+    <!-- Actualización desde la propia app. Android igual pide confirmación al
+         usuario en su instalador; este permiso solo habilita a TechStore como
+         origen, y hay que concederlo a mano desde los ajustes del sistema. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
@@ -57,12 +68,28 @@
                 <data android:scheme="techstore" android:host="pedido" />
                 <data android:scheme="techstore" android:host="factura" />
                 <data android:scheme="techstore" android:host="notificaciones" />
+                <data android:scheme="techstore" android:host="reparto" />
+                <data android:scheme="techstore" android:host="transferencia" />
+                <data android:scheme="techstore" android:host="vehiculo" />
+                <data android:scheme="techstore" android:host="chat" />
             </intent-filter>
         </activity>
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
             android:screenOrientation="portrait"
             android:theme="@style/Ucrop.CropTheme" />
+        <!-- Entrega el APK descargado al instalador de Android. Desde Nougat no
+             se puede pasar un file:// entre aplicaciones; la autoridad lleva el
+             applicationId para no chocar con la de los plugins ni entre sabores. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/rutas_actualizacion" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
@@ -78,6 +105,11 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Visibilidad del motor de reconocimiento de voz en Android 11+;
+             sin esto el dictado no encuentra el servicio del sistema. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 </manifest>

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/app_failure.dart';
 import '../application/session_controller.dart';
@@ -106,12 +107,15 @@ class PasswordResetPage extends ConsumerStatefulWidget {
 
 class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
   final _password = TextEditingController();
+  final _confirmation = TextEditingController();
   bool _sending = false;
+  bool _completed = false;
   String? _message;
 
   @override
   void dispose() {
     _password.dispose();
+    _confirmation.dispose();
     super.dispose();
   }
 
@@ -128,26 +132,57 @@ class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: _password,
-                  obscureText: true,
-                  autofillHints: const [AutofillHints.newPassword],
-                  decoration: const InputDecoration(
-                    labelText: 'Nueva contraseña',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Mínimo 8 caracteres, con mayúscula, minúscula y número.',
-                ),
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: _sending || widget.token.isEmpty ? null : _reset,
-                  child: Text(_sending ? 'Guardando…' : 'Cambiar contraseña'),
-                ),
-                if (_message != null) ...[
+                if (_completed) ...[
+                  const Icon(Icons.check_circle_outline, size: 56),
                   const SizedBox(height: 16),
-                  Text(_message!, textAlign: TextAlign.center),
+                  const Text(
+                    'Contraseña actualizada. Las sesiones anteriores fueron revocadas.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: () => context.go('/login'),
+                    child: const Text('Iniciar sesión'),
+                  ),
+                ] else ...[
+                  if (widget.token.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        'El enlace no contiene un token válido.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  TextField(
+                    controller: _password,
+                    obscureText: true,
+                    autofillHints: const [AutofillHints.newPassword],
+                    decoration: const InputDecoration(
+                      labelText: 'Nueva contraseña',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _confirmation,
+                    obscureText: true,
+                    autofillHints: const [AutofillHints.newPassword],
+                    decoration: const InputDecoration(
+                      labelText: 'Confirmar contraseña',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Mínimo 8 caracteres, con mayúscula, minúscula y número.',
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: _sending || widget.token.isEmpty ? null : _reset,
+                    child: Text(_sending ? 'Guardando…' : 'Cambiar contraseña'),
+                  ),
+                  if (_message != null) ...[
+                    const SizedBox(height: 16),
+                    Text(_message!, textAlign: TextAlign.center),
+                  ],
                 ],
               ],
             ),
@@ -168,15 +203,22 @@ class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
       setState(() => _message = 'La contraseña no cumple los requisitos.');
       return;
     }
+    if (password != _confirmation.text) {
+      setState(() => _message = 'Las contraseñas no coinciden.');
+      return;
+    }
     setState(() => _sending = true);
     try {
       await ref
           .read(authRepositoryProvider)
           .resetPassword(token: widget.token, password: password);
       if (mounted) {
-        setState(
-          () => _message = 'Contraseña actualizada. Ya podés iniciar sesión.',
-        );
+        setState(() {
+          _completed = true;
+          _message = null;
+        });
+        _password.clear();
+        _confirmation.clear();
       }
     } on AppFailure catch (failure) {
       if (mounted) setState(() => _message = failure.message);

@@ -62,7 +62,27 @@ function Detener-ProcesoRegistrado($nombre, $tipo) {
     Remove-Item -LiteralPath $archivoPid -Force -ErrorAction SilentlyContinue
 }
 
+# El tunel se cierra primero: mientras siga abierto estaria publicando en
+# internet un backend que ya se esta apagando. Igual que con el resto, solo se
+# toca el proceso propio: un ngrok que el usuario tenga abierto para otra cosa
+# no se mata.
+function Detener-Tunel {
+    $procesos = Get-Process ngrok -ErrorAction SilentlyContinue
+    if ($null -eq $procesos) { return }
+    foreach ($proceso in $procesos) {
+        try {
+            $cim = Get-CimInstance Win32_Process -Filter "ProcessId = $($proceso.Id)" -ErrorAction Stop
+            if ([string]$cim.CommandLine -notmatch 'http\s+8090') { continue }
+        } catch {
+            continue
+        }
+        Write-Host "  Cerrando tunel publico (PID $($proceso.Id))..."
+        Stop-Process -Id $proceso.Id -Force -ErrorAction SilentlyContinue
+    }
+}
+
 Write-Host 'Deteniendo TechStore...'
+Detener-Tunel
 Detener-ProcesoRegistrado 'frontend' 'frontend'
 Detener-ProcesoRegistrado 'backend' 'backend'
 

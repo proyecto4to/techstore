@@ -20,11 +20,16 @@ import '../features/catalog/presentation/favorites_page.dart';
 import '../features/chat/presentation/chat_page.dart';
 import '../features/checkout/presentation/address_page.dart';
 import '../features/checkout/presentation/checkout_page.dart';
+import '../features/courier/presentation/courier_cash_page.dart';
+import '../features/courier/presentation/courier_deliveries_page.dart';
+import '../features/courier/presentation/courier_route_page.dart';
+import '../features/courier/presentation/courier_vehicles_page.dart';
 import '../features/invoices/presentation/invoices_page.dart';
 import '../features/notifications/presentation/notifications_page.dart';
 import '../features/orders/presentation/orders_page.dart';
 import '../features/purchases/presentation/purchase_form_page.dart';
 import '../features/sales/presentation/direct_sale_page.dart';
+import 'deep_links.dart';
 import 'home_page.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -40,17 +45,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) {
       final auth = ref.read(authSessionProvider);
-      if (state.uri.scheme == 'techstore') {
-        final id = state.uri.pathSegments.firstOrNull;
-        switch (state.uri.host) {
-          case 'pedido' when id != null:
-            return '/orders/$id';
-          case 'factura':
-            return id == null ? '/invoices' : '/invoices/$id';
-          case 'notificaciones':
-            return '/notifications';
-        }
-      }
+      final destinoEnlace = rutaDeEnlaceTechstore(state.uri);
+      if (destinoEnlace != null) return destinoEnlace;
       final path = state.uri.path;
       if (auth.isBusy) return path == '/splash' ? null : '/splash';
 
@@ -72,9 +68,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (authPath || path == '/splash') {
         return state.uri.queryParameters['returnTo'] ?? '/';
       }
+      if (auth.user!.role.isCourier &&
+          path != '/' &&
+          path != '/account' &&
+          path != '/notifications' &&
+          !path.startsWith('/courier/')) {
+        return '/';
+      }
       if (path.startsWith('/admin') && !auth.user!.role.canAdminister) {
         return '/';
       }
+      if (path.startsWith('/courier') && !auth.user!.role.isCourier) return '/';
       if (path == '/documents' && !auth.user!.role.canAdminister) return '/';
       if ((path.startsWith('/operations') ||
               path.startsWith('/cash/') ||
@@ -161,6 +165,28 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationsPage(),
+      ),
+      GoRoute(
+        path: '/courier/deliveries',
+        builder: (context, state) => const CourierDeliveriesPage(),
+      ),
+      GoRoute(
+        path: '/courier/deliveries/:id',
+        builder: (context, state) => CourierDeliveryDetailPage(
+          assignmentId: int.parse(state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/courier/route',
+        builder: (context, state) => const CourierRoutePage(),
+      ),
+      GoRoute(
+        path: '/courier/cash',
+        builder: (context, state) => const CourierCashPage(),
+      ),
+      GoRoute(
+        path: '/courier/vehicles',
+        builder: (context, state) => const CourierVehiclesPage(),
       ),
       GoRoute(path: '/chat', builder: (context, state) => const ChatPage()),
       GoRoute(

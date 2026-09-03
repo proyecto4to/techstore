@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/di/providers.dart';
+import '../../../core/errors/app_failure.dart';
 import '../../../core/native/document_service.dart';
+import '../../../core/native/haptics_service.dart';
 import '../../checkout/application/checkout_providers.dart';
 
 class OrdersPage extends ConsumerWidget {
@@ -124,18 +126,11 @@ class OrderDetailPage extends ConsumerWidget {
               ),
               if (status == 'Pendiente' || status == 'PENDIENTE')
                 OutlinedButton.icon(
-                  onPressed: () async {
-                    await ref.read(ordersRepositoryProvider).cancel(orderId);
-                    ref.invalidate(orderProvider(orderId));
-                    ref.invalidate(ordersProvider);
-                  },
+                  onPressed: () => _cancel(context, ref),
                   icon: const Icon(Icons.cancel_outlined),
                   label: const Text('Cancelar pedido'),
                 ),
-              if (status != 'Pendiente' &&
-                  status != 'PENDIENTE' &&
-                  status != 'Cancelado' &&
-                  status != 'CANCELADO')
+              if (data['facturaDisponible'] == true)
                 FilledButton.tonalIcon(
                   onPressed: () => _invoice(context, ref),
                   icon: const Icon(Icons.picture_as_pdf_outlined),
@@ -146,6 +141,50 @@ class OrderDetailPage extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  /// Cancelar es irreversible: se confirma en pantalla, se valida la identidad
+  /// cuando el usuario activó la guarda biométrica y se avisa si el backend
+  /// rechaza la baja, en lugar de dejar la excepción sin manejar.
+  Future<void> _cancel(BuildContext context, WidgetRef ref) async {
+    final haptics = ref.read(hapticsServiceProvider);
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancelar pedido'),
+        content: Text('El pedido #$orderId se cancelará y no podrá reabrirse.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Volver'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cancelar pedido'),
+          ),
+        ],
+      ),
+    );
+    if (accepted != true) return;
+    final confirmed = await ref
+        .read(biometricServiceProvider)
+        .confirmOperation(reason: 'Confirmá la cancelación del pedido');
+    if (!confirmed) {
+      await haptics.play(HapticCue.error);
+      return;
+    }
+    try {
+      await ref.read(ordersRepositoryProvider).cancel(orderId);
+      await haptics.play(HapticCue.warning);
+      ref.invalidate(orderProvider(orderId));
+      ref.invalidate(ordersProvider);
+    } on AppFailure catch (failure) {
+      await haptics.play(HapticCue.error);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(failure.message)));
+      }
+    }
   }
 
   Future<void> _invoice(BuildContext context, WidgetRef ref) async {

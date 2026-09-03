@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
+import '../../../core/native/haptics_service.dart';
+import '../../../core/widgets/voice_dictation_button.dart';
 import '../../catalog/application/catalog_providers.dart';
 import '../../catalog/domain/product.dart';
 
@@ -50,17 +54,24 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
                       product.name.toLowerCase().contains(term),
                 );
               },
-              onSelected: (product) => setState(() {
-                final current = _items[product.id];
-                _items[product.id] = (product, (current?.$2 ?? 0) + 1);
-              }),
+              onSelected: (product) {
+                setState(() {
+                  final current = _items[product.id];
+                  _items[product.id] = (product, (current?.$2 ?? 0) + 1);
+                });
+                _cue(HapticCue.success);
+              },
               fieldViewBuilder: (context, controller, focusNode, onSubmitted) =>
                   TextField(
                     controller: controller,
                     focusNode: focusNode,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Buscar y agregar producto',
-                      prefixIcon: Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: VoiceDictationButton(
+                        controller: controller,
+                        tooltip: 'Buscar producto por voz',
+                      ),
                     ),
                   ),
             ),
@@ -120,20 +131,28 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
     );
   }
 
-  void _setQuantity(int id, int quantity) => setState(() {
-    if (quantity <= 0) {
-      _items.remove(id);
-    } else {
-      final product = _items[id]!.$1;
-      _items[id] = (product, quantity);
-    }
-  });
+  void _setQuantity(int id, int quantity) {
+    setState(() {
+      if (quantity <= 0) {
+        _items.remove(id);
+      } else {
+        final product = _items[id]!.$1;
+        _items[id] = (product, quantity);
+      }
+    });
+    _cue(HapticCue.tap);
+  }
+
+  void _cue(HapticCue cue) {
+    unawaited(ref.read(hapticsServiceProvider).play(cue));
+  }
 
   Future<void> _submit() async {
     final payments = <Map<String, Object?>>[];
     for (final line in _payments) {
       final amount = double.tryParse(line.amount.text.replaceAll(',', '.'));
       if (amount == null || amount <= 0) {
+        _cue(HapticCue.error);
         _message('Ingresá montos válidos para todos los pagos');
         return;
       }
@@ -143,6 +162,16 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
         if (line.reference.text.trim().isNotEmpty)
           'numeroComprobante': line.reference.text.trim(),
       });
+    }
+    final confirmed = await ref
+        .read(biometricServiceProvider)
+        .confirmOperation(
+          reason: 'Confirmá la venta por ${_total.toStringAsFixed(0)} PYG',
+        );
+    if (!confirmed) {
+      _cue(HapticCue.error);
+      _message('Venta cancelada: no se validó la identidad');
+      return;
     }
     setState(() => _busy = true);
     try {
@@ -163,9 +192,11 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
             },
           );
       _items.clear();
+      _cue(HapticCue.success);
       _message('Venta #${response.data?['numero']} registrada');
       setState(() {});
     } on AppFailure catch (failure) {
+      _cue(HapticCue.error);
       _message(failure.message);
     } finally {
       if (mounted) setState(() => _busy = false);

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Solo se comparte la carpeta donde se deja el APK descargado, dentro del
+    almacenamiento privado de la aplicación. No se expone nada más.
+-->
+<paths>
+    <cache-path
+        name="actualizaciones"
+        path="actualizaciones/" />
+</paths>

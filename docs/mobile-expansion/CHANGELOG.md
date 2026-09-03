@@ -1,5 +1,18 @@
 # CHANGELOG — MOBILE EXPANSION
 
+## 2026-08-30
+
+- Instalada y validada `TechStore-Private-1.0.7+8.apk` en un Motorola moto g42 con Android 13 mediante ADB; inicio, catálogo público, detalle e imagen real de producto cargaron desde `http://192.168.100.8:8090` sin ANR ni errores fatales.
+- Confirmada la convivencia de Flutter (`py.com.techstore.app.private`) y GeneXus (`com.genexus.techstoremobilegx.techstorelogin`) en el mismo dispositivo.
+- Corregidas las 33 fotos del catálogo que desde Mobile devolvían HTTP 401: los recursos reales y acreditados quedaron empaquetados en el backend y `/img/productos/**` se habilitó como lectura pública. Auditoría HTTP `37/37 PASS` y validación visual del Ryzen en el moto g42 aprobada.
+
+## 2026-08-26
+
+- Rediseñado el login Flutter con una ilustración vertical original de TechStore, gradiente de contraste, identidad visual y formulario responsive sobre tarjeta translúcida.
+- Conservados los flujos de acceso, recuperación, catálogo público y registro; añadida cobertura automática para verificar la carga del fondo.
+- Regresión Flutter aprobada: analyzer sin incidencias y 23 pruebas exitosas; 2 E2E condicionadas omitidas al no contar con sus servicios externos.
+- Generada `TechStore-Private-1.0.7+8.apk` para `http://192.168.100.8:8090`; SHA-256 `ec80ab0489612052d5652a84e39275158983362d2fac2c0240ef7196010b2587`, firma release y escaneo de seguridad aprobados. Instalación física pendiente porque ADB no detectó el dispositivo.
+
 ## 2026-08-24
 
 - Reemplazada la vista técnica genérica de Facturas en Flutter por un módulo nativo con lista paginada, estados, receptor, importes, detalle y PDF para abrir, compartir o imprimir.
