@@ -1,14 +1,27 @@
 import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Menu, X, ShoppingCart } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Menu, X, ShoppingCart, Bell } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useCartStore, selectTotalItems } from '../../store/cartStore'
+import { notificacionService } from '../../services/notificacionService'
 
 function Navbar() {
   const { usuario, logout } = useAuthStore()
   const totalItems = useCartStore(selectTotalItems)
   const [abierto, setAbierto] = useState(false)
   const navigate = useNavigate()
+
+  // El contador se refresca solo cada minuto: los avisos que importan —una
+  // avería, una transferencia esperando al cajero— no pueden quedar esperando
+  // a que alguien recargue la página.
+  const { data: pendientes } = useQuery({
+    queryKey: ['notificaciones-no-leidas'],
+    queryFn: notificacionService.noLeidas,
+    enabled: Boolean(usuario),
+    refetchInterval: 60_000,
+  })
+  const sinLeer = pendientes?.noLeidas ?? 0
 
   const handleLogout = () => {
     logout()
@@ -42,6 +55,22 @@ function Navbar() {
       {usuario && (
         <NavLink to="/pedidos" className={linkClase} onClick={() => setAbierto(false)}>
           Mis pedidos
+        </NavLink>
+      )}
+      {usuario && (
+        <NavLink to="/notificaciones" className={linkClase} onClick={() => setAbierto(false)}>
+          <span className="relative inline-flex items-center gap-1">
+            <Bell size={16} />
+            Avisos
+            {sinLeer > 0 && (
+              <span
+                className="absolute -right-4 -top-2 rounded-full bg-accent-400 px-1.5 text-xs font-bold text-dark-bg"
+                aria-label={`${sinLeer} sin leer`}
+              >
+                {sinLeer > 99 ? '99+' : sinLeer}
+              </span>
+            )}
+          </span>
         </NavLink>
       )}
       {(usuario?.rol === 'Admin' || usuario?.rol === 'Cajero') && (

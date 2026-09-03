@@ -15,6 +15,7 @@ const ESTILO_ROL = {
   Admin: 'bg-secondary-400/20 text-secondary-400',
   Cajero: 'bg-accent-400/20 text-accent-400',
   Cliente: 'bg-primary-400/20 text-primary-300',
+  Repartidor: 'bg-emerald-400/20 text-emerald-300',
 }
 
 function AdminUsuariosPage() {
@@ -168,6 +169,7 @@ function AdminUsuariosPage() {
             <option value="Cajero">Cajero</option>
             <option value="Admin">Admin</option>
             <option value="Cliente">Cliente</option>
+            <option value="Repartidor">Repartidor</option>
           </select>
         </div>
 

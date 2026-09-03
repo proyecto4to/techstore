@@ -9,6 +9,8 @@ const tabs = [
   { to: '/admin/productos', label: 'Productos', soloAdmin: true },
   { to: '/admin/facturas', label: 'Facturas' },
   { to: '/admin/caja', label: 'Caja' },
+  { to: '/admin/solicitudes', label: 'Solicitudes', soloCajero: true },
+  { to: '/admin/vehiculos', label: 'Vehículos', soloAdmin: true },
   { to: '/admin/usuarios', label: 'Usuarios', soloAdmin: true },
   { to: '/admin/empresa', label: 'Empresa', soloAdmin: true },
   { to: '/admin/correos', label: 'Correos' },
@@ -20,7 +22,11 @@ const tabs = [
 
 function AdminTabs() {
   const { usuario } = useAuthStore()
-  const visibles = tabs.filter((tab) => !tab.soloAdmin || usuario?.rol === 'Admin')
+  const visibles = tabs.filter(
+    (tab) =>
+      (!tab.soloAdmin || usuario?.rol === 'Admin') &&
+      (!tab.soloCajero || usuario?.rol === 'Cajero'),
+  )
   return (
     <div className="mb-6 flex flex-wrap gap-2 border-b border-dark-border pb-2">
       {visibles.map((tab) => (

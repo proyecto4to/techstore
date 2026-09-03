@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { KeyRound, Receipt } from 'lucide-react'
 import { usuarioService } from '../services/usuarioService'
 import { useAuthStore } from '../store/authStore'
+import { passwordValida, passwordsCoinciden } from '../utils/password'
 
 function CuentaPage() {
   const { usuario, setUsuario } = useAuthStore()
@@ -45,8 +46,12 @@ function CuentaPage() {
     e.preventDefault()
     setMensaje(null)
     setError(null)
-    if (form.nueva !== form.confirmar) {
+    if (!passwordsCoinciden(form.nueva, form.confirmar)) {
       setError('Las contraseñas nuevas no coinciden')
+      return
+    }
+    if (!passwordValida(form.nueva)) {
+      setError('Usá al menos 8 caracteres, con mayúscula, minúscula y número.')
       return
     }
     setGuardando(true)
@@ -131,7 +136,7 @@ function CuentaPage() {
 
         <div>
           <label className="mb-2 block text-sm font-medium text-neutral-text" htmlFor="nueva">
-            Contraseña nueva (mínimo 8 caracteres)
+            Contraseña nueva (mayúscula, minúscula y número)
           </label>
           <input id="nueva" type="password" required minLength={8} autoComplete="new-password"
             value={form.nueva} onChange={(e) => setForm({ ...form, nueva: e.target.value })} className="input" />

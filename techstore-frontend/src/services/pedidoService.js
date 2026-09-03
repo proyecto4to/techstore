@@ -1,10 +1,14 @@
 import api from './api'
 
 export const pedidoService = {
-  async checkout(items, notas, idempotencyKey) {
+  async checkout(items, notas, idempotencyKey, opciones = {}) {
     const { data } = await api.post('/pedidos', {
       items: items.map(({ producto, cantidad }) => ({ productoId: producto.id, cantidad })),
       notas: notas || null,
+      metodoEntrega: opciones.metodoEntrega ?? 'RETIRO_TIENDA',
+      metodoPago: opciones.metodoPago ?? 'PAGO_EN_LOCAL',
+      direccionEntregaId: opciones.direccionEntregaId ?? null,
+      tarifaEnvioId: opciones.tarifaEnvioId ?? null,
     }, {
       headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     })

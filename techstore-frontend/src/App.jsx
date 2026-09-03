@@ -26,7 +26,14 @@ const AdminEmpresaPage = lazy(() => import('./pages/AdminEmpresaPage'))
 const AdminCorreosPage = lazy(() => import('./pages/AdminCorreosPage'))
 const AdminAuditoriaPage = lazy(() => import('./pages/AdminAuditoriaPage'))
 const AdminMensajesPage = lazy(() => import('./pages/AdminMensajesPage'))
+const AdminVehiculosPage = lazy(() => import('./pages/AdminVehiculosPage'))
+const AdminSolicitudesPage = lazy(() => import('./pages/AdminSolicitudesPage'))
 const CuentaPage = lazy(() => import('./pages/CuentaPage'))
+const NotificacionesPage = lazy(() => import('./pages/NotificacionesPage'))
+const PasswordRecoveryPage = lazy(() => import('./pages/PasswordRecoveryPage'))
+const PasswordResetPage = lazy(() =>
+  import('./pages/PasswordRecoveryPage').then((module) => ({ default: module.PasswordResetPage })),
+)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,6 +55,8 @@ function App() {
               <Route path="/productos/:id" element={<ProductoDetallePage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/registro" element={<RegisterPage />} />
+              <Route path="/password/forgot" element={<PasswordRecoveryPage />} />
+              <Route path="/password/reset" element={<PasswordResetPage />} />
               <Route path="/carrito" element={<CartPage />} />
               <Route
                 path="/pedidos"
@@ -138,6 +147,14 @@ function App() {
                 }
               />
               <Route
+                path="/notificaciones"
+                element={
+                  <ProtectedRoute>
+                    <NotificacionesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/admin/reportes"
                 element={
                   <ProtectedRoute roles={['Admin', 'Cajero']}>
@@ -174,6 +191,22 @@ function App() {
                 element={
                   <ProtectedRoute rol="Admin">
                     <AdminAuditoriaPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/vehiculos"
+                element={
+                  <ProtectedRoute rol="Admin">
+                    <AdminVehiculosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/solicitudes"
+                element={
+                  <ProtectedRoute rol="Cajero">
+                    <AdminSolicitudesPage />
                   </ProtectedRoute>
                 }
               />

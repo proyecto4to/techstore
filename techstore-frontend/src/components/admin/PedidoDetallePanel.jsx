@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { pedidoService } from '../../services/pedidoService'
 import { formatPrecio } from '../../utils/format'
+import AsignacionRepartoPanel from './AsignacionRepartoPanel'
 
 /**
  * Panel expandible con los items de un pedido (para las tablas del admin).
@@ -57,6 +58,7 @@ function PedidoDetallePanel({ pedidoId }) {
           </tr>
         </tfoot>
       </table>
+      <AsignacionRepartoPanel pedido={pedido} />
     </div>
   )
 }
