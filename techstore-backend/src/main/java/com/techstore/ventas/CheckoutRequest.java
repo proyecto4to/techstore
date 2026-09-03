@@ -16,6 +16,20 @@ public record CheckoutRequest(
         MetodoPagoCheckout metodoPago,
         Long tarifaEnvioId) {
 
+    /**
+     * GeneXus serializa los identificadores numéricos opcionales vacíos como
+     * cero. En la API, cero representa la ausencia del identificador porque
+     * todos los IDs persistidos son positivos.
+     */
+    public CheckoutRequest {
+        if (Long.valueOf(0L).equals(direccionEntregaId)) {
+            direccionEntregaId = null;
+        }
+        if (Long.valueOf(0L).equals(tarifaEnvioId)) {
+            tarifaEnvioId = null;
+        }
+    }
+
     /** Mantiene compatibles a los clientes web anteriores a la libreta móvil. */
     public CheckoutRequest(List<ItemCarrito> items, String notas) {
         this(items, notas, null, null, null, null);

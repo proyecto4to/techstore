@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -36,6 +37,13 @@ class CatalogoPublicoIT {
     private MockMvc mvc;
 
     private final ObjectMapper json = new ObjectMapper();
+
+    @Test
+    void sirveLasFotosEmpaquetadasDelCatalogoSinAutenticacion() throws Exception {
+        mvc.perform(get("/img/productos/cpu.jpg"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.IMAGE_JPEG));
+    }
 
     @Test
     void noFiltraDatosInternosYPermiteGestionarMisFavoritos() throws Exception {

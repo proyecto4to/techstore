@@ -40,6 +40,9 @@ public class SecurityConfig {
                                 "/api/v1/auth/password/forgot",
                                 "/api/v1/auth/password/reset",
                                 "/api/v1/app/version",
+                                // El APK se descarga sin sesión: una actualización
+                                // obligatoria debe poder aplicarse antes de iniciarla.
+                                "/api/v1/app/download",
                                 "/ws",
                                 "/ws/**",
                                 "/swagger-ui.html",
@@ -54,8 +57,9 @@ public class SecurityConfig {
                         // Un visitante puede armar carrito; validar no reserva ni modifica stock.
                         .requestMatchers(HttpMethod.POST, "/api/v1/carrito/validar")
                         .permitAll()
-                        // Fotos de producto subidas: deben verse en la tienda sin login.
-                        .requestMatchers(HttpMethod.GET, "/uploads/productos/**")
+                        // Fotos del catálogo, tanto empaquetadas como subidas por Admin:
+                        // deben verse en la tienda y en la app móvil sin iniciar sesión.
+                        .requestMatchers(HttpMethod.GET, "/img/productos/**", "/uploads/productos/**")
                         .permitAll()
                         // El resto de actuator (metrics, info) expone datos internos:
                         // cualquier usuario autenticado no debería verlos, solo Admin.

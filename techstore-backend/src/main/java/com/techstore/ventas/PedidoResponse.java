@@ -20,6 +20,7 @@ public record PedidoResponse(
         String metodoPago,
         DireccionResponse direccionEntrega,
         String usuarioEmail,
+        Boolean facturaDisponible,
         List<DetalleResponse> detalles) {
 
     public record DireccionResponse(

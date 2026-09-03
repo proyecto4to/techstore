@@ -108,7 +108,19 @@ public class NotificationOutboxDispatcher {
             case PEDIDO_PREPARADO, ENVIO_DESPACHADO, ENVIO_EN_CAMINO, ENVIO_ENTREGADO ->
                     shippingContent(event, requireEnvio(payload.envioId()), payload);
             case MENSAJE_NUEVO -> messageContent(requireMensaje(payload.mensajeId()), payload);
+            case REPARTO_ASIGNADO, REPARTO_REASIGNADO, REPARTO_ACTUALIZADO,
+                    TRANSFERENCIA_SOLICITADA, TRANSFERENCIA_ACEPTADA, TRANSFERENCIA_RECHAZADA,
+                    VEHICULO_ASIGNADO, VEHICULO_PROBLEMA -> operationContent(event, payload);
         };
+    }
+
+    private Content operationContent(NotificationEventType event, NotificationPayload payload) {
+        Usuario user = requireUser(payload.recipientUserId());
+        String title = payload.titulo() == null ? "Actualización de TechStore" : payload.titulo();
+        String message = payload.mensaje() == null ? event.name() : payload.mensaje();
+        String deepLink = payload.deepLink() == null ? "techstore://notificaciones" : payload.deepLink();
+        return base(user, title, message, null, title + " — TechStore", title, message,
+                null, null, deepLink);
     }
 
     private Content orderContent(NotificationEventType event, Pedido pedido, NotificationPayload payload) {
@@ -230,6 +242,9 @@ public class NotificationOutboxDispatcher {
             case PAGO_CONFIRMADO -> TipoCorreo.FACTURA;
             case PEDIDO_PREPARADO, ENVIO_DESPACHADO, ENVIO_EN_CAMINO, ENVIO_ENTREGADO -> TipoCorreo.ENVIO;
             case MENSAJE_NUEVO -> TipoCorreo.MENSAJE;
+            case REPARTO_ASIGNADO, REPARTO_REASIGNADO, REPARTO_ACTUALIZADO,
+                    TRANSFERENCIA_SOLICITADA, TRANSFERENCIA_ACEPTADA, TRANSFERENCIA_RECHAZADA,
+                    VEHICULO_ASIGNADO, VEHICULO_PROBLEMA -> TipoCorreo.ESTADO_PEDIDO;
         };
     }
 

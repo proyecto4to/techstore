@@ -61,7 +61,7 @@ class MigracionesIT {
             }
         }
         assertTrue(fallidas.isEmpty(), "Migraciones fallidas: " + fallidas);
-        assertEquals(45, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
+        assertEquals(46, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
     }
 
     @Test
@@ -75,7 +75,11 @@ class MigracionesIT {
                 "proveedores", "configuracion", "correos",
                 "audit_log", "intento_login", "autonumerador", "sesiones_refresh", "favoritos",
                 "dispositivos_moviles", "notification_outbox", "notificaciones_usuario",
-                "domain_event_outbox");
+                "domain_event_outbox",
+                "vehiculos", "usos_vehiculo", "eventos_vehiculo",
+                "reparto_asignaciones", "reparto_historial", "cobros_repartidor",
+                "movimientos_caja_repartidor", "cierres_caja_repartidor",
+                "transferencias_repartidor_cajero");
 
         List<String> presentes = new ArrayList<>();
         try (Connection con = dataSource.getConnection();
@@ -318,9 +322,23 @@ class MigracionesIT {
     }
 
     @Test
+    @DisplayName("V46 deja el rol Repartidor y los candados de reparto, caja y flota")
+    void repartidoresVehiculosYCaja() throws SQLException {
+        assertEquals(1, contar("SELECT count(*) FROM roles WHERE nombre = 'Repartidor'"));
+        // Los índices parciales son lo que impide que la plata y las entregas se
+        // dupliquen: un pedido no puede estar en dos manos a la vez, un repartidor
+        // no puede tener dos vehículos en uso, y no se abre un cierre sobre otro
+        // todavía pendiente. Si una migración futura los pisa, esto avisa.
+        assertEquals(1, contar("SELECT count(*) FROM pg_indexes WHERE indexname = 'uk_reparto_pedido_activo'"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_indexes WHERE indexname = 'uk_uso_repartidor_activo'"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_indexes WHERE indexname = 'uk_cierre_rep_pendiente'"));
+        assertEquals(1, contar("SELECT count(*) FROM pg_indexes WHERE indexname = 'uk_mov_caja_rep_referencia'"));
+    }
+
+    @Test
     @DisplayName("los datos semilla quedaron cargados")
     void datosSemilla() throws SQLException {
-        assertEquals(3, contar("SELECT count(*) FROM roles"));
+        assertEquals(4, contar("SELECT count(*) FROM roles"));
         assertEquals(1, contar("SELECT count(*) FROM usuarios WHERE email = 'admin@techstore.py'"));
         assertTrue(contar("SELECT count(*) FROM productos") > 0, "El catálogo semilla quedó vacío");
     }

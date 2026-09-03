@@ -1,5 +1,6 @@
 package com.techstore.auditoria;
 
+import com.techstore.comun.FiltroOpcional;
 import com.techstore.comun.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -49,7 +50,7 @@ public class AuditoriaController {
         LocalDateTime fin = hasta == null ? null : hasta.plusDays(1).atStartOfDay();
 
         return PageResponse.from(auditLogRepository
-                .findAll(AuditLogSpecs.conFiltros(entidad, usuarioId, inicio, fin), pageable)
+                .findAll(AuditLogSpecs.conFiltros(entidad, FiltroOpcional.id(usuarioId), inicio, fin), pageable)
                 .map(AuditoriaResponse::from));
     }
 

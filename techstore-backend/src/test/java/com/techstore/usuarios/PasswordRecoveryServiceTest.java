@@ -119,6 +119,22 @@ class PasswordRecoveryServiceTest {
                 () -> service.completar(new CompletarRecuperacionRequest("invalido", "NuevaClave1")));
     }
 
+    @Test
+    void tokenVencidoEsRechazadoSinCambiarPassword() {
+        String rawToken = "token-vencido-de-prueba";
+        PasswordResetToken entity = new PasswordResetToken();
+        entity.setUsuario(usuario);
+        entity.setTokenHash(hash(rawToken));
+        entity.setExpiraEn(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).minusSeconds(1));
+        when(tokenRepository.buscarParaActualizar(hash(rawToken))).thenReturn(Optional.of(entity));
+
+        assertThrows(BusinessException.class,
+                () -> service.completar(new CompletarRecuperacionRequest(rawToken, "NuevaClave1")));
+
+        verify(passwordEncoder, never()).encode(anyString());
+        verify(refreshSessionService, never()).revocarTodas(any());
+    }
+
     private static String hash(String token) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

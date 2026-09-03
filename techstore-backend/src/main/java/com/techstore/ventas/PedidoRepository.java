@@ -5,7 +5,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -39,6 +41,11 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 
     @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario"})
     Optional<Pedido> findWithDetallesById(Long id);
+
+    @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario", "usuario.rol"})
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Pedido p where p.id = :id")
+    Optional<Pedido> findWithDetallesForUpdateById(@Param("id") Long id);
 
     @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario"})
     @Query("select p from Pedido p where p.usuario.id = :usuarioId and p.idempotencyKey = :clave")

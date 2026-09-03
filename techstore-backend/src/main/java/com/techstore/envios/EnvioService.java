@@ -10,6 +10,7 @@ import com.techstore.direcciones.DireccionEntrega;
 import com.techstore.direcciones.DireccionEntregaService;
 import com.techstore.notificaciones.outbox.NotificationEventType;
 import com.techstore.notificaciones.outbox.NotificationOutboxPublisher;
+import com.techstore.reparto.EstadoReparto;
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
 import com.techstore.ventas.MetodoEntrega;
@@ -100,6 +101,62 @@ public class EnvioService {
                 cambiarEstado(envio, EstadoEnvio.CANCELADO, "Pedido cancelado", null);
             }
         });
+    }
+
+    /** Mantiene el tracking existente sincronizado con el flujo del repartidor. */
+    @Transactional
+    public void reflejarReparto(Pedido pedido, EstadoReparto estado, String observacion) {
+        Envio envio = buscarPorPedido(pedido.getId());
+        String detalle = observacion == null || observacion.isBlank()
+                ? "Actualización del repartidor: " + estado.name()
+                : observacion.trim();
+        switch (estado) {
+            case ASIGNADO, ACEPTADO -> avanzarHastaListo(envio);
+            case EN_RUTA -> {
+                avanzarHastaListo(envio);
+                if (envio.getEstado() == EstadoEnvio.LISTO_PARA_ENVIO) {
+                    cambiarEstado(envio, EstadoEnvio.DESPACHADO, "El repartidor inició la entrega", null);
+                }
+                if (envio.getEstado() == EstadoEnvio.DESPACHADO) {
+                    cambiarEstado(envio, EstadoEnvio.EN_CAMINO, detalle, null);
+                }
+            }
+            case EN_DESTINO -> {
+                reflejarReparto(pedido, EstadoReparto.EN_RUTA, null);
+                if (envio.getEstado() == EstadoEnvio.EN_CAMINO) {
+                    agregarEvento(envio, EstadoEnvio.EN_CAMINO, detalle, null);
+                }
+            }
+            case ENTREGADO -> {
+                reflejarReparto(pedido, EstadoReparto.EN_RUTA, null);
+                if (envio.getEstado() == EstadoEnvio.EN_CAMINO
+                        || envio.getEstado() == EstadoEnvio.INTENTO_ENTREGA) {
+                    cambiarEstado(envio, EstadoEnvio.ENTREGADO, detalle, null);
+                }
+            }
+            case NO_ENTREGADO -> {
+                reflejarReparto(pedido, EstadoReparto.EN_RUTA, null);
+                if (envio.getEstado() == EstadoEnvio.EN_CAMINO) {
+                    cambiarEstado(envio, EstadoEnvio.INTENTO_ENTREGA, detalle, null);
+                }
+            }
+            case CANCELADO -> {
+                if (envio.getEstado() != EstadoEnvio.ENTREGADO
+                        && envio.getEstado() != EstadoEnvio.CANCELADO) {
+                    cambiarEstado(envio, EstadoEnvio.CANCELADO, detalle, null);
+                }
+            }
+        }
+        envioRepository.save(envio);
+    }
+
+    private void avanzarHastaListo(Envio envio) {
+        if (envio.getEstado() == EstadoEnvio.PENDIENTE) {
+            cambiarEstado(envio, EstadoEnvio.PREPARANDO, "Pedido confirmado; preparación iniciada", null);
+        }
+        if (envio.getEstado() == EstadoEnvio.PREPARANDO) {
+            cambiarEstado(envio, EstadoEnvio.LISTO_PARA_ENVIO, "Pedido listo para el repartidor", null);
+        }
     }
 
     @Transactional(readOnly = true)

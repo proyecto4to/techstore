@@ -77,7 +77,7 @@ public class PagoService {
      */
     @Transactional
     public PagoResponse registrarPago(Long pedidoId, RegistroPagoRequest request, String emailCajero) {
-        return registrarPago(pedidoId, request, emailCajero, PoliticaReceptor.CUENTA_DEL_CLIENTE);
+        return registrarPago(pedidoId, request, emailCajero, PoliticaReceptor.CUENTA_DEL_CLIENTE, true);
     }
 
     /**
@@ -88,14 +88,26 @@ public class PagoService {
     @Transactional
     public PagoResponse registrarPagoVentaDirecta(
             Long pedidoId, RegistroPagoRequest request, String emailCajero) {
-        return registrarPago(pedidoId, request, emailCajero, PoliticaReceptor.EXPLICITO);
+        return registrarPago(pedidoId, request, emailCajero, PoliticaReceptor.EXPLICITO, true);
+    }
+
+    /**
+     * Cobro en efectivo recibido durante una entrega. Emite el mismo pago y la
+     * misma factura que cualquier venta, pero el efectivo queda en la caja del
+     * repartidor; por eso no se acredita todavía en la caja general.
+     */
+    @Transactional
+    public PagoResponse registrarPagoRepartidor(Long pedidoId, String emailRepartidor) {
+        return registrarPago(pedidoId, null, emailRepartidor,
+                PoliticaReceptor.CUENTA_DEL_CLIENTE, false);
     }
 
     private PagoResponse registrarPago(
             Long pedidoId,
             RegistroPagoRequest request,
             String emailCajero,
-            PoliticaReceptor politicaReceptor) {
+            PoliticaReceptor politicaReceptor,
+            boolean registrarEnCajaGeneral) {
         Pedido pedido = pedidoRepository.findWithDetallesById(pedidoId)
                 .orElseThrow(() -> new ResourceNotFoundException("ventas.pedido.no.encontrado", pedidoId));
 
@@ -104,6 +116,11 @@ public class PagoService {
         }
         if (pagoRepository.existsByPedidoId(pedidoId)) {
             throw new BusinessException("facturacion.pedido.ya.cobrado", pedido.getNumero());
+        }
+
+        if (request == null) {
+            request = new RegistroPagoRequest(List.of(new RegistroPagoRequest.LineaPago(
+                    TipoPago.Efectivo, pedido.getTotal().monto(), null)), null);
         }
 
         validarLineas(request.lineas(), pedido.getTotal());
@@ -166,6 +183,9 @@ public class PagoService {
         // Un movimiento de caja por método, para que el arqueo distinga
         // el efectivo recibido de las transferencias.
         for (Pago pago : pagos) {
+            if (!registrarEnCajaGeneral) {
+                continue;
+            }
             // "FAC" adelante: las facturas y las notas de crédito comparten el
             // formato 001-001-NNNNNNN con numeradores independientes, así que
             // sin el prefijo dos movimientos sin relación entre sí terminaban
@@ -308,6 +328,7 @@ public class PagoService {
     private Factura facturaAutorizada(Long id, String emailSolicitante, boolean esStaff) {
         Factura factura = facturaRepository.findWithPedidoById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("facturacion.factura.no.encontrada", id));
+        exigirFacturaPagada(factura);
         if (!esStaff && !factura.getPedido().getUsuario().getEmail().equalsIgnoreCase(emailSolicitante)) {
             throw new AccessDeniedException("No puede consultar facturas de otro usuario");
         }
@@ -321,11 +342,22 @@ public class PagoService {
     public FacturaPdf generarPdfPorPedido(Long pedidoId, String emailSolicitante, boolean esAdminOCajero) {
         Factura factura = facturaRepository.findParaPdfByPedidoId(pedidoId)
                 .orElseThrow(() -> new BusinessException("facturacion.pedido.sin.factura"));
+        exigirFacturaPagada(factura);
         if (!esAdminOCajero && !factura.getPedido().getUsuario().getEmail().equals(emailSolicitante)) {
             throw new AccessDeniedException("No puede descargar facturas de otro usuario");
         }
         FacturaElectronicaService.Kude kude = facturaElectronicaService.generarKude(factura.getId());
         return new FacturaPdf(kude.numero(), kude.pdf());
+    }
+
+    private void exigirFacturaPagada(Factura factura) {
+        EstadoPedido estadoPedido = factura.getPedido().getEstado();
+        boolean pedidoPagado = estadoPedido == EstadoPedido.G || estadoPedido == EstadoPedido.N;
+        if (factura.getEstado() != EstadoFactura.Pagada
+                || !pedidoPagado
+                || !pagoRepository.existsByPedidoId(factura.getPedido().getId())) {
+            throw new BusinessException("facturacion.factura.solo.pedido.pagado");
+        }
     }
 
     /**

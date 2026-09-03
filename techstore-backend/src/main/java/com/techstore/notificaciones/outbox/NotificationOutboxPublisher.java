@@ -67,6 +67,15 @@ public class NotificationOutboxPublisher {
         }
     }
 
+    public void operacionUsuario(NotificationEventType tipo, String agregado, Long agregadoId,
+                                 Long destinatarioId, Long pedidoId, Long repartoId,
+                                 Long transferenciaId, Long vehiculoId,
+                                 String titulo, String mensaje, String deepLink) {
+        NotificationPayload payload = new NotificationPayload(destinatarioId, pedidoId, null, null,
+                null, null, repartoId, transferenciaId, vehiculoId, titulo, mensaje, deepLink);
+        publicarUsuario(tipo, agregado, agregadoId, payload);
+    }
+
     private void publicarUsuario(NotificationEventType tipo, String agregado, Long agregadoId,
                                  NotificationPayload payload) {
         publicar(tipo, OutboxChannel.EMAIL, agregado, agregadoId, payload);

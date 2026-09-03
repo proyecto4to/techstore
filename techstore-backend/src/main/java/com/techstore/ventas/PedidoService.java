@@ -99,6 +99,7 @@ public class PedidoService {
         if (metodoEntrega == MetodoEntrega.ENVIO_DOMICILIO && direccion == null) {
             throw new BusinessException("ventas.checkout.direccion.requerida");
         }
+        validarMedioPago(metodoEntrega, metodoPago);
 
         Map<Long, Producto> productos = productoRepository.findAllForUpdate(cantidades.keySet()).stream()
                 .collect(LinkedHashMap::new, (map, p) -> map.put(p.getId(), p), Map::putAll);
@@ -157,6 +158,17 @@ public class PedidoService {
         envioService.registrar(guardado, direccion, cotizacion);
         notificationPublisher.pedidoCreado(guardado);
         return pedidoMapper.toResponse(guardado);
+    }
+
+    private void validarMedioPago(MetodoEntrega entrega, MetodoPagoCheckout pago) {
+        if (entrega == MetodoEntrega.ENVIO_DOMICILIO
+                && pago == MetodoPagoCheckout.PAGO_EN_LOCAL) {
+            throw new BusinessException("ventas.checkout.pago.local.incompatible");
+        }
+        if (entrega == MetodoEntrega.RETIRO_TIENDA
+                && pago == MetodoPagoCheckout.PAGO_EFECTIVO_REPARTIDOR) {
+            throw new BusinessException("ventas.checkout.pago.repartidor.incompatible");
+        }
     }
 
     private String normalizarClave(String idempotencyKey) {

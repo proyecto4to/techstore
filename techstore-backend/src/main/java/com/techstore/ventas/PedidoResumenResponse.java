@@ -14,5 +14,6 @@ public record PedidoResumenResponse(
         String usuarioEmail,
         /** Datos fiscales del cliente, para prellenar el cobro con RUC. */
         String clienteRuc,
-        String clienteRazonSocial) {
+        String clienteRazonSocial,
+        Boolean facturaDisponible) {
 }

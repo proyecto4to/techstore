@@ -467,8 +467,11 @@ class PagoServiceTest {
     void clienteNoPuedeConsultarNiDescargarUnaFacturaAjena() {
         Factura factura = new Factura();
         pedido.setUsuario(cliente);
+        pedido.setEstado(EstadoPedido.G);
         factura.setPedido(pedido);
+        factura.setEstado(EstadoFactura.Pagada);
         when(facturaRepository.findWithPedidoById(33L)).thenReturn(Optional.of(factura));
+        when(pagoRepository.existsByPedidoId(pedido.getId())).thenReturn(true);
 
         assertThrows(AccessDeniedException.class,
                 () -> pagoService.obtenerFactura(33L, "otro@techstore.py", false));

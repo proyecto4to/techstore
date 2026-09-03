@@ -1,5 +1,6 @@
 package com.techstore.catalogo;
 
+import com.techstore.comun.FiltroOpcional;
 import com.techstore.comun.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
@@ -44,7 +45,7 @@ public class ProductoController {
             @RequestParam(required = false) Long marcaId,
             @RequestParam(required = false) Boolean disponible,
             @ParameterObject @PageableDefault(size = 12, sort = "nombre") Pageable pageable) {
-        return productoService.listarPublico(search, marcaId, disponible, pageable);
+        return productoService.listarPublico(search, FiltroOpcional.id(marcaId), disponible, pageable);
     }
 
     @GetMapping("/admin")
@@ -55,7 +56,7 @@ public class ProductoController {
             @RequestParam(required = false) Long marcaId,
             @RequestParam(required = false, defaultValue = "false") boolean incluirInactivos,
             @ParameterObject @PageableDefault(size = 12, sort = "nombre") Pageable pageable) {
-        return productoService.listarAdmin(search, marcaId, incluirInactivos, pageable);
+        return productoService.listarAdmin(search, FiltroOpcional.id(marcaId), incluirInactivos, pageable);
     }
 
     @GetMapping("/admin/{id}")
