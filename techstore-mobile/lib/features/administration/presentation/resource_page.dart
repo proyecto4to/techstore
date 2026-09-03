@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
+import '../../../core/errors/user_message.dart';
 import '../../../core/native/document_service.dart';
 import '../../../core/widgets/image_origin_sheet.dart';
 import '../domain/resource_definition.dart';
@@ -466,7 +467,15 @@ class ResourcePage extends ConsumerWidget {
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo subir la imagen: $error')),
+          SnackBar(
+            content: Text(
+              userMessageFor(
+                error,
+                fallback: 'No pudimos subir la imagen. '
+                    'Probá con otra o revisá tu conexión.',
+              ),
+            ),
+          ),
         );
       }
     }
@@ -494,7 +503,15 @@ class ResourcePage extends ConsumerWidget {
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo adjuntar el comprobante: $error')),
+          SnackBar(
+            content: Text(
+              userMessageFor(
+                error,
+                fallback: 'No pudimos adjuntar el comprobante. '
+                    'Probá de nuevo en un momento.',
+              ),
+            ),
+          ),
         );
       }
     }
@@ -538,7 +555,15 @@ class ResourcePage extends ConsumerWidget {
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo procesar el documento: $error')),
+          SnackBar(
+            content: Text(
+              userMessageFor(
+                error,
+                fallback: 'No pudimos abrir el documento. '
+                    'Revisá tu conexión e intentá de nuevo.',
+              ),
+            ),
+          ),
         );
       }
     }

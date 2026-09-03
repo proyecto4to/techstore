@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
+import '../../../core/errors/user_message.dart';
 import '../../../core/native/haptics_service.dart';
 import '../../../core/widgets/image_origin_sheet.dart';
 import '../../../core/widgets/voice_dictation_button.dart';
@@ -310,7 +311,13 @@ class _PurchaseFormPageState extends ConsumerState<PurchaseFormPage> {
       _message('Comprobante adjuntado');
     } catch (error) {
       await ref.read(hapticsServiceProvider).play(HapticCue.error);
-      _message('No se pudo adjuntar el comprobante: $error');
+      _message(
+        userMessageFor(
+          error,
+          fallback: 'No pudimos adjuntar el comprobante. '
+              'Probá de nuevo en un momento.',
+        ),
+      );
     }
   }
 

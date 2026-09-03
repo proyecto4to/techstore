@@ -3,76 +3,110 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/application/session_controller.dart';
+import '../features/auth/domain/auth_user.dart';
 import '../features/courier/presentation/courier_dashboard_page.dart';
+
+/// Un módulo del inicio: a dónde va y con qué nombre.
+final class _Module {
+  const _Module(this.icon, this.label, this.route);
+
+  final IconData icon;
+  final String label;
+  final String route;
+}
+
+/// Un bloque de módulos con su título.
+final class _Section {
+  const _Section(this.title, this.modules);
+
+  final String title;
+  final List<_Module> modules;
+}
 
 class HomePage extends ConsumerWidget {
   const HomePage({required this.environmentLabel, super.key});
 
   final String environmentLabel;
 
+  /// Qué ve cada rol, y en qué orden.
+  ///
+  /// Antes todos veían la misma grilla de cliente y quien trabaja en el local
+  /// encontraba «Favoritos» y «Direcciones» antes que su propia herramienta,
+  /// que quedaba décima. Ahora el trabajo va primero y lo personal después.
+  /// No se le quita nada a nadie: un cajero también puede comprar, así que sus
+  /// módulos de cliente siguen ahí, más abajo.
+  List<_Section> _sectionsFor(AppRole role) {
+    const account = [
+      _Module(Icons.notifications_outlined, 'Notificaciones', '/notifications'),
+      _Module(Icons.chat_bubble_outline, 'Chat', '/chat'),
+      _Module(Icons.person_outline, 'Mi cuenta', '/account'),
+    ];
+    const shopping = [
+      _Module(Icons.storefront_outlined, 'Catálogo', '/catalog'),
+      _Module(Icons.shopping_cart_outlined, 'Carrito', '/cart'),
+      _Module(Icons.receipt_long_outlined, 'Mis pedidos', '/orders'),
+      _Module(Icons.description_outlined, 'Mis facturas', '/invoices'),
+      _Module(Icons.location_on_outlined, 'Direcciones', '/addresses'),
+      _Module(Icons.favorite_outline, 'Favoritos', '/favorites'),
+    ];
+
+    if (role.isCashier) {
+      return const [
+        _Section('En el mostrador', [
+          _Module(Icons.point_of_sale_outlined, 'Vender', '/sales/new'),
+          _Module(Icons.savings_outlined, 'Operar caja', '/cash/actions'),
+          _Module(Icons.receipt_long_outlined, 'Pedidos', '/orders'),
+          _Module(Icons.description_outlined, 'Facturas', '/invoices'),
+          _Module(Icons.storefront_outlined, 'Buscar producto', '/catalog'),
+          _Module(Icons.dashboard_outlined, 'Más operaciones', '/operations'),
+        ]),
+        _Section('Tu cuenta', account),
+        _Section('Comprar para vos', [
+          _Module(Icons.shopping_cart_outlined, 'Carrito', '/cart'),
+          _Module(Icons.location_on_outlined, 'Direcciones', '/addresses'),
+          _Module(Icons.favorite_outline, 'Favoritos', '/favorites'),
+        ]),
+      ];
+    }
+
+    if (role.canAdminister) {
+      return const [
+        _Section('Gestión', [
+          _Module(
+            Icons.admin_panel_settings_outlined,
+            'Administración',
+            '/admin',
+          ),
+          _Module(Icons.dashboard_outlined, 'Operaciones', '/operations'),
+          _Module(Icons.point_of_sale_outlined, 'Vender', '/sales/new'),
+          _Module(Icons.savings_outlined, 'Operar caja', '/cash/actions'),
+          _Module(Icons.folder_open_outlined, 'Documentos', '/documents'),
+          _Module(Icons.receipt_long_outlined, 'Pedidos', '/orders'),
+        ]),
+        _Section('Tu cuenta', account),
+        _Section('Tienda', [
+          _Module(Icons.storefront_outlined, 'Catálogo', '/catalog'),
+          _Module(Icons.description_outlined, 'Facturas', '/invoices'),
+          _Module(Icons.shopping_cart_outlined, 'Carrito', '/cart'),
+        ]),
+      ];
+    }
+
+    // Cliente: su tienda primero, su cuenta después.
+    return const [
+      _Section('Comprar', shopping),
+      _Section('Tu cuenta', account),
+    ];
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authSessionProvider).user!;
     if (user.role.isCourier) return const CourierDashboardPage();
-    final modules = <_ModuleCard>[
-      _ModuleCard(
-        icon: Icons.storefront_outlined,
-        label: 'Catálogo',
-        onTap: () => context.push('/catalog'),
-      ),
-      _ModuleCard(
-        icon: Icons.shopping_cart_outlined,
-        label: 'Carrito',
-        onTap: () => context.push('/cart'),
-      ),
-      _ModuleCard(
-        icon: Icons.receipt_long_outlined,
-        label: 'Pedidos',
-        onTap: () => context.push('/orders'),
-      ),
-      _ModuleCard(
-        icon: Icons.description_outlined,
-        label: 'Facturas',
-        onTap: () => context.push('/invoices'),
-      ),
-      _ModuleCard(
-        icon: Icons.location_on_outlined,
-        label: 'Direcciones',
-        onTap: () => context.push('/addresses'),
-      ),
-      _ModuleCard(
-        icon: Icons.favorite_outline,
-        label: 'Favoritos',
-        onTap: () => context.push('/favorites'),
-      ),
-      _ModuleCard(
-        icon: Icons.notifications_outlined,
-        label: 'Notificaciones',
-        onTap: () => context.push('/notifications'),
-      ),
-      _ModuleCard(
-        icon: Icons.chat_bubble_outline,
-        label: 'Chat',
-        onTap: () => context.push('/chat'),
-      ),
-      _ModuleCard(
-        icon: Icons.person_outline,
-        label: 'Mi cuenta',
-        onTap: () => context.push('/account'),
-      ),
-      if (user.role.canOperateStore)
-        _ModuleCard(
-          icon: Icons.point_of_sale_outlined,
-          label: 'Operaciones',
-          onTap: () => context.push('/operations'),
-        ),
-      if (user.role.canAdminister)
-        _ModuleCard(
-          icon: Icons.admin_panel_settings_outlined,
-          label: 'Administración',
-          onTap: () => context.push('/admin'),
-        ),
-    ];
+
+    final theme = Theme.of(context);
+    final sections = _sectionsFor(user.role);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('TechStore'),
@@ -90,22 +124,44 @@ class HomePage extends ConsumerWidget {
           children: [
             Text(
               'Hola, ${user.firstName}',
-              style: Theme.of(context).textTheme.headlineSmall,
+              style: theme.textTheme.headlineSmall,
             ),
-            Text('${user.role.name} · $environmentLabel'),
-            const SizedBox(height: 20),
-            GridView.builder(
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 240,
-                mainAxisExtent: 144,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
+            Text(
+              '${user.role.label} · $environmentLabel',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: modules.length,
-              itemBuilder: (context, index) => modules[index],
             ),
+            for (final section in sections) ...[
+              const SizedBox(height: 22),
+              Text(
+                section.title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  letterSpacing: .4,
+                ),
+              ),
+              const SizedBox(height: 10),
+              GridView.builder(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 240,
+                  mainAxisExtent: 132,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                ),
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: section.modules.length,
+                itemBuilder: (context, index) {
+                  final module = section.modules[index];
+                  return _ModuleCard(
+                    icon: module.icon,
+                    label: module.label,
+                    onTap: () => context.push(module.route),
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -135,8 +191,8 @@ class _ModuleCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ExcludeSemantics(child: Icon(icon, size: 42)),
-            const SizedBox(height: 12),
+            ExcludeSemantics(child: Icon(icon, size: 40)),
+            const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Text(label, textAlign: TextAlign.center, maxLines: 2),

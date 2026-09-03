@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/app_failure.dart';
+import '../../../core/format/status_labels.dart';
 import '../application/courier_providers.dart';
 
 class CourierVehiclesPage extends ConsumerStatefulWidget {
@@ -72,7 +73,8 @@ class _CourierVehiclesPageState extends ConsumerState<CourierVehiclesPage> {
                                 '${item['matricula']} · ${item['marca']} ${item['modelo']}',
                               ),
                               subtitle: Text(
-                                '${item['estado']} · ${item['kilometrajeActual']} km\n'
+                                '${vehicleStatusLabel(item['estado'] as String?).label}'
+                                ' · ${item['kilometrajeActual']} km\n'
                                 '${item['utilizadoPor'] == null ? item['tipo'] : 'En uso por ${item['utilizadoPor']}'}',
                               ),
                               isThreeLine: true,

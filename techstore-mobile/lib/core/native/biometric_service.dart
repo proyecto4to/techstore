@@ -1,5 +1,6 @@
 import 'package:local_auth/local_auth.dart';
 
+import '../errors/app_failure.dart';
 import '../storage/secure_store.dart';
 
 final class BiometricService {
@@ -45,7 +46,7 @@ final class BiometricService {
   Future<void> setEnabled(bool enabled) async {
     if (enabled) {
       if (!await authenticate(reason: 'Activá el acceso biométrico')) {
-        throw StateError('No se pudo validar la biometría.');
+        throw const ValidationFailure('No pudimos validar tu identidad. Intentá de nuevo.');
       }
       await _store.write(_enabledKey, 'true');
     } else {
@@ -64,10 +65,10 @@ final class BiometricService {
   Future<void> setOperationGuard(bool enabled) async {
     if (enabled) {
       if (!await isAvailable()) {
-        throw StateError('Este equipo no tiene biometría disponible.');
+        throw const ValidationFailure('Este equipo no tiene biometría disponible.');
       }
       if (!await confirmIdentity(reason: 'Confirmá tu identidad')) {
-        throw StateError('No se pudo validar la biometría.');
+        throw const ValidationFailure('No pudimos validar tu identidad. Intentá de nuevo.');
       }
       await _store.write(_guardKey, 'true');
     } else {

@@ -5,7 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
+import '../../../core/format/money.dart';
 import '../../../core/native/haptics_service.dart';
+import '../../../core/widgets/async_states.dart';
+import '../../../core/widgets/quantity_stepper.dart';
 import '../../../core/widgets/voice_dictation_button.dart';
 import '../../catalog/application/catalog_providers.dart';
 import '../../catalog/domain/product.dart';
@@ -20,92 +23,196 @@ class DirectSalePage extends ConsumerStatefulWidget {
 class _DirectSalePageState extends ConsumerState<DirectSalePage> {
   final _items = <int, (Product, int)>{};
   final _payments = <_PaymentLine>[_PaymentLine()];
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+
+  /// Lo que se le pide al servidor. Se separa del texto que se está tipeando
+  /// para no disparar una consulta por tecla.
+  String _term = '';
   bool _busy = false;
 
   double get _total =>
       _items.values.fold(0, (sum, line) => sum + line.$1.price * line.$2);
 
+  /// La moneda de lo que se está vendiendo. Se toma del producto en vez de
+  /// asumir guaraníes escritos a mano en el texto.
+  String get _currency =>
+      _items.isEmpty ? 'PYG' : _items.values.first.$1.currency;
+
   @override
   void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
     for (final line in _payments) {
       line.dispose();
     }
     super.dispose();
   }
 
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(() => _term = value.trim());
+    });
+  }
+
+  /// Cuántas unidades puede cargar el cajero de este producto.
+  ///
+  /// Cuando el catálogo informa escasez real, ese número es el techo y evita
+  /// facturar de más. Cuando informa el tope fijo, el producto tiene stock de
+  /// sobra y no se pone límite: una venta de mostrador puede ser de 150
+  /// unidades y `VentaDirectaRequest` no tiene máximo, así que topar en 99 acá
+  /// sería inventar una restricción que el sistema no tiene.
+  int _ceilingFor(Product product) =>
+      product.showsRemainingUnits ? product.maxPerOrder : _sinTecho;
+
+  /// Techo práctico para un producto con stock de sobra: alto para no estorbar,
+  /// finito para que el selector tenga un máximo con el que trabajar.
+  static const int _sinTecho = 9999;
+
+  /// Agrega una unidad respetando lo que hay.
+  ///
+  /// Antes el `+` no tenía techo ninguno: en el mostrador se podían cargar más
+  /// unidades de las que existen y el rechazo llegaba al confirmar, con el
+  /// cliente esperando de pie.
+  void _add(Product product) {
+    final current = _items[product.id]?.$2 ?? 0;
+    if (current >= _ceilingFor(product)) {
+      _cue(HapticCue.error);
+      _message(
+        product.maxPerOrder <= 0
+            ? '${product.name} no tiene unidades disponibles'
+            : 'De ${product.name} solo hay ${product.maxPerOrder} '
+                  '${product.maxPerOrder == 1 ? 'unidad' : 'unidades'}',
+      );
+      return;
+    }
+    setState(() {
+      _items[product.id] = (product, current + 1);
+      // Se limpia para cargar el siguiente artículo escribiendo.
+      _searchController.clear();
+      _term = '';
+    });
+    _cue(HapticCue.success);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final products = ref.watch(catalogProvider((search: '', brandId: null)));
+    // La búsqueda va al servidor con el término escrito. Antes se filtraba en
+    // memoria sobre la primera página del catálogo, así que los productos que
+    // no entraban en esas 30 filas no se podían vender desde el mostrador.
+    final products = ref.watch(catalogProvider((search: _term, brandId: null)));
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Venta directa')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          products.when(
-            loading: () => const LinearProgressIndicator(),
-            error: (error, _) => const Text('No se pudo cargar el catálogo'),
-            data: (values) => Autocomplete<Product>(
-              displayStringForOption: (product) => product.name,
-              optionsBuilder: (value) {
-                final term = value.text.toLowerCase();
-                return values.where(
-                  (product) =>
-                      product.available &&
-                      product.name.toLowerCase().contains(term),
-                );
-              },
-              onSelected: (product) {
-                setState(() {
-                  final current = _items[product.id];
-                  _items[product.id] = (product, (current?.$2 ?? 0) + 1);
-                });
-                _cue(HapticCue.success);
-              },
-              fieldViewBuilder: (context, controller, focusNode, onSubmitted) =>
-                  TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    decoration: InputDecoration(
-                      labelText: 'Buscar y agregar producto',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: VoiceDictationButton(
-                        controller: controller,
-                        tooltip: 'Buscar producto por voz',
-                      ),
-                    ),
-                  ),
+          TextField(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'Buscar producto',
+              helperText: 'Tocá un resultado para agregarlo a la venta',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: VoiceDictationButton(
+                controller: _searchController,
+                tooltip: 'Buscar producto por voz',
+                onFinalResult: (value) => setState(() => _term = value.trim()),
+              ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          products.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: LinearProgressIndicator(),
+            ),
+            error: (error, _) => AppErrorState(
+              message: 'No pudimos buscar productos. Revisá tu conexión.',
+              onRetry: () => ref.invalidate(
+                catalogProvider((search: _term, brandId: null)),
+              ),
+            ),
+            data: (values) {
+              final results = values
+                  .where((product) => product.maxPerOrder > 0)
+                  .take(8)
+                  .toList(growable: false);
+              if (results.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    _term.isEmpty
+                        ? 'No hay productos con stock para vender.'
+                        : 'No hay productos con stock que coincidan '
+                              'con "$_term".',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                children: [
+                  for (final product in results)
+                    ListTile(
+                      dense: true,
+                      title: Text(product.name),
+                      subtitle: Text(
+                        // El número solo se muestra cuando dice cuánto queda:
+                        // con stock de sobra, «99 disponibles» sería falso.
+                        product.showsRemainingUnits
+                            ? '${formatMoney(product.price, product.currency)}'
+                                  ' · quedan ${product.maxPerOrder}'
+                            : '${formatMoney(product.price, product.currency)}'
+                                  ' · con stock',
+                      ),
+                      trailing: IconButton.filledTonal(
+                        tooltip: 'Agregar ${product.name}',
+                        onPressed: () => _add(product),
+                        icon: const Icon(Icons.add),
+                      ),
+                      onTap: () => _add(product),
+                    ),
+                ],
+              );
+            },
+          ),
+          const Divider(height: 28),
+          if (_items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Todavía no cargaste nada. Buscá un producto para empezar.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
           for (final entry in _items.entries)
             ListTile(
               title: Text(entry.value.$1.name),
               subtitle: Text(
-                '${entry.value.$1.price} ${entry.value.$1.currency}',
+                '${formatMoney(entry.value.$1.price, entry.value.$1.currency)}'
+                ' c/u · subtotal '
+                '${formatMoney(entry.value.$1.price * entry.value.$2, entry.value.$1.currency)}',
               ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    tooltip: 'Disminuir cantidad',
-                    onPressed: () =>
-                        _setQuantity(entry.key, entry.value.$2 - 1),
-                    icon: const Icon(Icons.remove_circle_outline),
-                  ),
-                  Text('${entry.value.$2}'),
-                  IconButton(
-                    tooltip: 'Aumentar cantidad',
-                    onPressed: () =>
-                        _setQuantity(entry.key, entry.value.$2 + 1),
-                    icon: const Icon(Icons.add_circle_outline),
-                  ),
-                ],
+              trailing: QuantityStepper(
+                value: entry.value.$2,
+                max: _ceilingFor(entry.value.$1),
+                min: 0,
+                dense: true,
+                limitMeansScarcity: entry.value.$1.showsRemainingUnits,
+                onChanged: (value) => _setQuantity(entry.key, value),
               ),
             ),
           const Divider(height: 32),
           Text(
-            'Pagos · Total $_total PYG',
-            style: Theme.of(context).textTheme.titleLarge,
+            'Pagos · Total ${formatMoney(_total, _currency)}',
+            style: theme.textTheme.titleLarge,
           ),
           for (var index = 0; index < _payments.length; index++)
             _PaymentEditor(
@@ -135,9 +242,19 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
     setState(() {
       if (quantity <= 0) {
         _items.remove(id);
+        return;
+      }
+      final product = _items[id]!.$1;
+      // El selector ya no ofrece más que el tope, pero acá se recorta igual:
+      // esta lista es la que se factura, y no debe poder quedar por encima de
+      // lo que hay ni por un camino que no pasó por el selector.
+      final capped = quantity > _ceilingFor(product)
+          ? _ceilingFor(product)
+          : quantity;
+      if (capped <= 0) {
+        _items.remove(id);
       } else {
-        final product = _items[id]!.$1;
-        _items[id] = (product, quantity);
+        _items[id] = (product, capped);
       }
     });
     _cue(HapticCue.tap);
@@ -166,7 +283,7 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
     final confirmed = await ref
         .read(biometricServiceProvider)
         .confirmOperation(
-          reason: 'Confirmá la venta por ${_total.toStringAsFixed(0)} PYG',
+          reason: 'Confirmá la venta por ${formatMoney(_total, _currency)}',
         );
     if (!confirmed) {
       _cue(HapticCue.error);

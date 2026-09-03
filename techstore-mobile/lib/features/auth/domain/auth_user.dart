@@ -14,6 +14,18 @@ enum AppRole {
   bool get canOperateStore => this == admin || this == cashier;
   bool get canAdminister => this == admin;
   bool get isCourier => this == courier;
+  bool get isCashier => this == cashier;
+
+  /// Cómo se llama este rol en castellano.
+  ///
+  /// Sin esto la pantalla de inicio mostraba el nombre de la constante
+  /// (`cashier`, `customer`): además de técnico, en inglés.
+  String get label => switch (this) {
+    admin => 'Administrador',
+    cashier => 'Cajero',
+    courier => 'Repartidor',
+    customer => 'Cliente',
+  };
 }
 
 final class AuthUser {

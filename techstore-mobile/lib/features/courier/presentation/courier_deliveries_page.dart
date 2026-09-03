@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/errors/app_failure.dart';
+import '../../../core/format/status_labels.dart';
 import '../application/courier_providers.dart';
 
 class CourierDeliveriesPage extends ConsumerWidget {
@@ -56,7 +57,7 @@ class _ByState extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
                     child: Text(
-                      '${_stateLabel(state)} · ${groups[state]!.length}',
+                      '${deliveryStatusLabel(state).label} · ${groups[state]!.length}',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
@@ -109,7 +110,7 @@ class _ByClient extends ConsumerWidget {
                           ListTile(
                             title: Text('Pedido #${item['pedidoNumero']}'),
                             subtitle: Text(
-                              _stateLabel('${item['estadoEntrega']}'),
+                              deliveryStatusLabel(item['estadoEntrega'] as String?).label,
                             ),
                             trailing: Text(
                               _money(item['importe'], '${item['moneda']}'),
@@ -139,7 +140,8 @@ class _DeliveryCard extends StatelessWidget {
       title: Text('Pedido #${item['pedidoNumero']} · ${item['cliente']}'),
       subtitle: Text(
         '${item['direccion'] ?? 'Sin dirección'}\n'
-        '${item['formaPago'] ?? 'Pago no informado'} · ${item['estadoPago']}',
+        '${paymentMethodLabel(item['formaPago'] as String?)} · '
+        '${paymentStatusLabel(item['estadoPago'] as String?).label}',
       ),
       isThreeLine: true,
       trailing: const Icon(Icons.chevron_right),
@@ -191,7 +193,21 @@ class _CourierDeliveryDetailPageState
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 8),
-              Chip(label: Text(_stateLabel(state))),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: StatusChip(status: deliveryStatusLabel(state)),
+              ),
+              if (deliveryStatusLabel(state).detail != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    deliveryStatusLabel(state).detail!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
               Card(
                 child: Column(
                   children: [
@@ -200,11 +216,23 @@ class _CourierDeliveryDetailPageState
                       title: Text('${item['cliente']}'),
                       subtitle: Text('${item['clienteEmail'] ?? ''}'),
                     ),
+                    // El teléfono se toca y llama. Antes era texto muerto: el
+                    // repartidor tenía que memorizarlo y salir a la app de
+                    // teléfono a mano, en la calle y con el pedido en brazos.
                     ListTile(
                       leading: const Icon(Icons.phone_outlined),
                       title: Text(
                         '${item['telefono'] ?? 'Teléfono no informado'}',
                       ),
+                      subtitle: item['telefono'] == null
+                          ? null
+                          : const Text('Tocá para llamar'),
+                      trailing: item['telefono'] == null
+                          ? null
+                          : const Icon(Icons.call_outlined),
+                      onTap: item['telefono'] == null
+                          ? null
+                          : () => _call('${item['telefono']}'),
                     ),
                     ListTile(
                       leading: const Icon(Icons.location_on_outlined),
@@ -229,8 +257,13 @@ class _CourierDeliveryDetailPageState
                     ),
                     ListTile(
                       title: const Text('Forma de pago'),
-                      subtitle: Text(_paymentLabel('${item['formaPago']}')),
-                      trailing: Text('${item['estadoPago']}'),
+                      subtitle: Text(
+                        paymentMethodLabel(item['formaPago'] as String?),
+                      ),
+                      trailing: StatusChip(
+                        status: paymentStatusLabel(item['estadoPago'] as String?),
+                        compact: true,
+                      ),
                     ),
                     if (item['observaciones'] != null)
                       ListTile(
@@ -272,61 +305,86 @@ class _CourierDeliveryDetailPageState
     );
   }
 
+  /// La acción que corresponde según el estado, y solo esa.
+  ///
+  /// El orden lo impone el servidor (`EstadoReparto`), así que la pantalla no
+  /// ofrece saltos: no hay forma de marcar entregado algo que nunca se inició.
   List<Widget> _stateActions(Map<String, Object?> item) {
     final state = '${item['estadoEntrega']}';
     return switch (state) {
       'ASIGNADO' => [
-        FilledButton(
-          onPressed: _busy ? null : () => _change('ACEPTADO'),
-          child: const Text('Aceptar entrega'),
+        _MainAction(
+          icon: Icons.thumb_up_outlined,
+          label: 'Aceptar esta entrega',
+          busy: _busy,
+          onPressed: () => _change('ACEPTADO'),
         ),
       ],
       'ACEPTADO' => [
-        FilledButton(
-          onPressed: _busy ? null : () => _change('EN_RUTA'),
-          child: const Text('Iniciar entrega'),
+        _MainAction(
+          icon: Icons.play_arrow_rounded,
+          label: 'Iniciar entrega',
+          busy: _busy,
+          onPressed: () => _change('EN_RUTA'),
         ),
       ],
       'EN_RUTA' => [
-        FilledButton(
-          onPressed: _busy ? null : () => _change('EN_DESTINO'),
-          child: const Text('Llegué al destino'),
+        _MainAction(
+          icon: Icons.where_to_vote_outlined,
+          label: 'Llegué al domicilio',
+          busy: _busy,
+          onPressed: () => _change('EN_DESTINO'),
         ),
-        const SizedBox(height: 8),
-        OutlinedButton(
-          onPressed: _busy ? null : _markUnsuccessful,
-          child: const Text('No se pudo entregar'),
+        const SizedBox(height: 10),
+        _SecondaryAction(
+          label: 'No se pudo entregar',
+          busy: _busy,
+          onPressed: _markUnsuccessful,
         ),
       ],
       'EN_DESTINO' => [
-        FilledButton(
-          onPressed: _busy
-              ? null
-              : () => _change('ENTREGADO', result: 'Entrega completada'),
-          child: const Text('Finalizar entrega'),
+        _MainAction(
+          icon: Icons.check_circle_outline,
+          label: 'Marcar como entregado',
+          busy: _busy,
+          onPressed: () => _change('ENTREGADO', result: 'Entrega completada'),
         ),
-        const SizedBox(height: 8),
-        OutlinedButton(
-          onPressed: _busy ? null : _markUnsuccessful,
-          child: const Text('No se pudo entregar'),
+        const SizedBox(height: 10),
+        _SecondaryAction(
+          label: 'No se pudo entregar',
+          busy: _busy,
+          onPressed: _markUnsuccessful,
         ),
       ],
       _ => const [
         ListTile(
           leading: Icon(Icons.history_toggle_off_outlined),
           title: Text('Esta entrega ya finalizó'),
+          subtitle: Text('No queda nada por hacer acá.'),
         ),
       ],
     };
   }
 
-  Future<void> _change(String state, {String? result}) async {
+  Future<void> _change(String state, {String? result, String? message}) async {
     await _run(() async {
       await ref
           .read(courierRepositoryProvider)
           .changeState(widget.assignmentId, state, result: result);
-    });
+    }, message: message ?? _changeMessage(state));
   }
+
+  /// Qué se le dice al repartidor después de cada transición. Un «Operación
+  /// registrada» genérico no confirma *qué* quedó registrado, que es
+  /// justamente lo que necesita saber antes de guardar el teléfono.
+  String _changeMessage(String state) => switch (state) {
+    'ACEPTADO' => 'Aceptaste la entrega',
+    'EN_RUTA' => 'Entrega iniciada. Buen viaje.',
+    'EN_DESTINO' => 'Llegada registrada',
+    'ENTREGADO' => 'Entrega completada',
+    'NO_ENTREGADO' => 'Registramos que no se pudo entregar',
+    _ => 'Listo',
+  };
 
   Future<void> _collect(Map<String, Object?> item) async {
     final confirm = await showDialog<bool>(
@@ -351,42 +409,84 @@ class _CourierDeliveryDetailPageState
     if (confirm != true) return;
     await _run(
       () => ref.read(courierRepositoryProvider).collect(widget.assignmentId),
+      message: 'Cobro registrado. Ya forma parte de tu caja.',
     );
   }
 
   Future<void> _markUnsuccessful() async {
     final controller = TextEditingController();
+    String? error;
     final reason = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Entrega no realizada'),
-        content: TextField(
-          controller: controller,
-          maxLength: 1000,
-          maxLines: 3,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Motivo obligatorio'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('¿No se pudo entregar?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Contá qué pasó. Lo va a leer quien atienda al cliente '
+                'después, así que conviene ser concreto.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                maxLength: 1000,
+                maxLines: 3,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Motivo',
+                  hintText: 'Por ejemplo: no había nadie en el domicilio',
+                  errorText: error,
+                ),
+                // El error se va apenas empieza a corregir, en vez de quedar
+                // pegado al campo que ya está bien.
+                onChanged: error == null
+                    ? null
+                    : (_) => setDialogState(() => error = null),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Volver'),
+            ),
+            FilledButton(
+              // Antes, con el campo vacío este botón no hacía nada y no
+              // explicaba por qué: el repartidor quedaba tocándolo sin
+              // respuesta. Ahora dice qué falta.
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isEmpty) {
+                  setDialogState(
+                    () => error = 'Escribí el motivo para poder registrarlo',
+                  );
+                  return;
+                }
+                Navigator.pop(context, value);
+              },
+              child: const Text('Registrar el problema'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.pop(context, value);
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
       ),
     );
     controller.dispose();
-    if (reason != null) await _change('NO_ENTREGADO', result: reason);
+    if (reason != null) {
+      await _change(
+        'NO_ENTREGADO',
+        result: reason,
+        message: 'Registramos que no se pudo entregar',
+      );
+    }
   }
 
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _run(
+    Future<void> Function() action, {
+    required String message,
+  }) async {
     setState(() => _busy = true);
     try {
       await action();
@@ -396,14 +496,20 @@ class _CourierDeliveryDetailPageState
       ref.invalidate(courierDashboardProvider);
       ref.invalidate(courierCashMovementsProvider);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Operación registrada')));
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(message)));
       }
     } on AppFailure catch (failure) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(failure.message)));
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(failure.message),
+              duration: const Duration(seconds: 5),
+            ),
+          );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -434,6 +540,20 @@ class _CourierDeliveryDetailPageState
       );
     }
   }
+
+  /// Abre el marcador del teléfono con el número del cliente ya cargado.
+  Future<void> _call(String phone) async {
+    // Se dejan solo los dígitos y el prefijo internacional: los espacios y
+    // guiones con que se cargó el número rompen el esquema `tel:`.
+    final digits = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (digits.isEmpty) return;
+    final opened = await launchUrl(Uri(scheme: 'tel', path: digits));
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No pudimos llamar. El número es $phone')),
+      );
+    }
+  }
 }
 
 const _stateOrder = [
@@ -445,24 +565,6 @@ const _stateOrder = [
   'NO_ENTREGADO',
   'CANCELADO',
 ];
-
-String _stateLabel(String value) => switch (value) {
-  'ASIGNADO' => 'Asignado',
-  'ACEPTADO' => 'Aceptado',
-  'EN_RUTA' => 'En ruta',
-  'EN_DESTINO' => 'En destino',
-  'ENTREGADO' => 'Entregado',
-  'NO_ENTREGADO' => 'No entregado',
-  'CANCELADO' => 'Cancelado',
-  _ => value,
-};
-
-String _paymentLabel(String value) => switch (value) {
-  'PAGO_EFECTIVO_REPARTIDOR' => 'Efectivo al repartidor',
-  'TRANSFERENCIA_BANCARIA' => 'Transferencia bancaria',
-  'PAGO_EN_LOCAL' => 'Pago en el local',
-  _ => value,
-};
 
 String _money(Object? raw, String currency) {
   final value = raw is num ? raw.toDouble() : double.tryParse('$raw') ?? 0;
@@ -489,3 +591,64 @@ Widget _retry(String message, VoidCallback retry) => ListView(
     ),
   ],
 );
+
+/// La acción principal del estado actual.
+///
+/// Alta y a todo el ancho porque se toca de parado, en la puerta de una casa,
+/// con una mano ocupada. Se bloquea mientras hay una operación en curso para
+/// que un segundo toque no repita la transición.
+class _MainAction extends StatelessWidget {
+  const _MainAction({
+    required this.icon,
+    required this.label,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 56,
+    width: double.infinity,
+    child: FilledButton.icon(
+      onPressed: busy ? null : onPressed,
+      icon: busy
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon, size: 22),
+      label: Text(
+        busy ? 'Registrando...' : label,
+        style: const TextStyle(fontSize: 16),
+      ),
+    ),
+  );
+}
+
+/// La salida alternativa: presente, pero visiblemente menos que la principal.
+class _SecondaryAction extends StatelessWidget {
+  const _SecondaryAction({
+    required this.label,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 50,
+    width: double.infinity,
+    child: OutlinedButton(
+      onPressed: busy ? null : onPressed,
+      child: Text(label),
+    ),
+  );
+}

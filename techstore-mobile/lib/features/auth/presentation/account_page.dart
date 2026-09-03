@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
+import '../../../core/errors/user_message.dart';
 import '../application/session_controller.dart';
 
 class AccountPage extends ConsumerStatefulWidget {
@@ -221,7 +222,12 @@ class _AccountPageState extends ConsumerState<AccountPage> {
       }
       _message(value ? 'Bloqueo biométrico activado' : 'Bloqueo desactivado');
     } catch (error) {
-      _message(error.toString().replaceFirst('Bad state: ', ''));
+      _message(
+        userMessageFor(
+          error,
+          fallback: 'No pudimos cambiar esta preferencia. Intentá de nuevo.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -238,7 +244,12 @@ class _AccountPageState extends ConsumerState<AccountPage> {
             : 'Confirmación de operaciones desactivada',
       );
     } catch (error) {
-      _message(error.toString().replaceFirst('Bad state: ', ''));
+      _message(
+        userMessageFor(
+          error,
+          fallback: 'No pudimos cambiar esta preferencia. Intentá de nuevo.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }

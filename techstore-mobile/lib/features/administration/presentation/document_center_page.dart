@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
+import '../../../core/errors/user_message.dart';
 import '../../../core/native/document_service.dart';
 
 class DocumentCenterPage extends ConsumerStatefulWidget {
@@ -99,9 +100,17 @@ class _DocumentCenterPageState extends ConsumerState<DocumentCenterPage> {
           );
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('No se pudo exportar: $error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              userMessageFor(
+                error,
+                fallback: 'No pudimos exportar el documento. '
+                    'Revisá tu conexión e intentá de nuevo.',
+              ),
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);

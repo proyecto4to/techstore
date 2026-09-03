@@ -5,9 +5,16 @@ import 'package:intl/intl.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
+import '../../../core/format/money.dart';
+import '../../../core/format/status_labels.dart';
 import '../../../core/native/document_service.dart';
 import '../../../core/native/haptics_service.dart';
+import '../../../core/widgets/async_states.dart';
 import '../../checkout/application/checkout_providers.dart';
+
+/// Estado en el que el backend todavía admite que el cliente anule el pedido.
+/// Después de confirmarlo ya se tocó el stock real y la baja pasa por el local.
+const String _cancellableStatus = 'P';
 
 class OrdersPage extends ConsumerWidget {
   const OrdersPage({super.key});
@@ -16,42 +23,49 @@ class OrdersPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final orders = ref.watch(ordersProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Pedidos')),
+      appBar: AppBar(title: const Text('Mis pedidos')),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(ordersProvider.future),
         child: orders.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => ListView(
-            children: [
-              const SizedBox(height: 180),
-              Center(
-                child: FilledButton(
-                  onPressed: () => ref.invalidate(ordersProvider),
-                  child: const Text('Reintentar'),
-                ),
-              ),
-            ],
+          loading: () => const AppLoading(label: 'Cargando tus pedidos'),
+          error: (error, _) => AppErrorState(
+            message: 'No pudimos cargar tus pedidos. '
+                'Revisá tu conexión e intentá de nuevo.',
+            onRetry: () => ref.invalidate(ordersProvider),
           ),
           data: (items) => items.isEmpty
-              ? ListView(
-                  children: const [
-                    SizedBox(height: 180),
-                    Center(child: Text('Sin pedidos')),
-                  ],
-                )
+              ? _NoOrders(onBrowse: () => context.go('/catalog'))
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final order = items[index];
+                    final status = orderStatusLabel(order.status);
                     return Card(
                       child: ListTile(
                         leading: const Icon(Icons.receipt_long_outlined),
-                        title: Text('Pedido #${order.number}'),
-                        subtitle: Text(
-                          '${DateFormat.yMd('es_PY').add_Hm().format(order.date.toLocal())} · ${order.status}',
+                        title: Text('Pedido N.º ${order.number}'),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat.yMMMd(
+                                'es_PY',
+                              ).add_Hm().format(order.date.toLocal()),
+                            ),
+                            const SizedBox(height: 6),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: StatusChip(status: status, compact: true),
+                            ),
+                          ],
                         ),
-                        trailing: Text(_money(order.total, order.currency)),
+                        isThreeLine: true,
+                        trailing: Text(
+                          formatMoney(order.total, order.currency),
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
                         onTap: () => context.push('/orders/${order.id}'),
                       ),
                     );
@@ -63,6 +77,57 @@ class OrdersPage extends ConsumerWidget {
   }
 }
 
+class _NoOrders extends StatelessWidget {
+  const _NoOrders({required this.onBrowse});
+
+  final VoidCallback onBrowse;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      children: [
+        const SizedBox(height: 120),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              children: [
+                ExcludeSemantics(
+                  child: Icon(
+                    Icons.receipt_long_outlined,
+                    size: 56,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Todavía no hiciste ningún pedido',
+                  style: theme.textTheme.titleSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Acá vas a poder seguir el estado de tus compras.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: onBrowse,
+                  icon: const Icon(Icons.storefront_outlined),
+                  label: const Text('Ver productos'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class OrderDetailPage extends ConsumerWidget {
   const OrderDetailPage({required this.orderId, super.key});
   final int orderId;
@@ -70,72 +135,111 @@ class OrderDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final order = ref.watch(orderProvider(orderId));
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Detalle del pedido')),
       body: order.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) =>
-            const Center(child: Text('No se pudo cargar el pedido')),
+        loading: () => const AppLoading(label: 'Cargando el pedido'),
+        error: (error, _) => AppErrorState(
+          message: 'No pudimos cargar este pedido. Intentá de nuevo.',
+          onRetry: () => ref.invalidate(orderProvider(orderId)),
+        ),
         data: (data) {
           final details = data['detalles'] as List? ?? const [];
-          final status = data['estado'] as String? ?? '';
+          final rawStatus = data['estado'] as String? ?? '';
+          final status = orderStatusLabel(rawStatus);
+          final currency = data['moneda']?.toString() ?? 'PYG';
           final shipment = ref.watch(shipmentProvider(orderId));
+
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
               Text(
-                'Pedido #${data['numero']}',
-                style: Theme.of(context).textTheme.headlineSmall,
+                'Pedido N.º ${data['numero']}',
+                style: theme.textTheme.headlineSmall,
               ),
-              Text(status, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 10),
+              StatusChip(status: status),
+              if (status.detail != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  status.detail!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
               const Divider(height: 32),
+              Text('Productos', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 4),
               for (final raw in details)
                 Builder(
                   builder: (context) {
                     final line = raw as Map;
+                    final subtotal = (line['subtotal'] as num?)?.toDouble();
                     return ListTile(
+                      contentPadding: EdgeInsets.zero,
                       title: Text(
                         line['productoNombre']?.toString() ?? 'Producto',
                       ),
-                      subtitle: Text('Cantidad: ${line['cantidad']}'),
+                      subtitle: Text('${line['cantidad']} unidades'),
                       trailing: Text(
-                        '${line['subtotal'] ?? ''} ${data['moneda'] ?? ''}',
+                        subtotal == null
+                            ? ''
+                            : formatMoney(subtotal, currency),
                       ),
                     );
                   },
                 ),
               const Divider(),
               ListTile(
-                title: const Text('Total'),
-                trailing: Text('${data['total']} ${data['moneda']}'),
+                contentPadding: EdgeInsets.zero,
+                title: Text('Total', style: theme.textTheme.titleMedium),
+                trailing: Text(
+                  formatMoney((data['total'] as num?)?.toDouble() ?? 0, currency),
+                  style: theme.textTheme.titleMedium,
+                ),
               ),
               shipment.when(
+                // El envío es información complementaria: si no carga, no se
+                // muestra un error que tape el pedido en sí.
                 loading: () => const LinearProgressIndicator(),
                 error: (error, _) => const SizedBox.shrink(),
-                data: (value) => Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.local_shipping_outlined),
-                    title: Text(value['estado']?.toString() ?? 'Envío'),
-                    subtitle: Text(
+                data: (value) {
+                  final shipping = shipmentStatusLabel(
+                    value['estado']?.toString(),
+                  );
+                  final tracking =
                       value['codigoSeguimiento']?.toString() ??
-                          value['transportista']?.toString() ??
-                          'Seguimiento disponible',
+                      value['transportista']?.toString();
+                  return Card(
+                    child: ListTile(
+                      leading: Icon(shipping.icon, color: shipping.color(context)),
+                      title: Text(shipping.label),
+                      subtitle: Text(
+                        tracking ?? shipping.detail ?? 'Envío en preparación',
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
-              if (status == 'Pendiente' || status == 'PENDIENTE')
-                OutlinedButton.icon(
-                  onPressed: () => _cancel(context, ref),
-                  icon: const Icon(Icons.cancel_outlined),
-                  label: const Text('Cancelar pedido'),
-                ),
+              const SizedBox(height: 12),
+              // La factura solo aparece cuando el servidor confirma que existe:
+              // ofrecerla antes del pago sería prometer algo que no está.
               if (data['facturaDisponible'] == true)
                 FilledButton.tonalIcon(
                   onPressed: () => _invoice(context, ref),
                   icon: const Icon(Icons.picture_as_pdf_outlined),
-                  label: const Text('Factura PDF'),
+                  label: const Text('Descargar factura'),
                 ),
+              if (rawStatus.trim().toUpperCase() == _cancellableStatus) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _cancel(context, ref, data['numero']),
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text('Cancelar pedido'),
+                ),
+              ],
             ],
           );
         },
@@ -146,13 +250,21 @@ class OrderDetailPage extends ConsumerWidget {
   /// Cancelar es irreversible: se confirma en pantalla, se valida la identidad
   /// cuando el usuario activó la guarda biométrica y se avisa si el backend
   /// rechaza la baja, en lugar de dejar la excepción sin manejar.
-  Future<void> _cancel(BuildContext context, WidgetRef ref) async {
+  Future<void> _cancel(
+    BuildContext context,
+    WidgetRef ref,
+    Object? orderNumber,
+  ) async {
     final haptics = ref.read(hapticsServiceProvider);
     final accepted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancelar pedido'),
-        content: Text('El pedido #$orderId se cancelará y no podrá reabrirse.'),
+        title: const Text('¿Cancelar este pedido?'),
+        content: Text(
+          'El pedido N.º $orderNumber deja de procesarse y los productos '
+          'vuelven a quedar disponibles para otros clientes. '
+          'No se puede reabrir.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -178,11 +290,17 @@ class OrderDetailPage extends ConsumerWidget {
       await haptics.play(HapticCue.warning);
       ref.invalidate(orderProvider(orderId));
       ref.invalidate(ordersProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tu pedido quedó cancelado.')),
+        );
+      }
     } on AppFailure catch (failure) {
       await haptics.play(HapticCue.error);
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(failure.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failure.message)));
       }
     }
   }
@@ -190,11 +308,12 @@ class OrderDetailPage extends ConsumerWidget {
   Future<void> _invoice(BuildContext context, WidgetRef ref) async {
     final action = await showModalBottomSheet<DocumentAction>(
       context: context,
+      showDragHandle: true,
       builder: (context) => SafeArea(
         child: Wrap(
           children: [
             for (final item in const [
-              (DocumentAction.open, Icons.open_in_new, 'Abrir'),
+              (DocumentAction.open, Icons.open_in_new, 'Abrir la factura'),
               (DocumentAction.share, Icons.share_outlined, 'Compartir'),
               (DocumentAction.print, Icons.print_outlined, 'Imprimir'),
             ])
@@ -216,18 +335,24 @@ class OrderDetailPage extends ConsumerWidget {
             'factura-pedido-$orderId.pdf',
             action,
           );
-    } catch (error) {
+    } on AppFailure catch (failure) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failure.message)));
+      }
+    } on Object {
+      // El detalle técnico ya queda en el log del cliente HTTP; al usuario se
+      // le dice qué pasó y qué puede hacer, sin volcarle la excepción.
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo abrir la factura: $error')),
+          const SnackBar(
+            content: Text(
+              'No pudimos abrir la factura. Revisá tu conexión e intentá de nuevo.',
+            ),
+          ),
         );
       }
     }
   }
 }
-
-String _money(double value, String currency) => NumberFormat.currency(
-  locale: 'es_PY',
-  symbol: currency == 'PYG' ? '₲' : currency,
-  decimalDigits: currency == 'PYG' ? 0 : 2,
-).format(value);

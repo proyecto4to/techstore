@@ -30,35 +30,62 @@ class _CourierCashPageState extends ConsumerState<CourierCashPage> {
             dashboard.when(
               loading: () => const LinearProgressIndicator(),
               error: (error, _) => const Text('No se pudo consultar el saldo'),
-              data: (data) => Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text('Saldo actual derivado de movimientos'),
-                      const SizedBox(height: 6),
-                      Text(
-                        _money(data['saldoActual'], '${data['moneda']}'),
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        onPressed: _busy || _number(data['saldoActual']) <= 0
-                            ? null
-                            : () => _requestTransfer(data),
-                        icon: const Icon(Icons.move_to_inbox_outlined),
-                        label: const Text('VACIAR CAJA'),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Se enviará una solicitud por el saldo completo. El dinero seguirá en tu caja hasta que el cajero acepte.',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ],
+              data: (data) {
+                final theme = Theme.of(context);
+                final vacia = _number(data['saldoActual']) <= 0;
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Efectivo en tu poder',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _money(data['saldoActual'], '${data['moneda']}'),
+                          style: theme.textTheme.displaySmall,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _cobrosLine(data['cobrosRealizados']),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        // Alto generoso: es la acción principal de la pantalla
+                        // y se toca con el celular en la mano, en la calle.
+                        SizedBox(
+                          height: 54,
+                          child: FilledButton.icon(
+                            onPressed: _busy || vacia
+                                ? null
+                                : () => _requestTransfer(data),
+                            icon: const Icon(Icons.move_to_inbox_outlined),
+                            label: const Text('Vaciar caja'),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          vacia
+                              ? 'No tenés efectivo para entregar todavía.'
+                              : 'Le vas a pedir a un cajero que reciba todo el '
+                                    'efectivo. La plata sigue con vos hasta que '
+                                    'él la acepte.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
             const SizedBox(height: 16),
             Text('Solicitudes', style: Theme.of(context).textTheme.titleLarge),
@@ -117,9 +144,15 @@ class _CourierCashPageState extends ConsumerState<CourierCashPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Monto completo: ${_money(dashboard['saldoActual'], '${dashboard['moneda']}')}',
-                  style: Theme.of(context).textTheme.titleMedium,
+                // Resumen antes de ejecutar: qué se juntó, de cuántas entregas
+                // y cuánto se va a entregar. Sin esto hay que confiar en un
+                // número solo, sin poder contrastarlo con la jornada.
+                _ResumenVaciado(
+                  cobros: _integer(dashboard['cobrosRealizados']),
+                  total: _money(
+                    dashboard['saldoActual'],
+                    '${dashboard['moneda']}',
+                  ),
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<int>(
@@ -292,3 +325,80 @@ String _transferLabel(String value) => switch (value) {
   'CANCELADO' => 'Cancelada',
   _ => value,
 };
+
+int _integer(Object? raw) =>
+    raw is num ? raw.toInt() : int.tryParse('$raw') ?? 0;
+
+/// De cuántos cobros salió el efectivo que tiene encima.
+String _cobrosLine(Object? raw) {
+  final cobros = _integer(raw);
+  if (cobros == 0) return 'Todavía no cobraste ninguna entrega';
+  return cobros == 1
+      ? 'De 1 entrega cobrada en efectivo'
+      : 'De $cobros entregas cobradas en efectivo';
+}
+
+/// Resumen que se muestra antes de pedir el vaciado.
+///
+/// El repartidor entrega plata de su bolsillo: tiene que poder contrastar el
+/// número contra lo que hizo en el día antes de confirmar, no confiar a ciegas.
+class _ResumenVaciado extends StatelessWidget {
+  const _ResumenVaciado({required this.cobros, required this.total});
+
+  final int cobros;
+  final String total;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Fila(
+            etiqueta: 'Entregas cobradas',
+            valor: '$cobros',
+          ),
+          const Divider(height: 18),
+          _Fila(
+            etiqueta: 'Efectivo a entregar',
+            valor: total,
+            destacado: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Fila extends StatelessWidget {
+  const _Fila({
+    required this.etiqueta,
+    required this.valor,
+    this.destacado = false,
+  });
+
+  final String etiqueta;
+  final String valor;
+  final bool destacado;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final estilo = destacado
+        ? theme.textTheme.titleMedium
+        : theme.textTheme.bodyMedium;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(etiqueta, style: estilo),
+        Text(valor, style: estilo),
+      ],
+    );
+  }
+}

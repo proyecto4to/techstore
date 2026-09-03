@@ -3,7 +3,19 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../cart/application/cart_controller.dart';
+import '../../catalog/domain/product.dart';
 import '../domain/checkout_models.dart';
+
+/// Disponibilidad vigente según el servidor, por producto.
+final class CartAvailability {
+  const CartAvailability({required this.valid, required this.maxByProduct});
+
+  /// Si el carrito, tal como está, se puede comprar sin tocar nada.
+  final bool valid;
+
+  /// Cuántas unidades acepta hoy el servidor de cada producto.
+  final Map<int, int> maxByProduct;
+}
 
 final class CheckoutRepository {
   const CheckoutRepository(this._api);
@@ -21,6 +33,42 @@ final class CheckoutRepository {
       data: {'items': _items(lines)},
     );
     return response.data!;
+  }
+
+  /// Revalida el carrito y traduce la respuesta a cuántas unidades acepta hoy
+  /// el servidor de cada producto.
+  ///
+  /// Los nombres de estado del backend se consumen acá y no salen de este
+  /// método: la interfaz recibe números y nombres de producto, nunca un
+  /// identificador técnico que tendría que interpretar el cliente.
+  Future<CartAvailability> availability(List<CartLine> lines) async {
+    if (lines.isEmpty) {
+      return const CartAvailability(valid: true, maxByProduct: {});
+    }
+    final data = await validate(lines);
+    final maxByProduct = <int, int>{};
+
+    for (final raw in data['items'] as List? ?? const []) {
+      final item = Map<String, Object?>.from(raw as Map);
+      final id = (item['productoId'] as num?)?.toInt();
+      if (id == null) continue;
+
+      final producto = item['producto'] as Map?;
+      if (producto != null) {
+        maxByProduct[id] = (producto['maxPorPedido'] as num?)?.toInt() ?? 0;
+      } else if (item['estado'] == 'CANTIDAD_EXCESIVA') {
+        // El producto existe y hay stock: lo que sobra es la cantidad pedida.
+        maxByProduct[id] = Product.maximoPorPedido;
+      } else {
+        // Sin producto en la respuesta ya no se puede comprar.
+        maxByProduct[id] = 0;
+      }
+    }
+
+    return CartAvailability(
+      valid: data['valido'] == true,
+      maxByProduct: maxByProduct,
+    );
   }
 
   Future<List<DeliveryAddress>> addresses() async {

@@ -5,21 +5,35 @@ final class Product {
     required this.price,
     required this.currency,
     required this.available,
+    this.maxPerOrder = 0,
     this.description,
     this.imageUrl,
     this.brand,
   });
 
-  factory Product.fromJson(Map<String, Object?> json) => Product(
-    id: (json['id'] as num).toInt(),
-    name: json['nombre'] as String? ?? '',
-    description: json['descripcion'] as String?,
-    price: (json['precio'] as num?)?.toDouble() ?? 0,
-    currency: json['moneda'] as String? ?? 'PYG',
-    available: json['disponible'] as bool? ?? false,
-    imageUrl: json['imagenUrl'] as String?,
-    brand: (json['marca'] as Map?)?['nombre'] as String?,
-  );
+  factory Product.fromJson(Map<String, Object?> json) {
+    final available = json['disponible'] as bool? ?? false;
+    final rawMax = (json['maxPorPedido'] as num?)?.toInt();
+    return Product(
+      id: (json['id'] as num).toInt(),
+      name: json['nombre'] as String? ?? '',
+      description: json['descripcion'] as String?,
+      price: (json['precio'] as num?)?.toDouble() ?? 0,
+      currency: json['moneda'] as String? ?? 'PYG',
+      available: available,
+      // Un carrito guardado antes de que el servidor publicara el tope, o una
+      // respuesta cacheada vieja, no traen el dato. En ese caso no inventamos
+      // un limite: dejamos pasar hasta el maximo y que el checkout decida, que
+      // es exactamente como se comportaba la app antes de este campo.
+      maxPerOrder: rawMax ?? (available ? maximoPorPedido : 0),
+      imageUrl: json['imagenUrl'] as String?,
+      brand: (json['marca'] as Map?)?['nombre'] as String?,
+    );
+  }
+
+  /// Espeja `Producto.MAXIMO_POR_PEDIDO` del backend: el checkout rechaza mas
+  /// que esto, asi que la interfaz no debe ofrecerlo.
+  static const int maximoPorPedido = 99;
 
   final int id;
   final String name;
@@ -27,8 +41,31 @@ final class Product {
   final double price;
   final String currency;
   final bool available;
+
+  /// Cuantas unidades acepta el servidor en una linea de pedido ahora mismo.
+  /// No es el stock del deposito: viene techado en [maximoPorPedido].
+  final int maxPerOrder;
+
   final String? imageUrl;
   final String? brand;
+
+  /// Si el numero que publica el servidor es lo que realmente queda en gondola
+  /// y no el tope fijo. Solo entonces tiene sentido decirle al cliente
+  /// "quedan N": con el tope, N no significa nada sobre las existencias.
+  bool get showsRemainingUnits =>
+      maxPerOrder > 0 && maxPerOrder < maximoPorPedido;
+
+  Product copyWith({int? maxPerOrder, bool? available}) => Product(
+    id: id,
+    name: name,
+    description: description,
+    price: price,
+    currency: currency,
+    available: available ?? this.available,
+    maxPerOrder: maxPerOrder ?? this.maxPerOrder,
+    imageUrl: imageUrl,
+    brand: brand,
+  );
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -37,6 +74,7 @@ final class Product {
     'precio': price,
     'moneda': currency,
     'disponible': available,
+    'maxPorPedido': maxPerOrder,
     'imagenUrl': imageUrl,
     'marca': brand == null ? null : {'nombre': brand},
   };
