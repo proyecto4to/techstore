@@ -79,9 +79,22 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
   final _searchController = TextEditingController();
   String _search = '';
   int? _brandId;
+  ScaffoldMessengerState? _messenger;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Se guarda acá porque en dispose() ya no se puede buscar por el árbol.
+    _messenger = ScaffoldMessenger.of(context);
+  }
 
   @override
   void dispose() {
+    // El aviso «Agregado al carrito» lo emite el ScaffoldMessenger de la app,
+    // que vive por encima del Navigator: al salir del catálogo seguía pegado
+    // abajo en las pantallas siguientes, tapando lo que hubiera ahí. Muere con
+    // la pantalla que lo mostró.
+    _messenger?.hideCurrentSnackBar();
     _searchController.dispose();
     super.dispose();
   }
@@ -157,13 +170,9 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                       Expanded(
                         child: DropdownButtonFormField<int?>(
                           initialValue: _brandId,
-                          decoration: const InputDecoration(
-                            labelText: 'Marca',
-                          ),
+                          decoration: const InputDecoration(labelText: 'Marca'),
                           items: [
-                            const DropdownMenuItem(
-                              child: Text('Todas'),
-                            ),
+                            const DropdownMenuItem(child: Text('Todas')),
                             for (final brand in brands)
                               DropdownMenuItem(
                                 value: (brand['id'] as num).toInt(),
@@ -193,7 +202,8 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
               ),
               error: (error, _) => SliverFillRemaining(
                 child: AppErrorState(
-                  message: 'No pudimos cargar el catálogo. '
+                  message:
+                      'No pudimos cargar el catálogo. '
                       'Revisá tu conexión e intentá de nuevo.',
                   onRetry: () => ref.invalidate(catalogProvider(query)),
                 ),

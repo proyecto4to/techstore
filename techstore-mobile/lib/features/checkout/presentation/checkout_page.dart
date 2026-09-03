@@ -183,8 +183,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           .quotes(cart, addressId: addressId);
       if (!mounted) return;
       if (quotes.isEmpty) {
-        _toast('No hay envíos disponibles a esa dirección. '
-            'Probá con otra o elegí retirar en la tienda.');
+        _toast(
+          'No hay envíos disponibles a esa dirección. '
+          'Probá con otra o elegí retirar en la tienda.',
+        );
         return;
       }
       final selected = await showModalBottomSheet<ShippingQuote>(
@@ -387,7 +389,8 @@ class _DeliveryStep extends ConsumerWidget {
               child: LinearProgressIndicator(),
             ),
             error: (error, _) => _Notice(
-              message: 'No pudimos cargar tus direcciones. '
+              message:
+                  'No pudimos cargar tus direcciones. '
                   'Revisá tu conexión e intentá de nuevo.',
             ),
             data: (items) => items.isEmpty
@@ -557,10 +560,7 @@ class _ConfirmStep extends StatelessWidget {
                     ),
                   ),
                 const Divider(),
-                _SummaryRow(
-                  label: 'Subtotal',
-                  value: formatTotals(subtotals),
-                ),
+                _SummaryRow(label: 'Subtotal', value: formatTotals(subtotals)),
                 _SummaryRow(
                   label: 'Envío',
                   value: delivery == _Delivery.pickup
@@ -689,10 +689,7 @@ class _ChoiceCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Icon(
-                icon,
-                color: selected ? theme.colorScheme.primary : null,
-              ),
+              Icon(icon, color: selected ? theme.colorScheme.primary : null),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -787,15 +784,28 @@ class _Footer extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Expanded(
+            // Flexible y no Expanded: con un tercio fijo del ancho, «Volver al
+            // carrito» se partía en tres renglones y el botón quedaba el doble
+            // de alto que el principal. Así toma lo que necesita y cede solo
+            // si de verdad no entra.
+            Flexible(
               child: OutlinedButton(
                 onPressed: onBack,
-                child: Text(step == 0 ? 'Volver al carrito' : 'Atrás'),
+                // Con el relleno de 24 px por lado que trae Material, «Volver
+                // al carrito» se pasaba por unos pocos píxeles y se cortaba en
+                // «Volver al car…». El área táctil sigue por encima del mínimo.
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                child: Text(
+                  step == 0 ? 'Volver al carrito' : 'Atrás',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 2,
               child: FilledButton.icon(
                 // Mientras procesa queda deshabilitado: evita que dos toques
                 // generen dos pedidos.
@@ -805,7 +815,11 @@ class _Footer extends StatelessWidget {
                         dimension: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Icon(isLast ? Icons.check_circle_outline : Icons.arrow_forward),
+                    : Icon(
+                        isLast
+                            ? Icons.check_circle_outline
+                            : Icons.arrow_forward,
+                      ),
                 label: Text(
                   busy
                       ? 'Procesando pedido...'

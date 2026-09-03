@@ -102,7 +102,12 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
   @override
   Widget build(BuildContext context) {
     if (_loading || (_enabled && !_unlocked)) {
-      return ColoredBox(
+      // Material y no ColoredBox: esta pantalla se dibuja en el `builder` del
+      // MaterialApp, por encima del Navigator, así que no hay ningún Material
+      // por arriba. Sin él, Flutter pinta el texto en rojo con subrayado
+      // amarillo —su aviso de «texto fuera de un Material»— y eso era
+      // literalmente lo primero que veía la persona al abrir la app.
+      return Material(
         color: Theme.of(context).colorScheme.surface,
         child: Center(
           child: Semantics(

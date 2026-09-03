@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/format/password_rules.dart';
 import '../application/session_controller.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
@@ -16,6 +17,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _lastName = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  bool _obscure = true;
 
   @override
   void dispose() {
@@ -45,27 +47,49 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 padding: const EdgeInsets.only(bottom: 14),
                 child: TextFormField(
                   controller: entry.$1,
+                  autofocus: entry.$1 == _firstName,
                   decoration: InputDecoration(labelText: entry.$2),
                   keyboardType: entry.$3,
-                  validator: (value) => value == null || value.trim().isEmpty
-                      ? 'Campo requerido'
-                      : null,
+                  textInputAction: TextInputAction.next,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Completá ${entry.$2.toLowerCase()}';
+                    }
+                    // El correo solo se comprobaba como «no vacío»: escribir
+                    // «hola» pasaba y el rechazo llegaba desde el servidor.
+                    if (entry.$1 == _email && !value.contains('@')) {
+                      return 'Escribí un correo válido, como nombre@correo.com';
+                    }
+                    return null;
+                  },
                 ),
               ),
             TextFormField(
               controller: _password,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Contraseña'),
-              validator: (value) {
-                if (value == null || value.length < 8) {
-                  return 'Mínimo 8 caracteres';
-                }
-                if (!RegExp(r'(?=.*[a-z])(?=.*[A-Z])(?=.*\d)')
-                    .hasMatch(value)) {
-                  return 'Incluí mayúscula, minúscula y número';
-                }
-                return null;
-              },
+              obscureText: _obscure,
+              // Los requisitos se decían recién al rechazar el alta. Dichos
+              // antes, la persona escribe una contraseña que va a ser aceptada
+              // en el primer intento.
+              decoration: InputDecoration(
+                labelText: 'Contraseña',
+                helperText: requisitosPassword,
+                suffixIcon: IconButton(
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                  icon: Icon(
+                    _obscure
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                  tooltip: _obscure
+                      ? 'Mostrar contraseña'
+                      : 'Ocultar contraseña',
+                ),
+              ),
+              validator: (value) => value == null || value.isEmpty
+                  ? 'Elegí una contraseña'
+                  // La misma regla que usa el reseteo y que exige el servidor,
+                  // para que el texto de ayuda y el rechazo nunca discrepen.
+                  : errorDePassword(value),
             ),
             if (auth.message != null) ...[
               const SizedBox(height: 12),

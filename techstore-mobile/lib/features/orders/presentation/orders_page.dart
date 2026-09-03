@@ -15,6 +15,7 @@ import '../../checkout/application/checkout_providers.dart';
 /// Estado en el que el backend todavía admite que el cliente anule el pedido.
 /// Después de confirmarlo ya se tocó el stock real y la baja pasa por el local.
 const String _cancellableStatus = 'P';
+const String _cancelledStatus = 'X';
 
 class OrdersPage extends ConsumerWidget {
   const OrdersPage({super.key});
@@ -29,7 +30,8 @@ class OrdersPage extends ConsumerWidget {
         child: orders.when(
           loading: () => const AppLoading(label: 'Cargando tus pedidos'),
           error: (error, _) => AppErrorState(
-            message: 'No pudimos cargar tus pedidos. '
+            message:
+                'No pudimos cargar tus pedidos. '
                 'Revisá tu conexión e intentá de nuevo.',
             onRetry: () => ref.invalidate(ordersProvider),
           ),
@@ -50,9 +52,9 @@ class OrdersPage extends ConsumerWidget {
                           children: [
                             const SizedBox(height: 2),
                             Text(
-                              DateFormat.yMMMd(
-                                'es_PY',
-                              ).add_Hm().format(order.date.toLocal()),
+                              DateFormat.yMMMd('es_PY')
+                                  .add_Hm()
+                                  .format(order.date.toLocal()),
                             ),
                             const SizedBox(height: 6),
                             Align(
@@ -177,16 +179,17 @@ class OrderDetailPage extends ConsumerWidget {
                   builder: (context) {
                     final line = raw as Map;
                     final subtotal = (line['subtotal'] as num?)?.toDouble();
+                    final quantity = (line['cantidad'] as num?)?.toInt() ?? 0;
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(
                         line['productoNombre']?.toString() ?? 'Producto',
                       ),
-                      subtitle: Text('${line['cantidad']} unidades'),
+                      subtitle: Text(
+                        '$quantity ${quantity == 1 ? 'unidad' : 'unidades'}',
+                      ),
                       trailing: Text(
-                        subtotal == null
-                            ? ''
-                            : formatMoney(subtotal, currency),
+                        subtotal == null ? '' : formatMoney(subtotal, currency),
                       ),
                     );
                   },
@@ -196,33 +199,51 @@ class OrderDetailPage extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 title: Text('Total', style: theme.textTheme.titleMedium),
                 trailing: Text(
-                  formatMoney((data['total'] as num?)?.toDouble() ?? 0, currency),
+                  formatMoney(
+                    (data['total'] as num?)?.toDouble() ?? 0,
+                    currency,
+                  ),
                   style: theme.textTheme.titleMedium,
                 ),
               ),
-              shipment.when(
-                // El envío es información complementaria: si no carga, no se
-                // muestra un error que tape el pedido en sí.
-                loading: () => const LinearProgressIndicator(),
-                error: (error, _) => const SizedBox.shrink(),
-                data: (value) {
-                  final shipping = shipmentStatusLabel(
-                    value['estado']?.toString(),
-                  );
-                  final tracking =
-                      value['codigoSeguimiento']?.toString() ??
-                      value['transportista']?.toString();
-                  return Card(
-                    child: ListTile(
-                      leading: Icon(shipping.icon, color: shipping.color(context)),
-                      title: Text(shipping.label),
-                      subtitle: Text(
-                        tracking ?? shipping.detail ?? 'Envío en preparación',
+              // Un pedido cancelado seguía mostrando debajo «Pendiente de
+              // preparación»: el envío queda en ese estado del lado del
+              // servidor, pero al cliente le decía dos cosas opuestas en la
+              // misma pantalla.
+              if (rawStatus.trim().toUpperCase() != _cancelledStatus)
+                shipment.when(
+                  // El envío es información complementaria: si no carga, no se
+                  // muestra un error que tape el pedido en sí.
+                  loading: () => const LinearProgressIndicator(),
+                  error: (error, _) => const SizedBox.shrink(),
+                  data: (value) {
+                    final shipping = shipmentStatusLabel(
+                      value['estado']?.toString(),
+                    );
+                    // El código de seguimiento aparecía solo, sin decir qué
+                    // era: debajo del pedido «N.º 69» se leía «TS-69» y parecía
+                    // un dato interno filtrado, no el número para consultar.
+                    final code = value['codigoSeguimiento']?.toString();
+                    final carrier = value['transportista']?.toString();
+                    final tracking = code != null && code.trim().isNotEmpty
+                        ? 'Código de seguimiento: ${code.trim()}'
+                        : (carrier != null && carrier.trim().isNotEmpty
+                              ? 'Lo lleva ${carrier.trim()}'
+                              : null);
+                    return Card(
+                      child: ListTile(
+                        leading: Icon(
+                          shipping.icon,
+                          color: shipping.color(context),
+                        ),
+                        title: Text(shipping.label),
+                        subtitle: Text(
+                          tracking ?? shipping.detail ?? 'Envío en preparación',
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
               const SizedBox(height: 12),
               // La factura solo aparece cuando el servidor confirma que existe:
               // ofrecerla antes del pago sería prometer algo que no está.
@@ -298,9 +319,8 @@ class OrderDetailPage extends ConsumerWidget {
     } on AppFailure catch (failure) {
       await haptics.play(HapticCue.error);
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(failure.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(failure.message)));
       }
     }
   }
@@ -337,9 +357,8 @@ class OrderDetailPage extends ConsumerWidget {
           );
     } on AppFailure catch (failure) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(failure.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(failure.message)));
       }
     } on Object {
       // El detalle técnico ya queda en el log del cliente HTTP; al usuario se
