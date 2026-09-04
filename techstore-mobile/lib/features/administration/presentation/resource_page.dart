@@ -970,6 +970,14 @@ _Mutation? _createMutation(String key) => switch (key) {
       _Field('modeloId', 'ID modelo', integer: true, required: false),
       _Field('activo', 'Activo', boolean: true, initialBool: true),
       _Field('ocultarSinStock', 'Ocultar sin stock', boolean: true),
+      // Distinto de 'Activo': en falso el producto sigue operando en el
+      // mostrador y en el inventario, pero sale del catalogo de clientes.
+      _Field(
+        'visibleEnApp',
+        'Visible en la app de clientes',
+        boolean: true,
+        initialBool: true,
+      ),
     ],
   ),
   'shipping-rates' => const _Mutation(

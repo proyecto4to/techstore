@@ -16,6 +16,8 @@ public record ProductoResponse(
         BigDecimal margen,
         /** Si desaparece de la tienda al quedarse sin stock. */
         Boolean ocultarSinStock,
+        /** Si se ofrece en la app de clientes. */
+        Boolean visibleEnApp,
         Integer iva,
         Integer stockReal,
         Integer stockComprometido,

@@ -87,6 +87,17 @@ public class Producto implements ConMoneda {
     private Boolean ocultarSinStock = true;
 
     /**
+     * Si el producto se ofrece en la aplicacion de clientes.
+     *
+     * <p>Es distinto de {@code activo}: en falso el producto sigue existiendo,
+     * sigue en el inventario y se sigue pudiendo vender por mostrador, pero no
+     * aparece en el catalogo publico, la busqueda ni el detalle. Sirve para
+     * sacar algo de la vidriera sin sacarlo del negocio.
+     */
+    @Column(name = "visible_en_app", nullable = false)
+    private Boolean visibleEnApp = true;
+
+    /**
      * Tasa de IVA en porcentaje (10, 5 o 0). No es dinero: es el porcentaje con
      * el que se calcula el impuesto contenido en el precio.
      */
@@ -159,7 +170,7 @@ public class Producto implements ConMoneda {
      * vendido, aunque siga en el depósito.
      */
     public boolean visibleEnTienda() {
-        if (!Boolean.TRUE.equals(activo)) {
+        if (!Boolean.TRUE.equals(activo) || !Boolean.TRUE.equals(visibleEnApp)) {
             return false;
         }
         return !Boolean.TRUE.equals(ocultarSinStock) || getStockDisponible() > 0;

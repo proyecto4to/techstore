@@ -120,6 +120,7 @@ const _etiquetas = <String, String>{
   'diasEstimadosMax': 'Días máximos',
   'pesoKg': 'Peso (kg)',
   'ocultarSinStock': 'Ocultar sin stock',
+  'visibleEnApp': 'Visible en la app',
   'moneda': 'Moneda',
   'accion': 'Acción',
   'modulo': 'Módulo',

@@ -37,6 +37,8 @@ public interface ProductoMapper extends DineroMapper {
     // escribiría null encima del valor por defecto de la entidad y el INSERT
     // fallaría contra el NOT NULL de la columna.
     @Mapping(target = "ocultarSinStock", source = "ocultarSinStock", defaultValue = "true")
+    // Mismo motivo: la columna es NOT NULL y un producto nuevo se ofrece.
+    @Mapping(target = "visibleEnApp", source = "visibleEnApp", defaultValue = "true")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     Producto toEntity(ProductoRequest request);
@@ -56,5 +58,6 @@ public interface ProductoMapper extends DineroMapper {
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "activo", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "ocultarSinStock", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "visibleEnApp", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void updateEntity(ProductoRequest request, @MappingTarget Producto producto);
 }

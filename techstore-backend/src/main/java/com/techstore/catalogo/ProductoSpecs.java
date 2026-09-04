@@ -21,8 +21,14 @@ public final class ProductoSpecs {
         return conFiltros(search, marcaId, incluirInactivos, null);
     }
 
+    /**
+     * Lo que ve un cliente. Ademas de lo activo y con stock, respeta la
+     * visibilidad en la app: el filtro va en la consulta y no en la vista, asi
+     * que un producto oculto tampoco aparece por busqueda ni por paginado.
+     */
     public static Specification<Producto> catalogoPublico(String search, Long marcaId, Boolean disponible) {
-        return conFiltros(search, marcaId, false, disponible);
+        return conFiltros(search, marcaId, false, disponible)
+                .and((root, query, cb) -> cb.isTrue(root.get("visibleEnApp")));
     }
 
     private static Specification<Producto> conFiltros(
