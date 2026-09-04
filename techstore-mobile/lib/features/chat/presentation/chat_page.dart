@@ -1,13 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/native/haptics_service.dart';
 import '../../../core/offline/offline_queue_service.dart';
+import '../../../core/widgets/async_states.dart';
 import '../../../core/widgets/voice_dictation_button.dart';
 import '../../auth/application/session_controller.dart';
 import '../data/chat_repository.dart';
@@ -30,51 +30,179 @@ final messagesProvider = FutureProvider.autoDispose.family(
   (ref, int id) => ref.watch(chatRepositoryProvider).messages(id),
 );
 
+/// Cómo se llama la atención de la tienda para quien compra.
+///
+/// El cliente no tiene por qué saber que del otro lado hay un administrador:
+/// eso es organización interna. Ve un canal con la tienda.
+const nombreAtencionAlCliente = 'Atención al Cliente';
+
 class ChatPage extends ConsumerWidget {
   const ChatPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final conversations = ref.watch(conversationsProvider);
+    final rol = ref.watch(authSessionProvider).user?.role;
+    // Quien opera la tienda contesta las conversaciones que le llegan; quien
+    // compra tiene una sola, con la tienda.
+    return rol != null && rol.canOperateStore
+        ? const _BandejaDeLaTienda()
+        : const _AtencionAlCliente();
+  }
+}
+
+/// Lo que ve el cliente: un solo canal, sin elegir con quién habla.
+class _AtencionAlCliente extends ConsumerWidget {
+  const _AtencionAlCliente();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final conversaciones = ref.watch(conversationsProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text(nombreAtencionAlCliente)),
+      body: RefreshIndicator(
+        onRefresh: () => ref.refresh(conversationsProvider.future),
+        child: conversaciones.when(
+          loading: () => const AppLoading(label: 'Abriendo tu conversación'),
+          // Sin conversación previa el error no bloquea: igual se puede
+          // escribir, y el primer mensaje abre el canal.
+          error: (error, _) => _lista(context, ref, null, theme),
+          data: (items) =>
+              _lista(context, ref, items.isEmpty ? null : items.first, theme),
+        ),
+      ),
+    );
+  }
+
+  Widget _lista(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, Object?>? conversacion,
+    ThemeData theme,
+  ) {
+    final sinLeer = (conversacion?['noLeidos'] as num?)?.toInt() ?? 0;
+    final ultimo = conversacion?['ultimoMensaje'] as Map?;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            leading: Badge(
+              isLabelVisible: sinLeer > 0,
+              label: Text('$sinLeer'),
+              child: CircleAvatar(
+                backgroundColor: theme.colorScheme.primaryContainer,
+                child: Icon(
+                  Icons.support_agent_outlined,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+            title: const Text(nombreAtencionAlCliente),
+            subtitle: Text(
+              ultimo?['contenido']?.toString() ??
+                  'Escribinos y te respondemos.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(
+              conversacion == null
+                  ? '/chat/nuevo'
+                  : '/chat/${conversacion['id']}',
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Te contestamos en el horario de la tienda.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Lo que ve la tienda: las conversaciones de sus clientes.
+///
+/// No hay botón de «Nueva»: el servidor solo deja que la conversación la inicie
+/// el cliente, así que ese botón únicamente podía terminar en un error.
+class _BandejaDeLaTienda extends ConsumerWidget {
+  const _BandejaDeLaTienda();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final conversaciones = ref.watch(conversationsProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Conversaciones')),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(conversationsProvider.future),
-        child: conversations.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => ListView(
-            children: const [
-              SizedBox(height: 160),
-              Center(child: Text('No se pudieron cargar las conversaciones')),
-            ],
+        child: conversaciones.when(
+          loading: () => const AppLoading(label: 'Cargando conversaciones'),
+          error: (error, _) => AppErrorState(
+            message: error is AppFailure
+                ? error.message
+                : 'No pudimos cargar las conversaciones.',
+            onRetry: () => ref.invalidate(conversationsProvider),
           ),
           data: (items) => items.isEmpty
               ? ListView(
-                  children: const [
-                    SizedBox(height: 160),
-                    Center(child: Text('Sin conversaciones')),
+                  children: [
+                    const SizedBox(height: 140),
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          children: [
+                            ExcludeSemantics(
+                              child: Icon(
+                                Icons.forum_outlined,
+                                size: 52,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text('Ningún cliente escribió todavía'),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 )
               : ListView.builder(
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final item = items[index];
-                    final unread = (item['noLeidos'] as num?)?.toInt() ?? 0;
-                    final last = item['ultimoMensaje'] as Map?;
+                    final sinLeer = (item['noLeidos'] as num?)?.toInt() ?? 0;
+                    final ultimo = item['ultimoMensaje'] as Map?;
+                    final pedido = (item['pedidoNumero'] as num?)?.toInt();
                     return ListTile(
                       leading: Badge(
-                        isLabelVisible: unread > 0,
-                        label: Text('$unread'),
+                        isLabelVisible: sinLeer > 0,
+                        label: Text('$sinLeer'),
                         child: const CircleAvatar(
-                          child: Icon(Icons.chat_bubble_outline),
+                          child: Icon(Icons.person_outline),
                         ),
                       ),
                       title: Text(
-                        item['clienteNombre']?.toString() ??
-                            'Soporte TechStore',
+                        item['clienteNombre']?.toString() ?? 'Cliente',
                       ),
                       subtitle: Text(
-                        last?['contenido']?.toString() ?? 'Sin mensajes',
+                        [
+                          if (pedido != null) 'Pedido N.º $pedido',
+                          ultimo?['contenido']?.toString() ?? 'Sin mensajes',
+                        ].join(' · '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       onTap: () => context.push('/chat/${item['id']}'),
                     );
@@ -82,38 +210,17 @@ class ChatPage extends ConsumerWidget {
                 ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _newConversation(context, ref),
-        icon: const Icon(Icons.add_comment_outlined),
-        label: const Text('Nueva'),
-      ),
     );
-  }
-
-  Future<void> _newConversation(BuildContext context, WidgetRef ref) async {
-    final result = await showDialog<(String, int?)>(
-      context: context,
-      builder: (_) => const _NewConversationDialog(),
-    );
-    if (result == null || !context.mounted) return;
-    try {
-      final id = await ref
-          .read(chatRepositoryProvider)
-          .create(message: result.$1, orderId: result.$2);
-      ref.invalidate(conversationsProvider);
-      if (context.mounted) unawaited(context.push('/chat/$id'));
-    } on AppFailure catch (failure) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(failure.message)));
-      }
-    }
   }
 }
 
 class ConversationPage extends ConsumerStatefulWidget {
-  const ConversationPage({required this.conversationId, super.key});
-  final int conversationId;
+  const ConversationPage({super.key, this.conversationId});
+
+  /// `null` cuando el cliente todavía no escribió: el primer mensaje abre la
+  /// conversación. Así no hay que pedirle un texto en un diálogo antes de
+  /// mostrarle la pantalla.
+  final int? conversationId;
 
   @override
   ConsumerState<ConversationPage> createState() => _ConversationPageState();
@@ -122,13 +229,18 @@ class ConversationPage extends ConsumerStatefulWidget {
 class _ConversationPageState extends ConsumerState<ConversationPage> {
   final _message = TextEditingController();
   bool _busy = false;
+  int? _id;
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref.read(chatRepositoryProvider).markRead(widget.conversationId),
-    );
+    _id = widget.conversationId;
+    final abierta = _id;
+    if (abierta != null) {
+      Future.microtask(
+        () => ref.read(chatRepositoryProvider).markRead(abierta),
+      );
+    }
   }
 
   @override
@@ -139,44 +251,29 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final messages = ref.watch(messagesProvider(widget.conversationId));
+    final usuario = ref.watch(authSessionProvider).user;
+    final esCliente = !(usuario?.role.canOperateStore ?? false);
+    final abierta = _id;
     return Scaffold(
-      appBar: AppBar(title: const Text('Chat')),
+      appBar: AppBar(
+        title: Text(esCliente ? nombreAtencionAlCliente : 'Conversación'),
+      ),
       body: Column(
         children: [
           Expanded(
-            child: messages.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => const Center(
-                child: Text('No se pudieron cargar los mensajes'),
-              ),
-              data: (items) => RefreshIndicator(
-                onRefresh: () =>
-                    ref.refresh(messagesProvider(widget.conversationId).future),
-                child: ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[items.length - index - 1];
-                    return Card(
-                      child: ListTile(
-                        title: Text(
-                          item['remitenteNombre']?.toString() ?? 'Usuario',
-                        ),
-                        subtitle: Text(item['contenido']?.toString() ?? ''),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
+            child: abierta == null
+                ? _Vacio(esCliente: esCliente)
+                : _Historial(
+                    conversationId: abierta,
+                    emailPropio: usuario?.email ?? '',
+                  ),
           ),
           SafeArea(
             top: false,
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
                     child: TextField(
@@ -184,10 +281,14 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                       maxLength: 2000,
                       minLines: 1,
                       maxLines: 4,
+                      textInputAction: TextInputAction.newline,
+                      autofocus: abierta == null,
                       decoration: const InputDecoration(
                         labelText: 'Mensaje',
                         counterText: '',
                       ),
+                      // Habilita el botón en cuanto hay algo escrito.
+                      onChanged: (_) => setState(() {}),
                     ),
                   ),
                   VoiceDictationButton(
@@ -197,7 +298,10 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                     dictation: true,
                   ),
                   IconButton.filled(
-                    onPressed: _busy ? null : _send,
+                    tooltip: 'Enviar',
+                    onPressed: _busy || _message.text.trim().isEmpty
+                        ? null
+                        : _send,
                     icon: const Icon(Icons.send),
                   ),
                 ],
@@ -210,96 +314,191 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   }
 
   Future<void> _send() async {
-    if (_message.text.trim().isEmpty) return;
+    final texto = _message.text.trim();
+    if (texto.isEmpty) return;
     setState(() => _busy = true);
+    final haptics = ref.read(hapticsServiceProvider);
     try {
-      final result = await ref
-          .read(chatRepositoryProvider)
-          .send(widget.conversationId, _message.text);
-      _message.clear();
-      final haptics = ref.read(hapticsServiceProvider);
-      if (result == ChatSendResult.sent) {
+      final repositorio = ref.read(chatRepositoryProvider);
+      final abierta = _id;
+      if (abierta == null) {
+        // Todavía no hay conversación: este mensaje la abre.
+        final creada = await repositorio.create(message: texto);
+        _message.clear();
         await haptics.play(HapticCue.success);
-        ref.invalidate(messagesProvider(widget.conversationId));
+        ref.invalidate(conversationsProvider);
+        if (mounted) setState(() => _id = creada);
+        return;
+      }
+      final resultado = await repositorio.send(abierta, texto);
+      _message.clear();
+      if (resultado == ChatSendResult.sent) {
+        await haptics.play(HapticCue.success);
+        ref.invalidate(messagesProvider(abierta));
         ref.invalidate(conversationsProvider);
       } else {
         await haptics.play(HapticCue.warning);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Mensaje guardado. Se enviará al reconectar.'),
-            ),
-          );
-        }
+        _avisar('Mensaje guardado. Se enviará al reconectar.');
       }
-    } on AppFailure catch (failure) {
-      await ref.read(hapticsServiceProvider).play(HapticCue.error);
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(failure.message)));
-      }
+    } on AppFailure catch (falla) {
+      await haptics.play(HapticCue.error);
+      _avisar(falla.message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
-}
 
-class _NewConversationDialog extends StatefulWidget {
-  const _NewConversationDialog();
-
-  @override
-  State<_NewConversationDialog> createState() => _NewConversationDialogState();
-}
-
-class _NewConversationDialogState extends State<_NewConversationDialog> {
-  final _message = TextEditingController();
-  final _order = TextEditingController();
-
-  @override
-  void dispose() {
-    _message.dispose();
-    _order.dispose();
-    super.dispose();
+  void _avisar(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(mensaje)));
   }
+}
+
+class _Vacio extends StatelessWidget {
+  const _Vacio({required this.esCliente});
+
+  final bool esCliente;
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Nueva conversación'),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: _message,
-          maxLines: 4,
-          decoration: InputDecoration(
-            labelText: 'Mensaje',
-            suffixIcon: VoiceDictationButton(
-              controller: _message,
-              tooltip: 'Dictar mensaje',
-              append: true,
-              dictation: true,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ExcludeSemantics(
+              child: Icon(
+                Icons.support_agent_outlined,
+                size: 56,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
+            const SizedBox(height: 12),
+            Text(
+              esCliente
+                  ? 'Contanos en qué te podemos ayudar'
+                  : 'Todavía no hay mensajes',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Escribí abajo y te respondemos.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// El historial, con los mensajes propios diferenciados de los recibidos.
+class _Historial extends ConsumerWidget {
+  const _Historial({required this.conversationId, required this.emailPropio});
+
+  final int conversationId;
+  final String emailPropio;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mensajes = ref.watch(messagesProvider(conversationId));
+    return mensajes.when(
+      loading: () => const AppLoading(label: 'Cargando mensajes'),
+      error: (error, _) => AppErrorState(
+        message: error is AppFailure
+            ? error.message
+            : 'No pudimos cargar los mensajes.',
+        onRetry: () => ref.invalidate(messagesProvider(conversationId)),
+      ),
+      data: (items) => items.isEmpty
+          ? const _Vacio(esCliente: true)
+          : RefreshIndicator(
+              onRefresh: () =>
+                  ref.refresh(messagesProvider(conversationId).future),
+              // `reverse` deja el último mensaje a la vista sin tener que
+              // animar un scroll después de construir.
+              child: ListView.builder(
+                reverse: true,
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final mensaje = items[items.length - index - 1];
+                  final propio =
+                      emailPropio.isNotEmpty &&
+                      mensaje['remitenteEmail']?.toString().toLowerCase() ==
+                          emailPropio.toLowerCase();
+                  return _Burbuja(mensaje: mensaje, propio: propio);
+                },
+              ),
+            ),
+    );
+  }
+}
+
+class _Burbuja extends StatelessWidget {
+  const _Burbuja({required this.mensaje, required this.propio});
+
+  final Map<String, Object?> mensaje;
+  final bool propio;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enviado = DateTime.tryParse(mensaje['enviadoEn']?.toString() ?? '');
+    return Align(
+      alignment: propio ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 320),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: propio
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(14),
+            topRight: const Radius.circular(14),
+            bottomLeft: Radius.circular(propio ? 14 : 4),
+            bottomRight: Radius.circular(propio ? 4 : 14),
           ),
         ),
-        TextField(
-          controller: _order,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'ID pedido (opcional)'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!propio)
+              Text(
+                mensaje['remitenteNombre']?.toString() ?? 'La tienda',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            Text(
+              mensaje['contenido']?.toString() ?? '',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: propio ? theme.colorScheme.onPrimaryContainer : null,
+              ),
+            ),
+            if (enviado != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  DateFormat.Hm('es_PY').format(enviado.toLocal()),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+          ],
         ),
-      ],
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancelar'),
       ),
-      FilledButton(
-        onPressed: () {
-          if (_message.text.trim().isEmpty) return;
-          Navigator.pop(context, (_message.text, int.tryParse(_order.text)));
-        },
-        child: const Text('Crear'),
-      ),
-    ],
-  );
+    );
+  }
 }

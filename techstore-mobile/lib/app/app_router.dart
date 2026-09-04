@@ -192,7 +192,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/chat/:id',
         builder: (context, state) => ConversationPage(
-          conversationId: int.parse(state.pathParameters['id']!),
+          // «nuevo» es la conversacion que todavia no existe: se abre la
+          // pantalla y el primer mensaje la crea. tryParse y no parse, porque
+          // un id invalido en la ruta no puede tirar la app.
+          conversationId: int.tryParse(state.pathParameters['id'] ?? ''),
         ),
       ),
       GoRoute(
