@@ -21,9 +21,25 @@ class BusinessHubPage extends StatelessWidget {
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
         ),
-        itemCount: keys.length + (admin ? 1 : 3),
+        itemCount: keys.length + (admin ? 2 : 3),
         itemBuilder: (context, index) {
           if (admin && index == 0) {
+            return Card(
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => context.push('/admin/seguridad'),
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.shield_outlined, size: 38),
+                    SizedBox(height: 10),
+                    Text('Seguridad', textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            );
+          }
+          if (admin && index == 1) {
             return Card(
               clipBehavior: Clip.antiAlias,
               child: InkWell(
@@ -90,7 +106,7 @@ class BusinessHubPage extends StatelessWidget {
               ),
             );
           }
-          final resourceIndex = admin ? index - 1 : index - 3;
+          final resourceIndex = admin ? index - 2 : index - 3;
           final definition = resources[keys[resourceIndex]]!;
           return Card(
             clipBehavior: Clip.antiAlias,

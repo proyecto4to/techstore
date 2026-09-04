@@ -7,6 +7,7 @@ import '../features/administration/domain/resource_definition.dart';
 import '../features/administration/presentation/business_hub_page.dart';
 import '../features/administration/presentation/document_center_page.dart';
 import '../features/administration/presentation/resource_page.dart';
+import '../features/administration/presentation/security_page.dart';
 import '../features/auth/application/auth_state.dart';
 import '../features/auth/application/session_controller.dart';
 import '../features/auth/presentation/account_page.dart';
@@ -187,6 +188,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/courier/vehicles',
         builder: (context, state) => const CourierVehiclesPage(),
+      ),
+      GoRoute(
+        path: '/admin/seguridad',
+        builder: (context, state) => const SecurityPage(),
       ),
       GoRoute(path: '/chat', builder: (context, state) => const ChatPage()),
       GoRoute(

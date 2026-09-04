@@ -61,7 +61,7 @@ class MigracionesIT {
             }
         }
         assertTrue(fallidas.isEmpty(), "Migraciones fallidas: " + fallidas);
-        assertEquals(47, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
+        assertEquals(48, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
     }
 
     @Test

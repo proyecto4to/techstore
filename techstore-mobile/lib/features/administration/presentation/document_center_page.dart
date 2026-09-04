@@ -105,7 +105,8 @@ class _DocumentCenterPageState extends ConsumerState<DocumentCenterPage> {
             content: Text(
               userMessageFor(
                 error,
-                fallback: 'No pudimos exportar el documento. '
+                fallback:
+                    'No pudimos exportar el documento. '
                     'Revisá tu conexión e intentá de nuevo.',
               ),
             ),
