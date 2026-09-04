@@ -43,12 +43,17 @@ public class CajaController {
 
     @GetMapping("/movimientos")
     @Operation(summary = "Listar movimientos de caja",
-            description = "Paginado, con rango de fechas inclusivo opcional")
+            description = "Administracion ve el historial con rango de fechas; el cajero, solo su turno abierto")
     public PageResponse<MovimientoCajaResponse> listar(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            @ParameterObject @PageableDefault(size = 10, sort = "fecha", direction = Sort.Direction.DESC) Pageable pageable) {
-        return cajaService.listar(desde, hasta, pageable);
+            @ParameterObject @PageableDefault(size = 10, sort = "fecha", direction = Sort.Direction.DESC) Pageable pageable,
+            Authentication auth) {
+        // El cajero necesita ver lo que registro, no el historial del negocio:
+        // el rango de fechas se ignora y se responde su turno abierto.
+        return esAdmin(auth)
+                ? cajaService.listar(desde, hasta, pageable)
+                : cajaService.listarDelTurno(pageable);
     }
 
     @GetMapping("/resumen")

@@ -228,7 +228,12 @@ if (Test-Url 'http://localhost:8090/actuator/health') {
     $ocupanteBackend = Get-PidPuerto 8090
     if ($null -ne $ocupanteBackend) { Fallar "el puerto 8090 ya pertenece al PID $ocupanteBackend" }
     Write-Host '  [2/3] Iniciando backend (Spring Boot)...' -NoNewline
-    $procesoBackend = Start-Process -FilePath $javaExe -ArgumentList '-Dtechstore.launcher=local-portable', '-jar', 'target\techstore-backend-1.0.0.jar' `
+    # Paraguay esta en -03:00 permanente desde 2024, pero la base de zonas que
+    # trae este JDK (2024a) todavia resuelve America/Asuncion a -04:00. Sin este
+    # flag el sistema graba cada pedido, factura y cierre de caja una hora antes
+    # de la real. Se fija el desfase correcto hasta que se actualice el JDK a uno
+    # con la base 2024b o posterior; ahi el flag se puede sacar.
+    $procesoBackend = Start-Process -FilePath $javaExe -ArgumentList '-Dtechstore.launcher=local-portable', '-Duser.timezone=Etc/GMT+3', '-jar', 'target\techstore-backend-1.0.0.jar' `
         -WorkingDirectory $backendDir -WindowStyle Hidden -PassThru
     Registrar-Proceso $procesoBackend.Id 'backend'
     $backendListo = $false

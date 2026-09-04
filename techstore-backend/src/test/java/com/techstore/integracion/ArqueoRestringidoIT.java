@@ -108,6 +108,33 @@ class ArqueoRestringidoIT {
     }
 
     @Test
+    void elCajeroNoPuedeLeerElHistorialDeMovimientos() throws Exception {
+        String cashier = nuevoCajero("movimientos");
+        String admin = login("admin@techstore.py", "admin123");
+
+        // Pidiendo un rango amplio, un cajero podia leer meses de movimientos
+        // de caja que no hacen a su turno. Ahora solo ve el turno abierto, y
+        // con la caja cerrada eso es nada.
+        MvcResult delCajero = mvc.perform(get("/api/v1/caja/movimientos")
+                        .param("desde", "2000-01-01")
+                        .param("size", "200")
+                        .header("Authorization", bearer(cashier)))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode contenidoCajero = json.readTree(delCajero.getResponse().getContentAsString())
+                .path("content");
+        assertTrue(contenidoCajero.isEmpty(),
+                "Sin turno abierto el cajero no tiene movimientos propios que ver");
+
+        // Administracion sigue viendo el historial completo.
+        mvc.perform(get("/api/v1/caja/movimientos")
+                        .param("desde", "2000-01-01")
+                        .param("size", "200")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void administracionSiVeElArqueoCompleto() throws Exception {
         String admin = login("admin@techstore.py", "admin123");
 

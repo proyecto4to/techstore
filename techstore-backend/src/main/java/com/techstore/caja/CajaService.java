@@ -29,6 +29,7 @@ public class CajaService {
     private static final LocalDate ORIGEN = LocalDate.of(2000, 1, 1);
 
     private final MovimientoCajaRepository movimientoCajaRepository;
+    private final AperturaCajaRepository aperturaCajaRepository;
     private final UsuarioRepository usuarioRepository;
     private final AutonumeradorService autonumeradorService;
     private final ReportePdfService reportePdfService;
@@ -111,6 +112,27 @@ public class CajaService {
         return PageResponse.from(movimientoCajaRepository
                 .findByFechaGreaterThanEqualAndFechaLessThan(rango[0], rango[1], pageable)
                 .map(MovimientoCajaResponse::from));
+    }
+
+    /**
+     * Los movimientos del turno abierto, para quien opera la caja.
+     *
+     * <p>El cajero necesita ver lo que registró para confirmar su trabajo, pero
+     * no el historial del negocio: sin este recorte podía pedir cualquier rango
+     * de fechas y leer meses de movimientos, que no hacen a su turno.
+     *
+     * <p>Con la caja cerrada devuelve vacío en lugar de caer al historial
+     * completo: si no hay turno abierto, no hay nada suyo que mostrar.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<MovimientoCajaResponse> listarDelTurno(Pageable pageable) {
+        return aperturaCajaRepository.findByCierreIsNull()
+                .map(apertura -> PageResponse.from(movimientoCajaRepository
+                        .findByFechaGreaterThanEqualAndFechaLessThan(
+                                apertura.getFechaApertura(), LocalDateTime.now(), pageable)
+                        .map(MovimientoCajaResponse::from)))
+                .orElseGet(() -> new PageResponse<>(
+                        List.of(), 0, pageable.getPageSize(), 0, 0));
     }
 
     @Transactional(readOnly = true)
