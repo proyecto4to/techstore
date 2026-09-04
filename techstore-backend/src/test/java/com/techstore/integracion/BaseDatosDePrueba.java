@@ -69,6 +69,16 @@ public final class BaseDatosDePrueba {
         registro.add("spring.datasource.username", () -> "postgres");
         registro.add("spring.datasource.password", () -> "postgres");
         registro.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        // Spring cachea un contexto por clase de test y cada uno se queda con su
+        // pool vivo hasta el final de la corrida. Con el tamaño por omisión —diez
+        // conexiones— la suite terminó pidiéndole al Postgres embebido más de las
+        // cien que admite, y las últimas clases fallaban al arrancar con «ya
+        // tenemos demasiados clientes»: un fallo de infraestructura que se leía
+        // como un test roto. Cada contexto usa MockMvc en un solo hilo, así que
+        // con tres alcanza, y las inactivas se sueltan solas.
+        registro.add("spring.datasource.hikari.maximum-pool-size", () -> "3");
+        registro.add("spring.datasource.hikari.minimum-idle", () -> "0");
+        registro.add("spring.datasource.hikari.idle-timeout", () -> "10000");
         // Flyway es el dueño del esquema, también acá: la gracia de estas pruebas
         // es justamente que las migraciones corran de verdad.
         registro.add("spring.jpa.hibernate.ddl-auto", () -> "validate");

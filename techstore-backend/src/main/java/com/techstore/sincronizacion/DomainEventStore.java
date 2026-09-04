@@ -9,7 +9,9 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -56,6 +58,38 @@ public class DomainEventStore {
                 FROM domain_event_outbox WHERE id > ? ORDER BY id LIMIT ?
                 """, (rs, row) -> map(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getLong(4),
                         rs.getString(5), rs.getTimestamp(6)), cursor, limit);
+    }
+
+    /**
+     * Los eventos posteriores al cursor, limitados a ciertos agregados.
+     *
+     * <p>El filtro va en la consulta y no sobre la página ya traída, a
+     * propósito. El cliente avanza su cursor con el id del último evento que
+     * recibió y deja de pedir cuando una página viene incompleta; filtrando en
+     * Java, una ventana podría devolver cero visibles habiendo visibles más
+     * adelante, el cursor no avanzaría y la puesta al día quedaría trabada
+     * pidiendo siempre la misma ventana.
+     */
+    @Transactional(readOnly = true)
+    public List<DomainEventResponse> after(long cursor, int limit, Collection<String> agregados) {
+        if (agregados.isEmpty()) {
+            return List.of();
+        }
+        String marcadores = agregados.stream().map(a -> "?").collect(Collectors.joining(","));
+        Object[] parametros = new Object[agregados.size() + 2];
+        parametros[0] = cursor;
+        int indice = 1;
+        for (String agregado : agregados) {
+            parametros[indice++] = agregado;
+        }
+        parametros[indice] = limit;
+        return jdbcTemplate.query(
+                "SELECT id,event_type,aggregate_type,aggregate_id,payload::text,occurred_at"
+                        + " FROM domain_event_outbox WHERE id > ? AND aggregate_type IN (" + marcadores + ")"
+                        + " ORDER BY id LIMIT ?",
+                (rs, row) -> map(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getLong(4),
+                        rs.getString(5), rs.getTimestamp(6)),
+                parametros);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
