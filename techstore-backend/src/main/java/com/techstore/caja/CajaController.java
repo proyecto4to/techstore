@@ -52,7 +52,8 @@ public class CajaController {
     }
 
     @GetMapping("/resumen")
-    @Operation(summary = "Arqueo de caja", description = "Ingresos, egresos y saldo del período")
+    @PreAuthorize("hasRole('Admin')")
+    @Operation(summary = "Arqueo de caja", description = "Ingresos, egresos y saldo del período. Solo administracion: el neto de efectivo es el monto esperado del turno")
     public ResumenCajaResponse resumen(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
@@ -60,7 +61,8 @@ public class CajaController {
     }
 
     @GetMapping(value = "/resumen/pdf", produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
-    @Operation(summary = "Arqueo de caja en PDF", description = "Resumen y detalle de movimientos del período")
+    @PreAuthorize("hasRole('Admin')")
+    @Operation(summary = "Arqueo de caja en PDF", description = "Resumen y detalle de movimientos del período. Solo administracion")
     public org.springframework.http.ResponseEntity<byte[]> resumenPdf(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
@@ -87,8 +89,9 @@ public class CajaController {
     @GetMapping("/cierres/preview")
     @Operation(summary = "Vista previa del cierre",
             description = "Efectivo teórico del turno abierto (desde el último cierre) antes de contar el físico")
-    public PreviewCierreResponse previewCierre() {
-        return cierreCajaService.preview();
+    public PreviewCierreResponse previewCierre(Authentication auth) {
+        PreviewCierreResponse preview = cierreCajaService.preview();
+        return esAdmin(auth) ? preview : preview.sinArqueo();
     }
 
     @PostMapping("/cierres")
@@ -96,13 +99,32 @@ public class CajaController {
     @Operation(summary = "Cerrar caja",
             description = "Registra el arqueo del turno con el efectivo contado y la diferencia respecto al teórico")
     public CierreCajaResponse cerrar(@Valid @RequestBody CerrarCajaRequest request, Authentication auth) {
-        return cierreCajaService.cerrar(request, auth.getName());
+        CierreCajaResponse cierre = cierreCajaService.cerrar(request, auth.getName());
+        return esAdmin(auth) ? cierre : cierre.sinArqueo();
     }
 
     @GetMapping("/cierres")
     @Operation(summary = "Listar cierres de caja")
     public PageResponse<CierreCajaResponse> listarCierres(
-            @ParameterObject @PageableDefault(size = 10, sort = "fechaCierre", direction = Sort.Direction.DESC) Pageable pageable) {
-        return cierreCajaService.listar(pageable);
+            @ParameterObject @PageableDefault(size = 10, sort = "fechaCierre", direction = Sort.Direction.DESC) Pageable pageable,
+            Authentication auth) {
+        PageResponse<CierreCajaResponse> cierres = cierreCajaService.listar(pageable);
+        if (esAdmin(auth)) {
+            return cierres;
+        }
+        return cierres.map(CierreCajaResponse::sinArqueo);
+    }
+
+    /**
+     * El arqueo -efectivo teorico, diferencia, sobrante o faltante- es
+     * informacion de control sobre el propio cajero: si la ve mientras cuenta,
+     * deja de ser una declaracion y pasa a ser un numero para cuadrar. Por eso
+     * se filtra en el servidor y no solo en la pantalla: ocultar un boton no
+     * impide llamar al endpoint.
+     */
+    private boolean esAdmin(Authentication auth) {
+        return auth != null
+                && auth.getAuthorities().stream()
+                        .anyMatch(a -> "ROLE_Admin".equals(a.getAuthority()));
     }
 }

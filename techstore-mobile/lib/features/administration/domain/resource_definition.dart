@@ -174,13 +174,16 @@ const resources = <String, ResourceDefinition>{
   ),
 };
 
+/// Lo que ve un cajero. El resumen de caja no esta acá a proposito: es el
+/// arqueo del periodo, y su neto de efectivo es el monto esperado del turno.
+/// El servidor tambien lo niega, esta lista solo evita ofrecer una pantalla
+/// que responderia 403.
 const operatorResourceKeys = [
   'dashboard',
   'replenishment',
   'all-orders',
   'purchases',
   'suppliers',
-  'cash',
   'cash-movements',
   'cash-closures',
   'invoices',
@@ -193,6 +196,7 @@ const operatorResourceKeys = [
 ];
 
 const adminResourceKeys = [
+  'cash',
   'users',
   'products-admin',
   'company',
