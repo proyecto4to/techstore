@@ -10,6 +10,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -24,7 +25,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/pedidos")
@@ -34,6 +38,7 @@ public class PedidoController {
 
     private final PedidoService pedidoService;
     private final PagoService pagoService;
+    private final PagoComprobanteService comprobanteService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -83,6 +88,42 @@ public class PedidoController {
     @Operation(summary = "Anular pedido", description = "El dueño anula su pedido pendiente; Admin y Cajero pueden anular cualquiera")
     public PedidoResponse cancelar(@PathVariable Long id, Authentication auth) {
         return pedidoService.cancelar(id, auth.getName(), esStaff(auth));
+    }
+
+    @GetMapping("/{id}/comprobantes")
+    @Operation(summary = "Comprobantes de pago del pedido",
+            description = "Hasta " + PagoComprobanteService.MAXIMO_POR_PEDIDO + " por pedido")
+    public List<PagoComprobanteResponse> comprobantes(@PathVariable Long id, Authentication auth) {
+        return comprobanteService.listar(id, auth.getName(), esStaff(auth));
+    }
+
+    @PostMapping(value = "/{id}/comprobantes", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Adjuntar un comprobante de pago",
+            description = "Imagen o PDF. El tope se valida en el servidor: la pantalla puede deshabilitar el boton, pero eso no impide mandar uno mas por la API")
+    public PagoComprobanteResponse adjuntarComprobante(
+            @PathVariable Long id,
+            @RequestPart("archivo") MultipartFile archivo,
+            Authentication auth) {
+        return comprobanteService.adjuntar(id, archivo, auth.getName(), esStaff(auth));
+    }
+
+    @DeleteMapping("/{id}/comprobantes/{comprobanteId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Quitar un comprobante adjunto")
+    public void quitarComprobante(
+            @PathVariable Long id, @PathVariable Long comprobanteId, Authentication auth) {
+        comprobanteService.eliminar(id, comprobanteId, auth.getName(), esStaff(auth));
+    }
+
+    @GetMapping("/{id}/comprobantes/{comprobanteId}/archivo")
+    @Operation(summary = "Descargar un comprobante adjunto")
+    public ResponseEntity<byte[]> archivoComprobante(
+            @PathVariable Long id, @PathVariable Long comprobanteId, Authentication auth) {
+        var archivo = comprobanteService.obtenerArchivo(id, comprobanteId, auth.getName(), esStaff(auth));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, archivo.contentType())
+                .body(archivo.contenido());
     }
 
     private boolean esStaff(Authentication auth) {

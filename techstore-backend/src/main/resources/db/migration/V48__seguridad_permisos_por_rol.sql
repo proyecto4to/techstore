@@ -149,7 +149,10 @@ FROM roles r
 WHERE p.rol_id = r.id AND r.nombre = 'Cliente'
   AND (p.modulo, p.accion) IN (
       ('PRODUCTOS','VER'),
-      ('PEDIDOS','VER'), ('PEDIDOS','CREAR'),
+      -- EDITAR su propio pedido: cancelarlo y adjuntarle los comprobantes del
+      -- pago. Lo que protege el pedido ajeno es la comprobacion de duenio del
+      -- servicio, no la falta de este permiso.
+      ('PEDIDOS','VER'), ('PEDIDOS','CREAR'), ('PEDIDOS','EDITAR'),
       ('FACTURAS','VER'),
       -- VER envios: cotizar durante la compra y seguir el propio pedido. La
       -- configuracion de tarifas sigue cerrada por la anotacion del backend,

@@ -87,6 +87,20 @@ class PermisosPorRolIT {
     }
 
     @Test
+    void elClientePuedeOperarSobreSuPropioPedido() throws Exception {
+        // Regresion: al aplicar los permisos, cancelar el propio pedido paso a
+        // dar 403. El verbo es PUT, pero cancelar el pedido 73 no es
+        // "editar pedidos" como modulo: es operar sobre lo suyo, y lo que
+        // protege el pedido ajeno es la comprobacion de duenio del servicio.
+        String cliente = nuevoCliente("permisos.propio@techstore.py");
+        long pedido = nuevoPedido(cliente);
+
+        mvc.perform(put("/api/v1/pedidos/{id}/cancelar", pedido)
+                        .header("Authorization", bearer(cliente)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void soloAdministracionEntraAlModuloDeSeguridad() throws Exception {
         String cajero = nuevoCajero("permisos.modulo@techstore.py");
 
@@ -153,6 +167,32 @@ class PermisosPorRolIT {
                         .content("{\"modulo\":\"" + modulo + "\",\"accion\":\"" + accion
                                 + "\",\"permitido\":" + permitido + "}"))
                 .andExpect(status().isOk());
+    }
+
+    private String nuevoCliente(String email) throws Exception {
+        mvc.perform(post("/api/v1/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\"Permisos\",\"apellido\":\"Cliente\",\"email\":\"" + email
+                                + "\",\"password\":\"Cliente123\"}"))
+                .andExpect(status().isCreated());
+        return login(email, "Cliente123");
+    }
+
+    private long nuevoPedido(String token) throws Exception {
+        MvcResult catalogo = mvc.perform(get("/api/v1/productos").param("size", "1"))
+                .andExpect(status().isOk())
+                .andReturn();
+        long producto = json.readTree(catalogo.getResponse().getContentAsString())
+                .path("content").get(0).path("id").asLong();
+        MvcResult creado = mvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[{\"productoId\":" + producto
+                                + ",\"cantidad\":1}],\"metodoEntrega\":\"RETIRO_TIENDA\","
+                                + "\"metodoPago\":\"PAGO_EN_LOCAL\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return json.readTree(creado.getResponse().getContentAsString()).path("id").asLong();
     }
 
     private String nuevoCajero(String email) throws Exception {

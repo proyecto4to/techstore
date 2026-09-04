@@ -11,11 +11,15 @@ import '../../../core/native/document_service.dart';
 import '../../../core/native/haptics_service.dart';
 import '../../../core/widgets/async_states.dart';
 import '../../checkout/application/checkout_providers.dart';
+import 'payment_receipts.dart';
 
 /// Estado en el que el backend todavía admite que el cliente anule el pedido.
 /// Después de confirmarlo ya se tocó el stock real y la baja pasa por el local.
 const String _cancellableStatus = 'P';
 const String _cancelledStatus = 'X';
+
+/// El unico metodo de pago que pide respaldo: los otros se cobran en persona.
+const String _pagoConComprobante = 'TRANSFERENCIA_BANCARIA';
 
 class OrdersPage extends ConsumerWidget {
   const OrdersPage({super.key});
@@ -244,6 +248,11 @@ class OrderDetailPage extends ConsumerWidget {
                     );
                   },
                 ),
+              // Los comprobantes solo tienen sentido si el pago fue por
+              // transferencia y el pedido sigue en pie.
+              if (data['metodoPago']?.toString() == _pagoConComprobante &&
+                  rawStatus.trim().toUpperCase() != _cancelledStatus)
+                PaymentReceipts(orderId: orderId),
               const SizedBox(height: 12),
               // La factura solo aparece cuando el servidor confirma que existe:
               // ofrecerla antes del pago sería prometer algo que no está.

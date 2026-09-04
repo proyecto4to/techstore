@@ -86,18 +86,18 @@ public class PermisoInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        Modulo modulo = moduloDe(request.getRequestURI());
-        if (modulo == null) {
+        String uri = request.getRequestURI();
+        String prefijo = prefijoDe(uri);
+        if (prefijo == null) {
             return true;
         }
+        Modulo modulo = RUTAS.get(prefijo);
         String rol = rolActual();
         if (rol == null) {
             // Sin sesión no decide esta capa: de eso se ocupa Spring Security.
             return true;
         }
-        AccionPermiso accion = CONSULTAS_CON_CUERPO.contains(request.getRequestURI())
-                ? AccionPermiso.VER
-                : AccionPermiso.deMetodo(request.getMethod());
+        AccionPermiso accion = accionDe(uri, prefijo, request.getMethod());
         if (permisos.puede(rol, modulo, accion)) {
             return true;
         }
@@ -106,16 +106,53 @@ public class PermisoInterceptor implements HandlerInterceptor {
                         + " en " + modulo.etiqueta());
     }
 
-    private Modulo moduloDe(String uri) {
+    private String prefijoDe(String uri) {
         if (uri == null) {
             return null;
         }
-        for (Map.Entry<String, Modulo> entrada : RUTAS.entrySet()) {
-            if (uri.startsWith(entrada.getKey())) {
-                return entrada.getValue();
+        for (String prefijo : RUTAS.keySet()) {
+            if (uri.startsWith(prefijo)) {
+                return prefijo;
             }
         }
         return null;
+    }
+
+    /**
+     * Que accion representa este pedido sobre el modulo.
+     *
+     * <p>El verbo solo no alcanza. Escribir sobre algo colgado de un elemento
+     * concreto —cancelar el pedido 73, quitarle un comprobante, cambiarle la
+     * foto a un producto— es EDITAR ese elemento, no crear ni borrar elementos
+     * del modulo. Sin esta distincion, un cliente necesitaria permiso de
+     * "eliminar pedidos" para sacar una foto que el mismo adjunto, y de "crear"
+     * para cancelar el suyo: permisos mucho mas anchos que la operacion real.
+     *
+     * <p>La forma de la ruta lo dice: {@code /modulo} es la coleccion,
+     * {@code /modulo/{id}} es el elemento, y cualquier cosa despues del id es
+     * algo suyo.
+     */
+    private AccionPermiso accionDe(String uri, String prefijo, String metodo) {
+        if (CONSULTAS_CON_CUERPO.contains(uri)) {
+            return AccionPermiso.VER;
+        }
+        AccionPermiso porVerbo = AccionPermiso.deMetodo(metodo);
+        if (porVerbo == AccionPermiso.VER) {
+            return porVerbo;
+        }
+        return esSubRecurso(uri, prefijo) ? AccionPermiso.EDITAR : porVerbo;
+    }
+
+    /** Si despues del identificador del elemento todavia queda camino. */
+    private static boolean esSubRecurso(String uri, String prefijo) {
+        String resto = uri.substring(prefijo.length());
+        if (resto.startsWith("/")) {
+            resto = resto.substring(1);
+        }
+        if (resto.isBlank()) {
+            return false;
+        }
+        return resto.contains("/");
     }
 
     private String rolActual() {
