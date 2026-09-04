@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/format/money.dart';
+import '../../../core/format/money_input.dart';
 import '../../../core/native/haptics_service.dart';
 import '../../../core/widgets/async_states.dart';
+import '../../../core/widgets/money_field.dart';
 import '../../../core/widgets/quantity_stepper.dart';
 import '../../../core/widgets/voice_dictation_button.dart';
 import '../../catalog/application/catalog_providers.dart';
@@ -267,7 +269,8 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
   Future<void> _submit() async {
     final payments = <Map<String, Object?>>[];
     for (final line in _payments) {
-      final amount = double.tryParse(line.amount.text.replaceAll(',', '.'));
+      // El campo muestra el monto agrupado; lo que viaja es el numero.
+      final amount = parsearMonto(line.amount.text, decimales: 2);
       if (amount == null || amount <= 0) {
         _cue(HapticCue.error);
         _message('Ingresá montos válidos para todos los pagos');
@@ -374,10 +377,10 @@ class _PaymentEditorState extends State<_PaymentEditor> {
             ],
             onChanged: (value) => setState(() => widget.line.type = value!),
           ),
-          TextField(
+          MoneyField(
             controller: widget.line.amount,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Monto'),
+            label: 'Monto',
+            decimales: 2,
           ),
           TextField(
             controller: widget.line.reference,

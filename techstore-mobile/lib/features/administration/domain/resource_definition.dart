@@ -159,24 +159,6 @@ const resources = <String, ResourceDefinition>{
     path: '/api/v1/envios/tarifas',
     icon: Icons.route_outlined,
   ),
-  'vat-sales': ResourceDefinition(
-    key: 'vat-sales',
-    title: 'Libro IVA ventas',
-    path: '/api/v1/contabilidad/libro-ventas',
-    icon: Icons.menu_book_outlined,
-  ),
-  'vat-purchases': ResourceDefinition(
-    key: 'vat-purchases',
-    title: 'Libro IVA compras',
-    path: '/api/v1/contabilidad/libro-compras',
-    icon: Icons.menu_book_outlined,
-  ),
-  'vat-summary': ResourceDefinition(
-    key: 'vat-summary',
-    title: 'Resumen IVA',
-    path: '/api/v1/contabilidad/resumen-iva',
-    icon: Icons.calculate_outlined,
-  ),
   'audit': ResourceDefinition(
     key: 'audit',
     title: 'Auditoría',
@@ -216,9 +198,6 @@ const adminResourceKeys = [
   'company',
   'expedition-points',
   'shipping-rates',
-  'vat-sales',
-  'vat-purchases',
-  'vat-summary',
   'audit',
   'smtp-config',
 ];

@@ -7,6 +7,7 @@ import '../../app/environment.dart';
 import '../cache/cache_store.dart';
 import '../database/app_database.dart';
 import '../logging/app_logger.dart';
+import '../native/app_excursion.dart';
 import '../native/biometric_service.dart';
 import '../native/document_service.dart';
 import '../native/haptics_service.dart';
@@ -89,8 +90,15 @@ final documentServiceProvider = Provider<DocumentService>(
   (ref) => DocumentService(ref.watch(apiClientProvider)),
 );
 
+/// Marca las salidas que la propia app provoca, para que no se confundan con
+/// que la persona se fue de la aplicacion.
+final appExcursionProvider = Provider<AppExcursion>((ref) => AppExcursion());
+
 final imageUploadServiceProvider = Provider<ImageUploadService>(
-  (ref) => ImageUploadService(ref.watch(apiClientProvider)),
+  (ref) => ImageUploadService(
+    ref.watch(apiClientProvider),
+    excursion: ref.watch(appExcursionProvider),
+  ),
 );
 
 final pushServiceProvider = Provider<PushService>((ref) {

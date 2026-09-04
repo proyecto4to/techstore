@@ -1,26 +1,18 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/user_message.dart';
+import '../../../core/format/money_input.dart';
 import '../../../core/native/document_service.dart';
 import '../../../core/widgets/image_origin_sheet.dart';
 import '../domain/resource_definition.dart';
+import 'detail_fields.dart';
 
 final resourceProvider = FutureProvider.autoDispose
     .family<Object?, ResourceDefinition>((ref, definition) async {
       final query = <String, Object?>{...definition.query};
-      if (definition.key.startsWith('vat-')) {
-        final today = DateTime.now();
-        query['desde'] = DateTime(
-          today.year,
-          today.month,
-        ).toIso8601String().substring(0, 10);
-        query['hasta'] = today.toIso8601String().substring(0, 10);
-      }
       final response = await ref
           .watch(apiClientProvider)
           .get<Object?>(definition.path, queryParameters: query);
@@ -90,7 +82,7 @@ class ResourcePage extends ConsumerWidget {
               itemCount: rows.length,
               itemBuilder: (context, index) {
                 final row = rows[index];
-                return _JsonCard(
+                return _RecordCard(
                   value: row,
                   definition: definition,
                   actions: row is Map
@@ -204,7 +196,7 @@ class ResourcePage extends ConsumerWidget {
               _Field('timbrado', 'Timbrado', required: false),
               _Field('numero', 'Número', required: false),
               _Field('condicion', 'Condición', choices: ['Contado', 'Credito']),
-              _Field('total', 'Total', number: true, required: false),
+              _Field('total', 'Total', money: true, required: false),
             ],
           ),
         );
@@ -275,7 +267,7 @@ class ResourcePage extends ConsumerWidget {
             path: '/api/v1/proveedores/$id/ofertas',
             fields: const [
               _Field('productoId', 'ID producto', integer: true),
-              _Field('precio', 'Precio', number: true),
+              _Field('precio', 'Precio', money: true),
               _Field(
                 'disponible',
                 'Disponible',
@@ -436,7 +428,7 @@ class ResourcePage extends ConsumerWidget {
               'Medio',
               choices: ['Efectivo', 'Tarjeta', 'Transferencia', 'Cheque'],
             ),
-            _Field('monto', 'Monto', number: true),
+            _Field('monto', 'Monto', money: true),
             _Field('numeroComprobante', 'Comprobante', required: false),
           ],
         ),
@@ -471,7 +463,8 @@ class ResourcePage extends ConsumerWidget {
             content: Text(
               userMessageFor(
                 error,
-                fallback: 'No pudimos subir la imagen. '
+                fallback:
+                    'No pudimos subir la imagen. '
                     'Probá con otra o revisá tu conexión.',
               ),
             ),
@@ -507,7 +500,8 @@ class ResourcePage extends ConsumerWidget {
             content: Text(
               userMessageFor(
                 error,
-                fallback: 'No pudimos adjuntar el comprobante. '
+                fallback:
+                    'No pudimos adjuntar el comprobante. '
                     'Probá de nuevo en un momento.',
               ),
             ),
@@ -559,7 +553,8 @@ class ResourcePage extends ConsumerWidget {
             content: Text(
               userMessageFor(
                 error,
-                fallback: 'No pudimos abrir el documento. '
+                fallback:
+                    'No pudimos abrir el documento. '
                     'Revisá tu conexión e intentá de nuevo.',
               ),
             ),
@@ -677,8 +672,8 @@ class ResourcePage extends ConsumerWidget {
   }
 }
 
-class _JsonCard extends StatelessWidget {
-  const _JsonCard({
+class _RecordCard extends StatelessWidget {
+  const _RecordCard({
     required this.value,
     required this.definition,
     required this.actions,
@@ -718,10 +713,14 @@ class _JsonCard extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: SelectableText(
-              const JsonEncoder.withIndent('  ').convert(value),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+            // Antes acá se volcaba el JSON con un JsonEncoder: para saber el
+            // total de una compra habia que leer llaves y nombres de columna.
+            child: map == null
+                ? SelectableText(
+                    value.toString(),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  )
+                : DetailFields(registro: map),
           ),
         ],
       ),
@@ -801,30 +800,77 @@ class _MutationDialogState extends State<_MutationDialog> {
         ),
       );
     }
+    if (field.money) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: TextFormField(
+          initialValue: _values[field.name] == null
+              ? null
+              : formatearEntradaMonetaria(
+                  _values[field.name].toString(),
+                  decimales: 2,
+                ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: const [MoneyInputFormatter(decimales: 2)],
+          decoration: InputDecoration(labelText: field.label, prefixText: '₲ '),
+          validator: (value) => _errorDeMonto(value, field),
+          onSaved: (value) {
+            final monto = parsearMonto(value, decimales: 2);
+            if (monto == null) return;
+            _values[field.name] = monto;
+          },
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TextFormField(
         initialValue: _values[field.name]?.toString(),
         obscureText: field.secret,
-        keyboardType: field.number
-            ? const TextInputType.numberWithOptions(decimal: true)
+        keyboardType: field.number || field.integer
+            ? TextInputType.numberWithOptions(decimal: field.number)
             : TextInputType.text,
         decoration: InputDecoration(labelText: field.label),
-        validator: field.required
-            ? (value) =>
-                  value == null || value.trim().isEmpty ? 'Requerido' : null
-            : null,
+        // Antes solo se comprobaba que no estuviera vacío y después `onSaved`
+        // hacía `int.parse`/`double.parse`: escribir cualquier cosa que no
+        // fuera un número reventaba al guardar en lugar de avisar.
+        validator: (value) => _errorDeCampo(value, field),
         onSaved: (value) {
           final text = value?.trim() ?? '';
-          if (text.isEmpty && !field.required) return;
-          _values[field.name] = field.integer
-              ? int.parse(text)
-              : field.number
-              ? double.parse(text.replaceAll(',', '.'))
-              : text;
+          if (text.isEmpty) return;
+          if (field.integer) {
+            final entero = int.tryParse(text);
+            if (entero != null) _values[field.name] = entero;
+            return;
+          }
+          if (field.number) {
+            final numero = double.tryParse(text.replaceAll(',', '.'));
+            if (numero != null) _values[field.name] = numero;
+            return;
+          }
+          _values[field.name] = text;
         },
       ),
     );
+  }
+
+  String? _errorDeMonto(String? value, _Field field) {
+    final monto = parsearMonto(value, decimales: 2);
+    if (monto == null) return field.required ? 'Ingresá un monto' : null;
+    if (monto < 0) return 'El monto no puede ser negativo';
+    return null;
+  }
+
+  String? _errorDeCampo(String? value, _Field field) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return field.required ? 'Requerido' : null;
+    if (field.integer && int.tryParse(text) == null) {
+      return 'Escribí un número entero';
+    }
+    if (field.number && double.tryParse(text.replaceAll(',', '.')) == null) {
+      return 'Escribí un número';
+    }
+    return null;
   }
 }
 
@@ -862,6 +908,7 @@ final class _Field {
     this.label, {
     this.required = true,
     this.number = false,
+    this.money = false,
     this.integer = false,
     this.boolean = false,
     this.initialBool = false,
@@ -872,6 +919,9 @@ final class _Field {
   final String label;
   final bool required;
   final bool number;
+
+  /// Un importe: se agrupa mientras se escribe y lleva el simbolo de moneda.
+  final bool money;
   final bool integer;
   final bool boolean;
   final bool initialBool;
@@ -911,7 +961,7 @@ _Mutation? _createMutation(String key) => switch (key) {
     fields: [
       _Field('nombre', 'Nombre'),
       _Field('descripcion', 'Descripción', required: false),
-      _Field('precio', 'Precio', number: true),
+      _Field('precio', 'Precio', money: true),
       _Field('iva', 'IVA', integer: true),
       _Field('stockReal', 'Stock real', integer: true),
       _Field('stockMinimo', 'Stock mínimo', integer: true, required: false),
@@ -940,7 +990,7 @@ _Mutation? _createMutation(String key) => switch (key) {
         ],
       ),
       _Field('providerCode', 'Código proveedor'),
-      _Field('costo', 'Costo', number: true),
+      _Field('costo', 'Costo', money: true),
       _Field('iva', 'IVA', integer: true),
       _Field('diasEstimadosMin', 'Días mínimos', integer: true),
       _Field('diasEstimadosMax', 'Días máximos', integer: true),
@@ -1055,38 +1105,18 @@ List<(String, String)> _actionsFor(String key, Map<String, Object?> row) =>
       _ => const [],
     };
 
-_DocumentSpec? _resourceDocument(String key) {
-  final now = DateTime.now();
-  final from = DateTime(now.year, now.month).toIso8601String().substring(0, 10);
-  final to = now.toIso8601String().substring(0, 10);
-  return switch (key) {
-    'cash' => const _DocumentSpec(
-      '/api/v1/caja/resumen/pdf',
-      'resumen-caja.pdf',
-    ),
-    'sales-report' => const _DocumentSpec(
-      '/api/v1/reportes/ventas/pdf',
-      'reporte-ventas.pdf',
-    ),
-    'low-stock-report' => const _DocumentSpec(
-      '/api/v1/reportes/stock-bajo/pdf',
-      'stock-bajo.pdf',
-    ),
-    'vat-sales' => _DocumentSpec(
-      '/api/v1/contabilidad/libro-ventas/pdf?desde=$from&hasta=$to',
-      'libro-iva-ventas.pdf',
-    ),
-    'vat-purchases' => _DocumentSpec(
-      '/api/v1/contabilidad/libro-compras/pdf?desde=$from&hasta=$to',
-      'libro-iva-compras.pdf',
-    ),
-    'vat-summary' => _DocumentSpec(
-      '/api/v1/contabilidad/resumen-iva/pdf?desde=$from&hasta=$to',
-      'liquidacion-iva.pdf',
-    ),
-    _ => null,
-  };
-}
+_DocumentSpec? _resourceDocument(String key) => switch (key) {
+  'cash' => const _DocumentSpec('/api/v1/caja/resumen/pdf', 'resumen-caja.pdf'),
+  'sales-report' => const _DocumentSpec(
+    '/api/v1/reportes/ventas/pdf',
+    'reporte-ventas.pdf',
+  ),
+  'low-stock-report' => const _DocumentSpec(
+    '/api/v1/reportes/stock-bajo/pdf',
+    'stock-bajo.pdf',
+  ),
+  _ => null,
+};
 
 final class _DocumentSpec {
   const _DocumentSpec(this.path, this.filename, {this.printable = true});

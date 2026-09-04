@@ -5,18 +5,29 @@ import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../errors/app_failure.dart';
 import '../network/api_client.dart';
+import 'app_excursion.dart';
 
 enum ImageOrigin { camera, gallery }
 
 final class ImageUploadService {
-  ImageUploadService(this._api, {ImagePicker? picker, ImageCropper? cropper})
-    : _picker = picker ?? ImagePicker(),
-      _cropper = cropper ?? ImageCropper();
+  ImageUploadService(
+    this._api, {
+    AppExcursion? excursion,
+    ImagePicker? picker,
+    ImageCropper? cropper,
+  }) : _excursion = excursion ?? AppExcursion(),
+       _picker = picker ?? ImagePicker(),
+       _cropper = cropper ?? ImageCropper();
 
   static const maxBytes = 5 * 1024 * 1024;
 
   final ApiClient _api;
+
+  /// Camara, galeria y recorte mandan la app a segundo plano. Sin marcarlo, el
+  /// cierre de sesion por segundo plano se llevaria puesta la operacion.
+  final AppExcursion _excursion;
   final ImagePicker _picker;
   final ImageCropper _cropper;
 
@@ -42,6 +53,22 @@ final class ImageUploadService {
   }
 
   Future<bool> _pickAndUpload({
+    required ImageOrigin origin,
+    required String title,
+    required String filename,
+    required String endpoint,
+  }) async {
+    return _excursion.durante(
+      () => _elegirRecortarYSubir(
+        origin: origin,
+        title: title,
+        filename: filename,
+        endpoint: endpoint,
+      ),
+    );
+  }
+
+  Future<bool> _elegirRecortarYSubir({
     required ImageOrigin origin,
     required String title,
     required String filename,
@@ -73,7 +100,13 @@ final class ImageUploadService {
 
     final prepared = File(cropped.path);
     if (await prepared.length() > maxBytes) {
-      throw StateError('La imagen supera 5 MB aun despues de comprimirla.');
+      // Era un StateError: al usuario le llegaba el texto de una excepcion
+      // tecnica. Ahora es una falla de validacion, que la interfaz ya sabe
+      // mostrar como mensaje comun.
+      throw const ValidationFailure(
+        'La foto sigue pesando mas de 5 MB despues de comprimirla. '
+        'Probá con una toma mas chica o recortá una parte.',
+      );
     }
     await _api.post<Map<String, Object?>>(
       endpoint,

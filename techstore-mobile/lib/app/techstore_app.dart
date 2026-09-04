@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/auth/session_guard.dart';
 import '../core/native/biometric_gate.dart';
 import 'app_router.dart';
 import 'app_theme.dart';
@@ -28,8 +29,12 @@ class TechStoreApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
       routerConfig: ref.watch(routerProvider),
-      builder: (context, child) => ConnectivityBanner(
-        child: AppUpdateGate(child: BiometricGate(child: child!)),
+      // SessionGuard va por fuera: tiene que enterarse del cambio de ciclo de
+      // vida aunque arriba haya un bloqueo biometrico o un aviso de version.
+      builder: (context, child) => SessionGuard(
+        child: ConnectivityBanner(
+          child: AppUpdateGate(child: BiometricGate(child: child!)),
+        ),
       ),
     );
   }

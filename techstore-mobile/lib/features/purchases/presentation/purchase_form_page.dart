@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/user_message.dart';
+import '../../../core/format/money_input.dart';
 import '../../../core/native/haptics_service.dart';
 import '../../../core/widgets/image_origin_sheet.dart';
+import '../../../core/widgets/money_field.dart';
 import '../../../core/widgets/voice_dictation_button.dart';
 import '../../catalog/application/catalog_providers.dart';
 import '../../catalog/domain/product.dart';
@@ -144,14 +146,10 @@ class _PurchaseFormPageState extends ConsumerState<PurchaseFormPage> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: TextField(
+                          child: MoneyField(
                             controller: _lines[index].cost,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'Costo unitario',
-                            ),
+                            label: 'Costo unitario',
+                            decimales: 2,
                           ),
                         ),
                       ],
@@ -229,7 +227,8 @@ class _PurchaseFormPageState extends ConsumerState<PurchaseFormPage> {
     final items = <Map<String, Object?>>[];
     for (final line in _lines) {
       final quantity = int.tryParse(line.quantity.text);
-      final cost = double.tryParse(line.cost.text.replaceAll(',', '.'));
+      // El campo muestra el monto agrupado; lo que viaja es el número.
+      final cost = parsearMonto(line.cost.text, decimales: 2);
       if (quantity == null || quantity < 1 || cost == null || cost <= 0) {
         await ref.read(hapticsServiceProvider).play(HapticCue.error);
         _message('Revisá cantidad y costo de cada producto');
@@ -314,7 +313,8 @@ class _PurchaseFormPageState extends ConsumerState<PurchaseFormPage> {
       _message(
         userMessageFor(
           error,
-          fallback: 'No pudimos adjuntar el comprobante. '
+          fallback:
+              'No pudimos adjuntar el comprobante. '
               'Probá de nuevo en un momento.',
         ),
       );

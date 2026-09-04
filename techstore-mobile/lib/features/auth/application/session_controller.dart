@@ -95,6 +95,32 @@ final class SessionController extends Notifier<AuthState> {
     }
   }
 
+  /// Cierra la sesión porque la app pasó a segundo plano.
+  ///
+  /// Se separa de [logout] en dos cosas: el mensaje explica por qué hay que
+  /// volver a entrar, y no se desactiva el envío de notificaciones —el equipo
+  /// sigue siendo el mismo, lo que se corta es la sesión.
+  ///
+  /// El token guardado se borra antes de avisarle al servidor: si el sistema
+  /// mata la app en el medio, lo que no puede quedar es la credencial en el
+  /// teléfono. La baja en el servidor es el mejor esfuerzo posible.
+  Future<void> closeForBackground() async {
+    if (!state.isAuthenticated) return;
+    final token = _refreshToken;
+    _clearMemory();
+    await _repository.clearRefreshToken();
+    state = const AuthState.unauthenticated(
+      'Cerramos tu sesión al salir de la aplicación. Ingresá de nuevo.',
+    );
+    if (token == null) return;
+    try {
+      await _repository.logout(token);
+    } on AppFailure {
+      // Si no hay red, el token local ya se borró: la sesión en este teléfono
+      // está cerrada igual y el refresh caduca solo del lado del servidor.
+    }
+  }
+
   Future<String?> refreshAccessToken() async {
     final active = _refreshInFlight;
     if (active != null) return active;
