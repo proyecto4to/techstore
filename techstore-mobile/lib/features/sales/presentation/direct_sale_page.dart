@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/operation_confirm.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/format/money.dart';
@@ -283,11 +284,13 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
           'numeroComprobante': line.reference.text.trim(),
       });
     }
-    final confirmed = await ref
-        .read(biometricServiceProvider)
-        .confirmOperation(
-          reason: 'Confirmá la venta por ${formatMoney(_total, _currency)}',
-        );
+    if (!mounted) return;
+    final confirmed = await confirmarOperacion(
+      context,
+      ref,
+      reason: 'Confirmá la venta por ${formatMoney(_total, _currency)}',
+      titulo: 'Confirmar venta',
+    );
     if (!confirmed) {
       _cue(HapticCue.error);
       _message('Venta cancelada: no se validó la identidad');

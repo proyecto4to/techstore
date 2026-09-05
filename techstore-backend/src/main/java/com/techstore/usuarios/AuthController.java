@@ -23,6 +23,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final PasswordRecoveryService passwordRecoveryService;
+    private final ReautenticacionService reautenticacionService;
 
     @PostMapping("/password/forgot")
     @SecurityRequirements
@@ -40,6 +41,16 @@ public class AuthController {
             description = "Consume un token aleatorio de un solo uso y revoca las sesiones existentes")
     public void completarRecuperacion(@Valid @RequestBody CompletarRecuperacionRequest request) {
         passwordRecoveryService.completar(request);
+    }
+
+    @PostMapping("/reautenticar")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Confirmar mi identidad con la contraseña",
+            description = "Respaldo de la confirmación biométrica y paso previo a tocar el correo saliente. "
+                    + "Comprueba siempre al usuario de la sesión, nunca a otro, y usa el mismo "
+                    + "limitador de intentos que el login")
+    public void reautenticar(@Valid @RequestBody ReautenticacionRequest request, Authentication auth) {
+        reautenticacionService.verificar(auth.getName(), request.password());
     }
 
     @PutMapping("/password")

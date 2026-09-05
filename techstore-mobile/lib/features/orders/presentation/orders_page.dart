@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/auth/operation_confirm.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/format/money.dart';
@@ -308,9 +309,13 @@ class OrderDetailPage extends ConsumerWidget {
       ),
     );
     if (accepted != true) return;
-    final confirmed = await ref
-        .read(biometricServiceProvider)
-        .confirmOperation(reason: 'Confirmá la cancelación del pedido');
+    if (!context.mounted) return;
+    final confirmed = await confirmarOperacion(
+      context,
+      ref,
+      reason: 'Confirmá la cancelación del pedido',
+      titulo: 'Confirmar cancelación',
+    );
     if (!confirmed) {
       await haptics.play(HapticCue.error);
       return;

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/auth/operation_confirm.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/format/money.dart';
@@ -279,9 +280,12 @@ class _CajaAbiertaState extends ConsumerState<_CajaAbierta> {
       builder: (_) => _CierrePorDenominacionesDialog(moneda: _moneda),
     );
     if (total == null || !mounted) return;
-    final confirmado = await ref
-        .read(biometricServiceProvider)
-        .confirmOperation(reason: 'Confirmá el cierre de caja');
+    final confirmado = await confirmarOperacion(
+      context,
+      ref,
+      reason: 'Confirmá el cierre de caja',
+      titulo: 'Confirmar cierre de caja',
+    );
     if (!confirmado) {
       await ref.read(hapticsServiceProvider).play(HapticCue.error);
       _avisar('Cierre cancelado: no se validó la identidad.');
