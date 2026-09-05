@@ -8,7 +8,9 @@ import '../../../core/format/money_input.dart';
 import '../../../core/native/document_service.dart';
 import '../../../core/widgets/image_origin_sheet.dart';
 import '../domain/resource_definition.dart';
+import 'company_location_page.dart';
 import 'detail_fields.dart';
+import 'smtp_config_page.dart';
 
 final resourceProvider = FutureProvider.autoDispose
     .family<Object?, ResourceDefinition>((ref, definition) async {
@@ -31,6 +33,26 @@ class ResourcePage extends ConsumerWidget {
       appBar: AppBar(
         title: Text(definition.title),
         actions: [
+          // La ubicación de la empresa no es una fila más de la ficha: se
+          // marca en un mapa, así que tiene su propia pantalla.
+          if (definition.key == 'smtp-config')
+            IconButton(
+              tooltip: 'Editar',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SmtpConfigPage()),
+              ),
+              icon: const Icon(Icons.edit_outlined),
+            ),
+          if (definition.key == 'company')
+            IconButton(
+              tooltip: 'Ubicación',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const CompanyLocationPage(),
+                ),
+              ),
+              icon: const Icon(Icons.place_outlined),
+            ),
           if (_resourceDocument(definition.key) case final document?)
             IconButton(
               tooltip: 'Documento',
@@ -1042,18 +1064,6 @@ _Mutation? _createMutation(String key) => switch (key) {
       ),
       _Field('establecimiento', 'Establecimiento', required: false),
       _Field('puntoExpedicion', 'Punto expedición', required: false),
-    ],
-  ),
-  'smtp-config' => const _Mutation(
-    title: 'Editar SMTP',
-    method: 'PUT',
-    path: '/api/v1/correos/config',
-    fields: [
-      _Field('host', 'Servidor', required: false),
-      _Field('port', 'Puerto', integer: true, required: false),
-      _Field('username', 'Usuario', required: false),
-      _Field('password', 'Contraseña', required: false, secret: true),
-      _Field('from', 'Remitente', required: false),
     ],
   ),
   'mail' => const _Mutation(

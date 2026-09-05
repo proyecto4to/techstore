@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/di/providers.dart';
 import '../features/administration/domain/resource_definition.dart';
+import '../features/administration/presentation/audit_page.dart';
 import '../features/administration/presentation/business_hub_page.dart';
 import '../features/administration/presentation/document_center_page.dart';
 import '../features/administration/presentation/resource_page.dart';
@@ -19,6 +20,7 @@ import '../features/cash/presentation/cash_actions_page.dart';
 import '../features/catalog/presentation/catalog_page.dart';
 import '../features/catalog/presentation/favorites_page.dart';
 import '../features/chat/presentation/chat_page.dart';
+import '../features/chat/presentation/new_conversation_page.dart';
 import '../features/checkout/presentation/address_page.dart';
 import '../features/checkout/presentation/checkout_page.dart';
 import '../features/courier/presentation/courier_cash_page.dart';
@@ -195,12 +197,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/chat', builder: (context, state) => const ChatPage()),
       GoRoute(
+        path: '/chat/destinatarios',
+        builder: (context, state) => const NewConversationPage(),
+      ),
+      GoRoute(
         path: '/chat/:id',
         builder: (context, state) => ConversationPage(
           // «nuevo» es la conversacion que todavia no existe: se abre la
           // pantalla y el primer mensaje la crea. tryParse y no parse, porque
           // un id invalido en la ruta no puede tirar la app.
           conversationId: int.tryParse(state.pathParameters['id'] ?? ''),
+          // Con quien se va a hablar cuando la conversacion todavia no existe.
+          recipientId: int.tryParse(
+            state.uri.queryParameters['destinatario'] ?? '',
+          ),
         ),
       ),
       GoRoute(
@@ -235,7 +245,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/resources/:key',
         builder: (context, state) {
-          final definition = resources[state.pathParameters['key']];
+          final key = state.pathParameters['key'];
+          // La auditoría tiene pantalla propia: necesita filtros y un detalle
+          // que muestre el antes y el después, cosa que la ficha genérica no
+          // sabe hacer.
+          if (key == 'audit') return const AuditPage();
+          final definition = resources[key];
           if (definition == null) {
             return const Scaffold(
               body: Center(child: Text('Módulo no disponible')),

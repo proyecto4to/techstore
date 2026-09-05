@@ -226,11 +226,23 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                               mainAxisSpacing: 12,
                             ),
                         itemCount: products.length,
-                        itemBuilder: (context, index) => _ProductCard(
-                          product: products[index],
-                          onOpen: () =>
-                              context.push('/products/${products[index].id}'),
-                        ),
+                        itemBuilder: (context, index) {
+                          // Al asomar las últimas fichas se pide el bloque
+                          // siguiente, así la grilla no corta en treinta ni
+                          // baja el catálogo entero de una.
+                          if (index >= products.length - 4) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              ref
+                                  .read(catalogProvider(query).notifier)
+                                  .cargarMas();
+                            });
+                          }
+                          return _ProductCard(
+                            product: products[index],
+                            onOpen: () =>
+                                context.push('/products/${products[index].id}'),
+                          );
+                        },
                       ),
                     ),
             ),
