@@ -75,6 +75,9 @@ public class AuditoriaService {
                 autor.ifPresent(usuario -> {
                     registro.setUsuarioId(usuario.getId());
                     registro.setUsuarioEmail(usuario.getEmail());
+                    if (usuario.getRol() != null) {
+                        registro.setUsuarioRol(usuario.getRol().getNombre());
+                    }
                 });
                 auditLogRepository.save(registro);
             });

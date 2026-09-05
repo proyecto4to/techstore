@@ -18,8 +18,8 @@ public final class AuditLogSpecs {
     private AuditLogSpecs() {
     }
 
-    public static Specification<AuditLog> conFiltros(
-            String entidad, Long usuarioId, LocalDateTime desde, LocalDateTime hasta) {
+    public static Specification<AuditLog> conFiltros(String entidad, Long usuarioId, String accion,
+                                                     String rol, LocalDateTime desde, LocalDateTime hasta) {
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
             if (entidad != null && !entidad.isBlank()) {
@@ -27,6 +27,12 @@ public final class AuditLogSpecs {
             }
             if (usuarioId != null) {
                 predicados.add(cb.equal(root.get("usuarioId"), usuarioId));
+            }
+            if (accion != null && !accion.isBlank()) {
+                predicados.add(cb.equal(root.get("accion"), accion.trim()));
+            }
+            if (rol != null && !rol.isBlank()) {
+                predicados.add(cb.equal(root.get("usuarioRol"), rol.trim()));
             }
             if (desde != null) {
                 predicados.add(cb.greaterThanOrEqualTo(root.get("fecha"), desde));

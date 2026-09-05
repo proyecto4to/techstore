@@ -62,6 +62,15 @@ public class AuditLog {
     @Column(name = "usuario_email", length = 255)
     private String usuarioEmail;
 
+    /**
+     * El rol que tenía el autor al hacer la acción.
+     *
+     * <p>Se guarda acá y no se deduce uniendo con { usuarios} porque el rol
+     * de una persona cambia: mirar el de hoy reescribiría su historial.
+     */
+    @Column(name = "usuario_rol", length = 50)
+    private String usuarioRol;
+
     /** Resumen legible: "Precio: 1.500.000 -> 1.400.000". */
     @Column(length = 500)
     private String detalle;
