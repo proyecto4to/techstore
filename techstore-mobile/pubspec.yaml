@@ -62,6 +62,10 @@ dependencies:
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.2
   speech_to_text: ^7.4.0
+  # Mapa OpenStreetMap para la ubicación de la empresa. Sin servicios pagos:
+  # flutter_map dibuja los tiles y latlong2 aporta el tipo de coordenada.
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

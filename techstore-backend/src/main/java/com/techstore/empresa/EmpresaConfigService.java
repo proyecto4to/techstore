@@ -131,6 +131,55 @@ public class EmpresaConfigService {
         return nueva;
     }
 
+
+    /**
+     * Dónde queda la empresa.
+     *
+     * <p>Vive junto a los datos del emisor porque se administra en la misma
+     * pantalla, pero no es dato fiscal: no sale impresa en la factura ni viaja
+     * en el Documento Electrónico. Por eso se guarda aparte de
+     * {@link EmpresaProperties} en lugar de engrosar el emisor.
+     */
+    @Transactional(readOnly = true)
+    public UbicacionEmpresaResponse ubicacion() {
+        String latitud = valor("latitud", null);
+        String longitud = valor("longitud", null);
+        if (latitud == null || longitud == null) {
+            return UbicacionEmpresaResponse.sinDefinir();
+        }
+        try {
+            return new UbicacionEmpresaResponse(true,
+                    new java.math.BigDecimal(latitud),
+                    new java.math.BigDecimal(longitud),
+                    valor("ubicacion-referencia", null));
+        } catch (NumberFormatException guardadoInvalido) {
+            // Un valor corrupto en la tabla no debe romper la pantalla entera:
+            // se muestra como «sin ubicación» y se puede volver a marcar.
+            return UbicacionEmpresaResponse.sinDefinir();
+        }
+    }
+
+    @Transactional
+    public UbicacionEmpresaResponse guardarUbicacion(UbicacionEmpresaRequest req) {
+        UbicacionEmpresaResponse anterior = ubicacion();
+        set("latitud", req.latitud().toPlainString());
+        set("longitud", req.longitud().toPlainString());
+        set("ubicacion-referencia", req.referencia());
+        cache = null;
+
+        auditoriaService.registrar("Empresa", null, AuditoriaService.Accion.Editar,
+                "Cambió la ubicación de la empresa",
+                AuditoriaService.Cambios.nuevo()
+                        .de("latitud", texto(anterior.latitud()), req.latitud().toPlainString())
+                        .de("longitud", texto(anterior.longitud()), req.longitud().toPlainString())
+                        .de("referencia", anterior.referencia(), req.referencia()));
+
+        return ubicacion();
+    }
+
+    private static String texto(java.math.BigDecimal valor) {
+        return valor == null ? null : valor.toPlainString();
+    }
     private EmpresaProperties resolver() {
         return new EmpresaProperties(
                 valor("nombre", porDefecto.nombre()),

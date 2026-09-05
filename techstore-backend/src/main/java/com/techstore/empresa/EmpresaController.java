@@ -69,4 +69,19 @@ public class EmpresaController {
     public EmpresaProperties guardar(@Valid @RequestBody EmpresaRequest request) {
         return empresaConfigService.guardar(request);
     }
+
+    @GetMapping("/ubicacion")
+    @Operation(summary = "Ver la ubicación de la empresa",
+            description = "Devuelve definida=false mientras nadie la haya marcado en el mapa")
+    public UbicacionEmpresaResponse ubicacion() {
+        return empresaConfigService.ubicacion();
+    }
+
+    @PutMapping("/ubicacion")
+    @Operation(summary = "Guardar la ubicación marcada en el mapa",
+            description = "Latitud y longitud del punto elegido. Se valida el rango: una coma "
+                    + "corrida guardaría un punto en medio del océano")
+    public UbicacionEmpresaResponse guardarUbicacion(@Valid @RequestBody UbicacionEmpresaRequest request) {
+        return empresaConfigService.guardarUbicacion(request);
+    }
 }
