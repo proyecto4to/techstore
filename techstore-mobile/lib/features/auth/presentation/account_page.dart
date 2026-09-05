@@ -57,7 +57,10 @@ class _AccountPageState extends ConsumerState<AccountPage> {
           ListTile(
             leading: const CircleAvatar(child: Icon(Icons.person_outline)),
             title: Text(user.fullName),
-            subtitle: Text('${user.email}\n${user.role.name}'),
+            // `label` y no `name`: el segundo es el nombre de la constante y se
+            // mostraba como «courier». La pantalla de inicio ya lo hacía bien;
+            // a esta se le había pasado.
+            subtitle: Text('${user.email}\n${user.role.label}'),
             isThreeLine: true,
           ),
           const Divider(height: 32),
