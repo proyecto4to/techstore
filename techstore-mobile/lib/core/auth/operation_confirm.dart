@@ -25,7 +25,22 @@ Future<bool> confirmarOperacion(
 }) async {
   final biometria = ref.read(biometricServiceProvider);
   if (!await biometria.isOperationGuardEnabled()) return true;
+  if (!context.mounted) return false;
+  return confirmarIdentidad(context, ref, reason: reason, titulo: titulo);
+}
 
+/// Comprueba que quien está del otro lado es el dueño de la sesión.
+///
+/// Biometría si el equipo la tiene, contraseña de la cuenta si no. A
+/// diferencia de [confirmarOperacion], no mira si la guarda está encendida:
+/// lo usa la pantalla de Mi cuenta justamente para encenderla.
+Future<bool> confirmarIdentidad(
+  BuildContext context,
+  WidgetRef ref, {
+  required String reason,
+  required String titulo,
+}) async {
+  final biometria = ref.read(biometricServiceProvider);
   if (await biometria.isAvailable() &&
       await biometria.confirmIdentity(reason: reason)) {
     return true;

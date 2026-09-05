@@ -62,14 +62,14 @@ final class BiometricService {
   Future<bool> isOperationGuardEnabled() async =>
       await _store.read(_guardKey) == 'true';
 
+  /// Enciende o apaga la guarda.
+  ///
+  /// No exige biometría ni confirma identidad por su cuenta: de eso se ocupa
+  /// quien llama, que es el único con contexto para pedir la contraseña cuando
+  /// el equipo no tiene sensor. Exigirla acá dejaba la opción inalcanzable
+  /// justamente en los equipos donde más falta hace.
   Future<void> setOperationGuard(bool enabled) async {
     if (enabled) {
-      if (!await isAvailable()) {
-        throw const ValidationFailure('Este equipo no tiene biometría disponible.');
-      }
-      if (!await confirmIdentity(reason: 'Confirmá tu identidad')) {
-        throw const ValidationFailure('No pudimos validar tu identidad. Intentá de nuevo.');
-      }
       await _store.write(_guardKey, 'true');
     } else {
       await _store.delete(_guardKey);

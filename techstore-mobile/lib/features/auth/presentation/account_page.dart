@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/operation_confirm.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/user_message.dart';
@@ -108,7 +109,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
           ),
           const Divider(height: 40),
           Text('Dispositivo', style: Theme.of(context).textTheme.titleLarge),
-          if (_biometricAvailable) ...[
+          if (_biometricAvailable)
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.fingerprint),
@@ -116,19 +117,8 @@ class _AccountPageState extends ConsumerState<AccountPage> {
               subtitle: Text('Solicita $_sensorLabel al abrir la app'),
               value: _biometricEnabled,
               onChanged: _busy ? null : _setBiometric,
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              secondary: const Icon(Icons.verified_user_outlined),
-              title: const Text('Confirmar operaciones sensibles'),
-              subtitle: const Text(
-                'Pide identidad antes de facturar una venta, cerrar caja o '
-                'cancelar un pedido',
-              ),
-              value: _operationGuard,
-              onChanged: _busy ? null : _setOperationGuard,
-            ),
-          ] else
+            )
+          else
             const ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.fingerprint),
@@ -137,6 +127,24 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                 'Este equipo no tiene un sensor biométrico configurado',
               ),
             ),
+          // La confirmación de operaciones se ofrece siempre, haya biometría o
+          // no. Antes vivía dentro del bloque de arriba, así que en un equipo
+          // sin huella registrada la opción ni aparecía: quien más la
+          // necesitaba era justamente quien no podía activarla.
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: const Icon(Icons.verified_user_outlined),
+            title: const Text('Confirmar operaciones sensibles'),
+            subtitle: Text(
+              _biometricAvailable
+                  ? 'Pide identidad antes de facturar una venta, cerrar caja o '
+                        'cancelar un pedido'
+                  : 'Pide tu contraseña antes de facturar una venta, cerrar '
+                        'caja o cancelar un pedido',
+            ),
+            value: _operationGuard,
+            onChanged: _busy ? null : _setOperationGuard,
+          ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             secondary: const Icon(Icons.vibration),
@@ -195,7 +203,9 @@ class _AccountPageState extends ConsumerState<AccountPage> {
     final service = ref.read(biometricServiceProvider);
     final available = await service.isAvailable();
     final enabled = available && await service.isEnabled();
-    final guard = available && await service.isOperationGuardEnabled();
+    // La guarda ya no depende de que haya biometría: se confirma con la
+    // contraseña cuando no la hay, así que su estado se lee siempre.
+    final guard = await service.isOperationGuardEnabled();
     final label = available ? await service.sensorLabel() : '';
     final haptics = await ref.read(hapticsServiceProvider).isEnabled();
     if (mounted) {
@@ -216,8 +226,6 @@ class _AccountPageState extends ConsumerState<AccountPage> {
       if (mounted) {
         setState(() {
           _biometricEnabled = value;
-          // Apagar el bloqueo también deja sin efecto la guarda de operaciones.
-          if (!value) _operationGuard = false;
         });
       }
       _message(value ? 'Bloqueo biométrico activado' : 'Bloqueo desactivado');
@@ -234,6 +242,19 @@ class _AccountPageState extends ConsumerState<AccountPage> {
   }
 
   Future<void> _setOperationGuard(bool value) async {
+    // Encenderla y apagarla piden identidad. Apagarla sobre todo: si no,
+    // alcanzaría con tener el teléfono un momento para desactivar la
+    // protección y recién después hacer la operación.
+    final confirmado = await confirmarIdentidad(
+      context,
+      ref,
+      reason: value
+          ? 'Confirmá tu identidad para activar la protección'
+          : 'Confirmá tu identidad para desactivar la protección',
+      titulo: value ? 'Activar confirmación' : 'Desactivar confirmación',
+    );
+    if (!confirmado || !mounted) return;
+
     setState(() => _busy = true);
     try {
       await ref.read(biometricServiceProvider).setOperationGuard(value);
