@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -43,10 +44,12 @@ public class CorreoController {
 
     @PutMapping("/config")
     @PreAuthorize("hasRole('Admin')")
-    @Operation(summary = "Guardar la configuración SMTP para el envío real de correos")
-    public SmtpConfigResponse guardarConfig(@RequestBody SmtpConfigRequest request) {
-        configuracionCorreoService.guardar(request);
-        return configuracionCorreoService.actual();
+    @Operation(summary = "Guardar la configuración SMTP para el envío real de correos",
+            description = "Pide de nuevo la contraseña del administrador: cambiar el correo saliente "
+                    + "es quedarse con la recuperación de contraseñas de todas las cuentas")
+    public SmtpConfigResponse guardarConfig(@Valid @RequestBody SmtpConfigRequest request,
+                                            Authentication auth) {
+        return configuracionCorreoService.guardar(auth.getName(), request);
     }
 
     @PostMapping("/prueba")

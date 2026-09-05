@@ -48,17 +48,18 @@ public class CorreoService {
     }
 
     /** SMTP efectivo: primero la config de la app, luego el de properties/env. */
-    private record Smtp(JavaMailSender sender, String remitente) {
+    private record Smtp(JavaMailSender sender, String remitente, String nombreRemitente) {
     }
 
     private Smtp resolverSmtp() {
         JavaMailSender sender = configuracionCorreo.senderActivo();
         if (sender != null) {
-            return new Smtp(sender, configuracionCorreo.remitenteActivo());
+            return new Smtp(sender, configuracionCorreo.remitenteActivo(),
+                    configuracionCorreo.nombreRemitenteActivo());
         }
         JavaMailSender bean = mailSenderProvider.getIfAvailable();
         if (bean != null && usuarioSmtp != null && !usuarioSmtp.isBlank()) {
-            return new Smtp(bean, usuarioSmtp);
+            return new Smtp(bean, usuarioSmtp, null);
         }
         return null;
     }
@@ -148,8 +149,13 @@ public class CorreoService {
                             byte[] adjunto, String adjuntoNombre) throws Exception {
         MimeMessage mensaje = smtp.sender().createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(mensaje, adjunto != null, "UTF-8");
-        // El remitente debe ser la casilla autenticada (Gmail y otros lo exigen).
-        helper.setFrom(smtp.remitente());
+        // El remitente debe ser la casilla autenticada (Gmail y otros lo exigen);
+        // el nombre visible, en cambio, es libre y lo configura la empresa.
+        if (smtp.nombreRemitente() == null) {
+            helper.setFrom(smtp.remitente());
+        } else {
+            helper.setFrom(smtp.remitente(), smtp.nombreRemitente());
+        }
         // Pero las respuestas van a la casilla del negocio, que puede no ser la
         // misma. Sin esto, contestar un pedido a proveedor mandaría el mensaje a
         // la casilla técnica del SMTP en vez de a quien compra.
