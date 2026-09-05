@@ -31,9 +31,12 @@ class GeneXusCompatibilityRequestTest {
     @Test
     void conversacionInterpretaPedidoEnCeroComoAusente() {
         CrearConversacionRequest request = new CrearConversacionRequest(
-                0L, "gx-message-1", "Consulta sin pedido");
+                0L, 0L, "gx-message-1", "Consulta sin pedido");
 
         assertNull(request.pedidoId());
+        // El cero tambien vacia el destinatario: sin el, un cliente de GeneXus
+        // abriria una privada con el usuario 0 en lugar de su soporte.
+        assertNull(request.destinatarioId());
     }
 
     @Test

@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import java.util.List;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -39,6 +40,19 @@ public class ConversacionController {
     @GetMapping("/{id}")
     public ConversacionResponse obtener(@PathVariable Long id, Authentication auth) {
         return service.obtener(id, auth.getName());
+    }
+
+    @GetMapping("/destinatarios")
+    @Operation(summary = "A quiénes puedo escribirles",
+            description = "La lista ya viene filtrada por el rol de quien pregunta: administración ve a "
+                    + "todos, cajero y repartidor solo a administración, y el cliente no usa esta "
+                    + "pantalla porque tiene Atención al Cliente. El filtro por rol solo puede achicar "
+                    + "esa lista, nunca ampliarla")
+    public List<DestinatarioResponse> destinatarios(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String rol,
+            Authentication auth) {
+        return service.destinatarios(auth.getName(), q, rol);
     }
 
     @GetMapping("/no-leidos")

@@ -17,19 +17,55 @@ final class ChatRepository {
     return _list(response.data);
   }
 
-  Future<int> create({required String message, int? orderId}) async {
+  /// A quiénes puede escribirles quien está en sesión.
+  ///
+  /// El filtrado por rol lo hace el servidor: acá solo se pasa lo que eligió el
+  /// usuario en la pantalla. Un rol que no le corresponda vuelve como lista
+  /// vacía, no como la lista real.
+  Future<List<Map<String, Object?>>> recipients({
+    String? query,
+    String? role,
+  }) async {
+    final response = await _api.get<Object?>(
+      '/api/v1/conversaciones/destinatarios',
+      queryParameters: {
+        if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+        if (role != null && role.isNotEmpty) 'rol': role,
+      },
+    );
+    return _list(response.data);
+  }
+
+  /// Abre una conversación, o retoma la que ya exista.
+  ///
+  /// Con [recipientId] en nulo abre la de soporte con la tienda, que es lo
+  /// único que puede hacer un cliente.
+  Future<int> create({
+    required String message,
+    int? orderId,
+    int? recipientId,
+  }) async {
     final response = await _api.post<Map<String, Object?>>(
       '/api/v1/conversaciones',
       data: {
         'clientMessageId': const Uuid().v4(),
         'mensaje': message.trim(),
         'pedidoId': ?orderId,
+        'destinatarioId': ?recipientId,
       },
     );
     final conversation = Map<String, Object?>.from(
       response.data!['conversacion'] as Map,
     );
     return (conversation['id'] as num).toInt();
+  }
+
+  /// Una conversación puntual, para saber con quién se está hablando.
+  Future<Map<String, Object?>> conversation(int conversationId) async {
+    final response = await _api.get<Map<String, Object?>>(
+      '/api/v1/conversaciones/$conversationId',
+    );
+    return response.data ?? const {};
   }
 
   Future<List<Map<String, Object?>>> messages(int conversationId) async {

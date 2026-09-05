@@ -81,12 +81,12 @@ class MensajeriaServiceTest {
         when(usuarioRepository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));
         when(usuarioRepository.findByRolNombreInAndActivoTrue(any())).thenReturn(List.of(admin));
         when(conversacionRepository.findParaAccesoById(9L)).thenReturn(Optional.of(conversacion));
-        when(mensajeRepository.marcarLeidosStaff(eq(9L), eq(3L), any(LocalDateTime.class))).thenReturn(2);
+        when(mensajeRepository.marcarLeidosDelIniciador(eq(9L), eq(3L), any(LocalDateTime.class))).thenReturn(2);
 
         LecturaResponse response = service.marcarLeido(9L, admin.getEmail());
 
         assertEquals(2, response.mensajes());
-        verify(mensajeRepository).marcarLeidosStaff(eq(9L), eq(3L), any(LocalDateTime.class));
+        verify(mensajeRepository).marcarLeidosDelIniciador(eq(9L), eq(3L), any(LocalDateTime.class));
         verify(realtime).lectura(eq(List.of(cliente.getEmail(), admin.getEmail())), eq(response));
     }
 
@@ -110,13 +110,13 @@ class MensajeriaServiceTest {
     void cuentaSoloLosMensajesNoLeidosDelClienteAutenticado() {
         Usuario cliente = usuario(3L, "cliente@techstore.py", "Cliente");
         when(usuarioRepository.findByEmail(cliente.getEmail())).thenReturn(Optional.of(cliente));
-        when(mensajeRepository.contarNoLeidosClienteGlobal(cliente.getId())).thenReturn(7L);
+        when(mensajeRepository.contarNoLeidosComoParte(cliente.getId())).thenReturn(7L);
 
         UnreadMessageCountResponse response = service.contarNoLeidos(cliente.getEmail());
 
         assertEquals(7L, response.noLeidos());
-        verify(mensajeRepository).contarNoLeidosClienteGlobal(cliente.getId());
-        verify(mensajeRepository, never()).contarNoLeidosStaffGlobal();
+        verify(mensajeRepository).contarNoLeidosComoParte(cliente.getId());
+        verify(mensajeRepository, never()).contarNoLeidosDeSoporte();
     }
 
     private Usuario usuario(Long id, String email, String rolNombre) {
@@ -138,7 +138,8 @@ class MensajeriaServiceTest {
         Conversacion conversacion = new Conversacion();
         conversacion.setId(id);
         conversacion.setTenantId(1L);
-        conversacion.setCliente(cliente);
+        conversacion.setIniciador(cliente);
+        conversacion.setTipo(TipoConversacion.SOPORTE);
         conversacion.setEstado(EstadoConversacion.ABIERTA);
         conversacion.setCreatedAt(LocalDateTime.now());
         conversacion.setUpdatedAt(LocalDateTime.now());

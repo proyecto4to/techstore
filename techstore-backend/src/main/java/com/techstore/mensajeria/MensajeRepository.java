@@ -22,40 +22,54 @@ public interface MensajeRepository extends JpaRepository<Mensaje, Long> {
     Optional<Mensaje> findByRemitenteIdAndClientMessageId(Long remitenteId, String clientMessageId);
 
     @EntityGraph(attributePaths = {"remitente", "remitente.rol", "conversacion",
-            "conversacion.cliente", "conversacion.pedido"})
+            "conversacion.iniciador", "conversacion.destinatario", "conversacion.pedido"})
     Optional<Mensaje> findForNotificationById(Long id);
 
     long countByRemitenteIdAndEnviadoEnAfter(Long remitenteId, LocalDateTime desde);
 
+    /**
+     * Lo que le falta leer a {@code usuarioId} en una conversación.
+     *
+     * <p>Se mide contra quien mira y no contra un rol: en una privada las dos
+     * partes son simétricas, y en soporte quien atiende puede ser cualquiera
+     * del mostrador.
+     */
     @Query("select count(m) from Mensaje m where m.conversacion.id = :conversacionId "
-            + "and m.leidoEn is null and m.remitente.id <> :clienteId")
-    long contarNoLeidosCliente(@Param("conversacionId") Long conversacionId,
-                               @Param("clienteId") Long clienteId);
+            + "and m.leidoEn is null and m.remitente.id <> :usuarioId")
+    long contarNoLeidosPara(@Param("conversacionId") Long conversacionId,
+                            @Param("usuarioId") Long usuarioId);
 
+    /** Lo que el mostrador todavía no leyó de una conversación de soporte. */
     @Query("select count(m) from Mensaje m where m.conversacion.id = :conversacionId "
-            + "and m.leidoEn is null and m.remitente.id = :clienteId")
-    long contarNoLeidosStaff(@Param("conversacionId") Long conversacionId,
-                             @Param("clienteId") Long clienteId);
+            + "and m.leidoEn is null and m.remitente.id = :iniciadorId")
+    long contarNoLeidosDelIniciador(@Param("conversacionId") Long conversacionId,
+                                    @Param("iniciadorId") Long iniciadorId);
 
-    @Query("select count(m) from Mensaje m where m.leidoEn is null "
-            + "and m.remitente.id = m.conversacion.cliente.id")
-    long contarNoLeidosStaffGlobal();
+    /** Pendientes en las conversaciones donde el usuario es una de las partes. */
+    @Query("select count(m) from Mensaje m join m.conversacion c left join c.destinatario d "
+            + "where m.leidoEn is null and m.remitente.id <> :usuarioId "
+            + "and (c.iniciador.id = :usuarioId or d.id = :usuarioId)")
+    long contarNoLeidosComoParte(@Param("usuarioId") Long usuarioId);
 
+    /** Pendientes de todo el soporte, para el badge del mostrador. */
     @Query("select count(m) from Mensaje m where m.leidoEn is null "
-            + "and m.conversacion.cliente.id = :clienteId and m.remitente.id <> :clienteId")
-    long contarNoLeidosClienteGlobal(@Param("clienteId") Long clienteId);
+            + "and m.conversacion.tipo = com.techstore.mensajeria.TipoConversacion.SOPORTE "
+            + "and m.remitente.id = m.conversacion.iniciador.id")
+    long contarNoLeidosDeSoporte();
 
     @Modifying
     @Query("update Mensaje m set m.leidoEn = :ahora, m.entregadoEn = coalesce(m.entregadoEn, :ahora) "
-            + "where m.conversacion.id = :conversacionId and m.remitente.id <> :clienteId and m.leidoEn is null")
-    int marcarLeidosCliente(@Param("conversacionId") Long conversacionId,
-                            @Param("clienteId") Long clienteId,
-                            @Param("ahora") LocalDateTime ahora);
+            + "where m.conversacion.id = :conversacionId and m.remitente.id <> :usuarioId "
+            + "and m.leidoEn is null")
+    int marcarLeidosPara(@Param("conversacionId") Long conversacionId,
+                         @Param("usuarioId") Long usuarioId,
+                         @Param("ahora") LocalDateTime ahora);
 
     @Modifying
     @Query("update Mensaje m set m.leidoEn = :ahora, m.entregadoEn = coalesce(m.entregadoEn, :ahora) "
-            + "where m.conversacion.id = :conversacionId and m.remitente.id = :clienteId and m.leidoEn is null")
-    int marcarLeidosStaff(@Param("conversacionId") Long conversacionId,
-                          @Param("clienteId") Long clienteId,
-                          @Param("ahora") LocalDateTime ahora);
+            + "where m.conversacion.id = :conversacionId and m.remitente.id = :iniciadorId "
+            + "and m.leidoEn is null")
+    int marcarLeidosDelIniciador(@Param("conversacionId") Long conversacionId,
+                                 @Param("iniciadorId") Long iniciadorId,
+                                 @Param("ahora") LocalDateTime ahora);
 }

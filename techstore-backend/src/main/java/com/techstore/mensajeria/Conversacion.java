@@ -22,8 +22,14 @@ public class Conversacion {
     private Long id;
     @TenantId @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
-    @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "cliente_id", nullable = false)
-    private Usuario cliente;
+    /** Quien la abrió. En las de soporte es el cliente. */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "iniciador_id", nullable = false)
+    private Usuario iniciador;
+    /** Con quién habla. Nulo en soporte, porque el otro extremo es la tienda. */
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "destinatario_id")
+    private Usuario destinatario;
+    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
+    private TipoConversacion tipo = TipoConversacion.SOPORTE;
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "pedido_id")
     private Pedido pedido;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
@@ -34,4 +40,18 @@ public class Conversacion {
     private LocalDateTime createdAt;
     @UpdateTimestamp @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    /** El otro extremo visto desde {@code usuario}, o nulo si es la tienda. */
+    public Usuario contraparte(Usuario usuario) {
+        if (tipo == TipoConversacion.SOPORTE) {
+            return usuario.getId().equals(iniciador.getId()) ? null : iniciador;
+        }
+        return usuario.getId().equals(iniciador.getId()) ? destinatario : iniciador;
+    }
+
+    public boolean participa(Usuario usuario) {
+        Long id = usuario.getId();
+        return id.equals(iniciador.getId())
+                || (destinatario != null && id.equals(destinatario.getId()));
+    }
 }

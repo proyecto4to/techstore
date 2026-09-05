@@ -31,4 +31,25 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     boolean existsByEmail(String email);
 
     List<Usuario> findByRolNombreInAndActivoTrue(Collection<String> roles);
+
+    /**
+     * Usuarios activos de ciertos roles, buscados por nombre.
+     *
+     * <p>El patrón llega armado y en minúsculas —{@code %ana%}, o {@code %} para
+     * traer todo— en lugar de un texto que pueda venir nulo. Con un parámetro
+     * nulo, PostgreSQL no puede inferir el tipo dentro de {@code lower(...)} y
+     * la consulta falla con «no existe la función lower(bytea)».
+     *
+     * <p>Se compara contra el nombre, el apellido y el nombre completo armado,
+     * para que «Ana Gómez» encuentre a quien cargó el apellido por separado.
+     */
+    @Query("select u from Usuario u join fetch u.rol r "
+            + "where u.activo = true and r.nombre in :roles and u.id <> :excluidoId "
+            + "and (lower(u.nombre) like :patron "
+            + "     or lower(u.apellido) like :patron "
+            + "     or lower(concat(u.nombre, ' ', u.apellido)) like :patron) "
+            + "order by u.nombre asc, u.apellido asc")
+    List<Usuario> buscarParaConversar(@Param("roles") Collection<String> roles,
+                                      @Param("patron") String patron,
+                                      @Param("excluidoId") Long excluidoId);
 }
