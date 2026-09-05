@@ -582,13 +582,19 @@ class _Historial extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                 itemCount: items.length,
                 itemBuilder: (context, index) {
-                  final mensaje = items[items.length - index - 1];
+                  // Con `reverse`, el índice 0 se dibuja abajo, y el servidor
+                  // manda los mensajes del más nuevo al más viejo. Así que el
+                  // índice va derecho: dar vuelta la lista además ponía el
+                  // mensaje más viejo al final de la conversación.
+                  final mensaje = items[index];
                   final propio =
                       emailPropio.isNotEmpty &&
                       mensaje['remitenteEmail']?.toString().toLowerCase() ==
                           emailPropio.toLowerCase();
+                  // El anterior en el tiempo, para saber si arriba de este
+                  // mensaje va la fecha.
                   final anterior = index + 1 < items.length
-                      ? items[items.length - index - 2]
+                      ? items[index + 1]
                       : null;
                   return Column(
                     children: [

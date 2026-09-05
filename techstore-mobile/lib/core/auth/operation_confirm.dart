@@ -174,7 +174,12 @@ class _PasswordDialogState extends ConsumerState<_PasswordDialog> {
       if (!mounted) return;
       setState(() {
         _verificando = false;
-        _error = falla.message;
+        // Un 401 acá significa «esa no es tu contraseña», no «te caducó la
+        // sesión»: el mensaje genérico hacía creer que lo habían desconectado
+        // cuando lo único que pasó fue un error de tipeo.
+        _error = falla is UnauthorizedFailure
+            ? 'Esa no es tu contraseña. Probá de nuevo.'
+            : falla.message;
       });
     }
   }
