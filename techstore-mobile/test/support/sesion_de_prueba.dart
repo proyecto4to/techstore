@@ -12,16 +12,24 @@ import 'package:techstore_mobile/core/storage/secure_store.dart';
 /// falsificarlo se le da lo que necesita para restaurar sesión: un refresh
 /// guardado y un servidor que responde a `/auth/refresh`. El caso termina
 /// ejercitando el mismo camino que la app, no una copia hecha para el test.
-ApiClient apiClientDeRol(String rol) => ApiClient(
+ApiClient apiClientDeRol(String rol, {Map<String, Object?> respuestas = const {}}) => ApiClient(
   baseUrl: 'https://techstore.local',
   logger: const LoggerMudo(),
-  dio: Dio()..httpClientAdapter = AdaptadorDeRol(rol),
+  dio: Dio()..httpClientAdapter = AdaptadorDeRol(rol, respuestas: respuestas),
 );
 
 final class AdaptadorDeRol implements HttpClientAdapter {
-  AdaptadorDeRol(this.rol);
+  AdaptadorDeRol(this.rol, {this.respuestas = const {}});
 
   final String rol;
+
+  /// Qué contestar a cada ruta, buscada por coincidencia parcial.
+  ///
+  /// Lo que no esté acá vuelve como un objeto vacío con 200, no como 404: hay
+  /// pantallas que esconden todo su contenido si falla la primera consulta, y
+  /// entonces el caso terminaría probando el estado de error en lugar de lo que
+  /// quería mirar.
+  final Map<String, Object?> respuestas;
 
   @override
   Future<ResponseBody> fetch(
@@ -52,9 +60,20 @@ final class AdaptadorDeRol implements HttpClientAdapter {
         },
       );
     }
+    for (final entrada in respuestas.entries) {
+      if (options.path.contains(entrada.key)) {
+        return ResponseBody.fromString(
+          jsonEncode(entrada.value),
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        );
+      }
+    }
     return ResponseBody.fromString(
-      jsonEncode(const {'title': 'No encontrado', 'status': 404}),
-      404,
+      jsonEncode(const <String, Object?>{}),
+      200,
       headers: {
         Headers.contentTypeHeader: ['application/json'],
       },

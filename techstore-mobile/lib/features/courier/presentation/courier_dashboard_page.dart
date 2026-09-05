@@ -147,6 +147,12 @@ class CourierDashboardPage extends ConsumerWidget {
                 onTap: () => context.push('/courier/vehicles'),
               ),
               _Action(
+                icon: Icons.forum_outlined,
+                title: 'Mensajes',
+                subtitle: 'Escribile a administración',
+                onTap: () => context.push('/chat'),
+              ),
+              _Action(
                 icon: Icons.person_outline,
                 title: 'Mi cuenta',
                 subtitle: 'Seguridad y contraseña',

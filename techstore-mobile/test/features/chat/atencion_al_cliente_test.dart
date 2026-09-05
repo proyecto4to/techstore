@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:techstore_mobile/core/di/providers.dart';
 import 'package:techstore_mobile/features/chat/presentation/chat_page.dart';
 
-import 'sesion_de_prueba.dart';
+import '../../support/sesion_de_prueba.dart';
 
 /// La sesión se arma con el `SessionController` de verdad, restaurando un
 /// refresh guardado: así el caso ejercita el mismo camino que la app y no una

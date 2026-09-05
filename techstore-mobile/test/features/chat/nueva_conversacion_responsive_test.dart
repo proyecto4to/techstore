@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:techstore_mobile/core/di/providers.dart';
 import 'package:techstore_mobile/features/chat/presentation/new_conversation_page.dart';
 
-import 'sesion_de_prueba.dart';
+import '../../support/sesion_de_prueba.dart';
 
 /// La pantalla de elegir destinatario en distintos tamaños de pantalla.
 ///

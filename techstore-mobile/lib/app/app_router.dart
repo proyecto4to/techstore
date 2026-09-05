@@ -71,10 +71,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (authPath || path == '/splash') {
         return state.uri.queryParameters['returnTo'] ?? '/';
       }
+      // El repartidor se queda en lo suyo. `/chat` entra en la lista porque
+      // ahora puede escribirle a administracion: sin esto el boton de su
+      // pantalla lo devolveria al inicio, y la conversacion privada que el
+      // servidor le permite abrir seria inalcanzable desde la app.
       if (auth.user!.role.isCourier &&
           path != '/' &&
           path != '/account' &&
           path != '/notifications' &&
+          path != '/chat' &&
+          !path.startsWith('/chat/') &&
           !path.startsWith('/courier/')) {
         return '/';
       }
