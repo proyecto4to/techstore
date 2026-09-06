@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/user_message.dart';
 import '../../../core/native/document_service.dart';
+import '../../../core/widgets/titulo_de_pantalla.dart';
 
 class DocumentCenterPage extends ConsumerStatefulWidget {
   const DocumentCenterPage({super.key});
@@ -27,7 +28,7 @@ class _DocumentCenterPageState extends ConsumerState<DocumentCenterPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Documentos y exportaciones')),
+    appBar: AppBar(title: const TituloDePantalla('Documentos y exportaciones')),
     body: ListView(
       padding: const EdgeInsets.all(16),
       children: [

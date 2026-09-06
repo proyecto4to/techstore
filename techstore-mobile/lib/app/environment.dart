@@ -39,10 +39,17 @@ final class AppEnvironment {
   final AppFlavor flavor;
   final String apiBaseUrl;
 
-  String get label => switch (flavor) {
-    AppFlavor.development => 'Development',
-    AppFlavor.privateDistribution => 'Private',
-    AppFlavor.staging => 'Staging',
-    AppFlavor.production => 'Production',
+  /// Cómo se nombra esta compilación en pantalla, o `null` si no hay nada que
+  /// aclarar.
+  ///
+  /// En producción devuelve `null` a propósito: al usuario final «Production»
+  /// no le dice nada, es una palabra del proceso de compilación y encima en
+  /// inglés. En las demás sí importa avisar, porque conviene saber que se está
+  /// mirando una versión de prueba y no la real.
+  String? get label => switch (flavor) {
+    AppFlavor.development => 'Versión de desarrollo',
+    AppFlavor.privateDistribution => 'Versión interna',
+    AppFlavor.staging => 'Versión de prueba',
+    AppFlavor.production => null,
   };
 }

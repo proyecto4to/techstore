@@ -9,6 +9,7 @@ import 'package:printing/printing.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/native/document_service.dart';
+import '../../../core/widgets/titulo_de_pantalla.dart';
 import '../application/invoice_providers.dart';
 import '../domain/invoice.dart';
 
@@ -254,7 +255,7 @@ class _InvoicePdfPreviewPageState extends ConsumerState<InvoicePdfPreviewPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text('Factura ${widget.invoice.number}')),
+    appBar: AppBar(title: TituloDePantalla('Factura ${widget.invoice.number}')),
     body: FutureBuilder<Uint8List>(
       future: _document,
       builder: (context, snapshot) {

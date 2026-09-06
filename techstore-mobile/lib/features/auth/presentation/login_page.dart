@@ -107,6 +107,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               child: AutofillGroup(
                                 child: Form(
                                   key: _formKey,
+                                  // Revalida mientras se escribe, pero recién
+                                  // después del primer intento fallido: así el
+                                  // cartel rojo desaparece al corregir el campo
+                                  // en vez de quedarse hasta volver a tocar
+                                  // «Ingresar», y no se le grita a nadie por
+                                  // tener el formulario todavía vacío.
+                                  autovalidateMode:
+                                      AutovalidateMode.onUserInteraction,
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,

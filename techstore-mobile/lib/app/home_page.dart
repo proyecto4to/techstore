@@ -26,7 +26,8 @@ final class _Section {
 class HomePage extends ConsumerWidget {
   const HomePage({required this.environmentLabel, super.key});
 
-  final String environmentLabel;
+  /// Nulo en producción: ahí no hay nada que aclararle al usuario.
+  final String? environmentLabel;
 
   /// Qué ve cada rol, y en qué orden.
   ///
@@ -36,10 +37,23 @@ class HomePage extends ConsumerWidget {
   /// No se le quita nada a nadie: un cajero también puede comprar, así que sus
   /// módulos de cliente siguen ahí, más abajo.
   List<_Section> _sectionsFor(AppRole role) {
-    const account = [
-      _Module(Icons.notifications_outlined, 'Notificaciones', '/notifications'),
-      _Module(Icons.chat_bubble_outline, 'Chat', '/chat'),
-      _Module(Icons.person_outline, 'Mi cuenta', '/account'),
+    // Para quien compra, ese canal se llama «Atención al Cliente» en todas las
+    // pantallas; decirle «Chat» en la baldosa era el único lugar donde no
+    // coincidía. Para el resto sí son conversaciones: hablan entre ellos.
+    final account = [
+      const _Module(
+        Icons.notifications_outlined,
+        'Notificaciones',
+        '/notifications',
+      ),
+      _Module(
+        role == AppRole.customer
+            ? Icons.support_agent_outlined
+            : Icons.chat_bubble_outline,
+        role == AppRole.customer ? 'Atención al Cliente' : 'Conversaciones',
+        '/chat',
+      ),
+      const _Module(Icons.person_outline, 'Mi cuenta', '/account'),
     ];
     const shopping = [
       _Module(Icons.storefront_outlined, 'Catálogo', '/catalog'),
@@ -51,7 +65,7 @@ class HomePage extends ConsumerWidget {
     ];
 
     if (role.isCashier) {
-      return const [
+      return [
         _Section('En el mostrador', [
           _Module(Icons.point_of_sale_outlined, 'Vender', '/sales/new'),
           _Module(Icons.savings_outlined, 'Operar caja', '/cash/actions'),
@@ -70,7 +84,7 @@ class HomePage extends ConsumerWidget {
     }
 
     if (role.canAdminister) {
-      return const [
+      return [
         _Section('Gestión', [
           _Module(
             Icons.admin_panel_settings_outlined,
@@ -93,7 +107,7 @@ class HomePage extends ConsumerWidget {
     }
 
     // Cliente: su tienda primero, su cuenta después.
-    return const [
+    return [
       _Section('Comprar', shopping),
       _Section('Tu cuenta', account),
     ];
@@ -127,7 +141,9 @@ class HomePage extends ConsumerWidget {
               style: theme.textTheme.headlineSmall,
             ),
             Text(
-              '${user.role.label} · $environmentLabel',
+              environmentLabel == null
+                  ? user.role.label
+                  : '${user.role.label} · $environmentLabel',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

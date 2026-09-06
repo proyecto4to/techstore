@@ -7,6 +7,7 @@ import '../../../core/errors/user_message.dart';
 import '../../../core/format/money_input.dart';
 import '../../../core/native/document_service.dart';
 import '../../../core/widgets/image_origin_sheet.dart';
+import '../../../core/widgets/titulo_de_pantalla.dart';
 import '../domain/resource_definition.dart';
 import 'company_location_page.dart';
 import 'detail_fields.dart';
@@ -31,7 +32,7 @@ class ResourcePage extends ConsumerWidget {
     final data = ref.watch(resourceProvider(definition));
     return Scaffold(
       appBar: AppBar(
-        title: Text(definition.title),
+        title: TituloDePantalla(definition.title),
         actions: [
           // La ubicación de la empresa no es una fila más de la ficha: se
           // marca en un mapa, así que tiene su propia pantalla.

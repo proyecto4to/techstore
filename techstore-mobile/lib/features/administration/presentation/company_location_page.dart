@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/widgets/async_states.dart';
+import '../../../core/widgets/titulo_de_pantalla.dart';
 
 /// Dónde centrar el mapa cuando todavía nadie marcó la ubicación.
 ///
@@ -34,7 +35,7 @@ class CompanyLocationPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ubicacion = ref.watch(ubicacionEmpresaProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Ubicación de la empresa')),
+      appBar: AppBar(title: const TituloDePantalla('Ubicación de la empresa')),
       body: ubicacion.when(
         loading: () => const AppLoading(label: 'Cargando la ubicación'),
         error: (error, _) => AppErrorState(
