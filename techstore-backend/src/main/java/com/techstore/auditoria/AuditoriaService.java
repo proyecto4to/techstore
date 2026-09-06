@@ -1,5 +1,6 @@
 package com.techstore.auditoria;
 
+import com.techstore.comun.Dinero;
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -146,8 +147,22 @@ public class AuditoriaService {
             return mapa;
         }
 
+        /**
+         * El valor tal como lo va a leer una persona en la auditoría.
+         *
+         * <p>Un importe pasa por {@code formateado()} y no por su
+         * {@code toString()}: ese devuelve el número plano, pensado para
+         * registros técnicos y para el XML del SIFEN, y en la pantalla salía
+         * «Gs. 4700000» en lugar de «Gs. 4.700.000».
+         */
         private static String texto(Object valor) {
-            return valor == null ? null : String.valueOf(valor);
+            if (valor == null) {
+                return null;
+            }
+            if (valor instanceof Dinero importe) {
+                return importe.formateado();
+            }
+            return String.valueOf(valor);
         }
     }
 }
