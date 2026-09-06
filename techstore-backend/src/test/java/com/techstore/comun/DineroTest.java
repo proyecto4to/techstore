@@ -186,4 +186,20 @@ class DineroTest {
         assertEquals("Gs. 1500000", gs(1_500_000).toString());
         assertEquals("US$ 100.00", Dinero.de(100, Moneda.USD).toString());
     }
+
+    @Test
+    void elImporteFormateadoLlevaSeparadorDeMiles() {
+        // La auditoría mostraba «Gs. 4700000» en el detalle de un cierre: el
+        // texto salía de toString(), que es el número plano.
+        assertEquals("Gs. 4.700.000", Dinero.de(4_700_000L, Moneda.PYG).formateado());
+        assertEquals("Gs. 0", Dinero.cero(Moneda.PYG).formateado());
+        assertEquals("Gs. -4.400.000", Dinero.de(-4_400_000L, Moneda.PYG).formateado());
+    }
+
+    @Test
+    void toStringSigueDevolviendoElNumeroPlano() {
+        // Lo consumen registros técnicos y el XML del SIFEN, donde un punto de
+        // miles rompería el dato.
+        assertEquals("Gs. 4700000", Dinero.de(4_700_000L, Moneda.PYG).toString());
+    }
 }

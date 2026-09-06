@@ -68,7 +68,7 @@ public class CierreCajaService {
         AperturaCaja guardada = aperturaCajaRepository.save(apertura);
 
         auditoriaService.registrar("AperturaCaja", guardada.getId(), AuditoriaService.Accion.Abrir,
-                "Abrió la caja con " + guardada.getSaldoInicial(),
+                "Abrió la caja con " + guardada.getSaldoInicial().formateado(),
                 AuditoriaService.Cambios.nuevo()
                         .valor("numero", guardada.getNumero())
                         .valor("saldoInicial", guardada.getSaldoInicial()));
@@ -144,9 +144,9 @@ public class CierreCajaService {
         // meses después, así que queda registrada aparte del propio cierre.
         auditoriaService.registrar("CierreCaja", guardado.getId(), AuditoriaService.Accion.Cerrar,
                 "Cerró la caja: contó %s contra %s teóricos (diferencia %s)".formatted(
-                        guardado.getEfectivoContado(),
-                        guardado.getEfectivoTeorico(),
-                        guardado.getDiferencia()),
+                        guardado.getEfectivoContado().formateado(),
+                        guardado.getEfectivoTeorico().formateado(),
+                        guardado.getDiferencia().formateado()),
                 AuditoriaService.Cambios.nuevo()
                         .valor("numero", guardado.getNumero())
                         .valor("saldoInicial", guardado.getSaldoInicial())

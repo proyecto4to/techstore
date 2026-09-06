@@ -155,10 +155,27 @@ public record Dinero(BigDecimal monto, Moneda moneda) implements Comparable<Dine
         return monto.toPlainString();
     }
 
+    /**
+     * El importe como lo lee una persona: {@code Gs. 4.700.000}.
+     *
+     * <p>Va aparte de {@link #toString()} a propÃ³sito. Ese sigue devolviendo el
+     * nÃºmero sin separadores porque lo consumen registros tÃ©cnicos y el XML del
+     * SIFEN, donde un punto de miles romperÃ­a el dato. Este es para los textos
+     * que alguien va a leer, como el detalle de una acciÃ³n auditada.
+     */
+    public String formateado() {
+        java.text.NumberFormat formato =
+                java.text.NumberFormat.getNumberInstance(new java.util.Locale("es", "PY"));
+        formato.setMinimumFractionDigits(moneda.decimales());
+        formato.setMaximumFractionDigits(moneda.decimales());
+        return moneda.simbolo() + " " + formato.format(monto);
+    }
+
     @Override
     public String toString() {
         return moneda.simbolo() + " " + monto.toPlainString();
     }
+
 
     private void exigirMismaMoneda(Dinero otro) {
         Objects.requireNonNull(otro, "el otro importe es obligatorio");

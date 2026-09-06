@@ -147,8 +147,16 @@ String etiquetaDeCampo(String clave) {
 
 /// Un código del servidor dicho en palabras: `LISTO_PARA_ENVIO` -> «Listo para
 /// envío» hasta donde se puede, sin inventar acentos que no correspondan.
+///
+/// También parte las mayúsculas pegadas, porque los nombres de entidad vienen
+/// así: sin eso, la auditoría mostraba «Cierrecaja» y «Eventovehiculo». La
+/// expresión no toca un código en mayúsculas —no hay minúscula antes de la
+/// mayúscula—, así que `LISTO_PARA_ENVIO` sigue saliendo igual.
 String humanizarCodigo(String crudo) {
-  final limpio = crudo.replaceAll('_', ' ').trim();
+  final limpio = crudo
+      .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'), (m) => '${m[1]} ${m[2]}')
+      .replaceAll('_', ' ')
+      .trim();
   if (limpio.isEmpty) return crudo;
   final baja = limpio.toLowerCase();
   return baja[0].toUpperCase() + baja.substring(1);

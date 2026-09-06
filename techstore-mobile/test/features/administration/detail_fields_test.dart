@@ -138,6 +138,29 @@ void main() {
       expect(_seleccionable('80012345-6'), findsOneWidget);
     });
   });
+
+  group('humanizarCodigo', () {
+    test('separa las mayúsculas pegadas de los nombres de entidad', () {
+      // La auditoría mostraba «Cierrecaja» y «Eventovehiculo»: los nombres de
+      // entidad vienen en CamelCase y solo se les bajaba la caja.
+      expect(humanizarCodigo('CierreCaja'), 'Cierre caja');
+      expect(humanizarCodigo('AperturaCaja'), 'Apertura caja');
+      expect(humanizarCodigo('EventoVehiculo'), 'Evento vehiculo');
+      expect(humanizarCodigo('MovimientoCaja'), 'Movimiento caja');
+    });
+
+    test('un código en mayúsculas sigue saliendo igual que antes', () {
+      // No hay minúscula antes de la mayúscula, así que la separación de
+      // CamelCase no lo toca.
+      expect(humanizarCodigo('LISTO_PARA_ENVIO'), 'Listo para envio');
+      expect(humanizarCodigo('PENDIENTE'), 'Pendiente');
+    });
+
+    test('una sola palabra queda con la inicial en mayúscula', () {
+      expect(humanizarCodigo('Usuario'), 'Usuario');
+      expect(humanizarCodigo('producto'), 'Producto');
+    });
+  });
 }
 
 /// Los valores se muestran con SelectableText para poder copiar un RUC o un
