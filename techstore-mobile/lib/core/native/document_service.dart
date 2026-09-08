@@ -8,13 +8,20 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../network/api_client.dart';
+import 'app_excursion.dart';
 
 enum DocumentAction { open, share, print }
 
 final class DocumentService {
-  const DocumentService(this._api);
+  const DocumentService(this._api, this._excursion);
 
   final ApiClient _api;
+
+  /// Abrir, compartir o imprimir manda la app a segundo plano: la abre el
+  /// visor de PDF, el selector de aplicaciones o el diálogo de impresión del
+  /// sistema. Sin marcarlo, la guarda de sesión lo confunde con que la persona
+  /// se fue de la aplicación y la cierra en mitad de la operación.
+  final AppExcursion _excursion;
 
   Future<File> download(String endpoint, String filename) async {
     final directory = await getTemporaryDirectory();
@@ -35,23 +42,27 @@ final class DocumentService {
     String filename,
     DocumentAction action,
   ) async {
+    // La descarga queda fuera de la marca a propósito: bajar el archivo no
+    // saca a nadie de la app; lo que sale es lo que viene después.
     final file = await download(endpoint, filename);
-    switch (action) {
-      case DocumentAction.open:
-        final result = await OpenFilex.open(file.path);
-        if (result.type != ResultType.done) {
-          throw StateError(result.message);
-        }
-      case DocumentAction.share:
-        await SharePlus.instance.share(
-          ShareParams(files: [XFile(file.path)], title: filename),
-        );
-      case DocumentAction.print:
-        final bytes = await file.readAsBytes();
-        await Printing.layoutPdf(
-          onLayout: (_) async => Uint8List.fromList(bytes),
-        );
-    }
+    await _excursion.durante(() async {
+      switch (action) {
+        case DocumentAction.open:
+          final result = await OpenFilex.open(file.path);
+          if (result.type != ResultType.done) {
+            throw StateError(result.message);
+          }
+        case DocumentAction.share:
+          await SharePlus.instance.share(
+            ShareParams(files: [XFile(file.path)], title: filename),
+          );
+        case DocumentAction.print:
+          final bytes = await file.readAsBytes();
+          await Printing.layoutPdf(
+            onLayout: (_) async => Uint8List.fromList(bytes),
+          );
+      }
+    });
   }
 
   static String sanitizeFilename(String value) {

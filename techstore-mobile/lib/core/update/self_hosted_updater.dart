@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../errors/app_failure.dart';
 import '../logging/app_logger.dart';
+import '../native/app_excursion.dart';
 import '../network/api_client.dart';
 import 'apk_installer.dart';
 import 'app_update_service.dart';
@@ -43,13 +44,18 @@ final class SelfHostedUpdater {
   SelfHostedUpdater(
     this._api,
     this._installer,
-    this._logger, {
+    this._logger,
+    this._excursion, {
     Future<Directory> Function()? cacheDir,
   }) : _cacheDir = cacheDir ?? getTemporaryDirectory;
 
   final ApiClient _api;
   final ApkInstaller _installer;
   final AppLogger _logger;
+
+  /// El instalador de Android se abre encima de la app. Sin marcarlo, volver
+  /// de la pantalla de instalación exige iniciar sesión de nuevo.
+  final AppExcursion _excursion;
   final Future<Directory> Function() _cacheDir;
 
   /// Carpeta compartida con el `FileProvider` declarado en el manifiesto.
@@ -60,7 +66,9 @@ final class SelfHostedUpdater {
     void Function(int recibidos, int total)? onProgress,
   }) async {
     if (!policy.seInstalaDesdeLaApp) {
-      return const UpdateFailed('Esta versión no se puede instalar desde la app.');
+      return const UpdateFailed(
+        'Esta versión no se puede instalar desde la app.',
+      );
     }
     // El permiso se comprueba antes de gastar la descarga: no tiene sentido
     // bajar 64 MB para descubrir al final que Android no nos deja instalar.
@@ -78,7 +86,10 @@ final class SelfHostedUpdater {
           'La descarga llegó incompleta o alterada. Probá de nuevo.',
         );
       }
-      await _installer.instalar(archivo.path);
+      // La ruta se guarda aparte: dentro de la función anónima el análisis
+      // pierde la certeza de que `archivo` ya no es nulo.
+      final ruta = archivo.path;
+      await _excursion.durante(() => _installer.instalar(ruta));
       return const UpdateHandedToAndroid();
     } on NetworkFailure catch (_) {
       await _borrar(archivo);

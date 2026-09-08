@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/format/status_labels.dart';
 import '../application/courier_providers.dart';
@@ -110,7 +111,9 @@ class _ByClient extends ConsumerWidget {
                           ListTile(
                             title: Text('Pedido #${item['pedidoNumero']}'),
                             subtitle: Text(
-                              deliveryStatusLabel(item['estadoEntrega'] as String?).label,
+                              deliveryStatusLabel(
+                                item['estadoEntrega'] as String?,
+                              ).label,
                             ),
                             trailing: Text(
                               _money(item['importe'], '${item['moneda']}'),
@@ -261,7 +264,9 @@ class _CourierDeliveryDetailPageState
                         paymentMethodLabel(item['formaPago'] as String?),
                       ),
                       trailing: StatusChip(
-                        status: paymentStatusLabel(item['estadoPago'] as String?),
+                        status: paymentStatusLabel(
+                          item['estadoPago'] as String?,
+                        ),
                         compact: true,
                       ),
                     ),
@@ -531,7 +536,12 @@ class _CourierDeliveryDetailPageState
         'query': '${item['direccion'] ?? ''}',
       });
     }
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    // Salir al mapa es parte del reparto, no irse de la aplicación. Sin
+    // marcarlo, la guarda cierra la sesión y hay que iniciarla de nuevo en la
+    // calle, en mitad de la ronda.
+    final opened = await ref
+        .read(appExcursionProvider)
+        .durante(() => launchUrl(uri, mode: LaunchMode.externalApplication));
     if (!opened && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -547,7 +557,9 @@ class _CourierDeliveryDetailPageState
     // guiones con que se cargó el número rompen el esquema `tel:`.
     final digits = phone.replaceAll(RegExp(r'[^0-9+]'), '');
     if (digits.isEmpty) return;
-    final opened = await launchUrl(Uri(scheme: 'tel', path: digits));
+    final opened = await ref
+        .read(appExcursionProvider)
+        .durante(() => launchUrl(Uri(scheme: 'tel', path: digits)));
     if (!opened && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No pudimos llamar. El número es $phone')),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/di/providers.dart';
 import '../application/courier_providers.dart';
 
 class CourierRoutePage extends ConsumerStatefulWidget {
@@ -198,7 +199,11 @@ class _CourierRoutePageState extends ConsumerState<CourierRoutePage> {
       'api': '1',
       'destination': '${point['latitud']},${point['longitud']}',
     });
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    // Igual que en la lista de entregas: abrir el mapa es un paso del
+    // reparto, no una salida de la aplicación.
+    await ref
+        .read(appExcursionProvider)
+        .durante(() => launchUrl(uri, mode: LaunchMode.externalApplication));
   }
 }
 

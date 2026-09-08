@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:techstore_mobile/core/cache/cache_store.dart';
 import 'package:techstore_mobile/core/database/app_database.dart';
 import 'package:techstore_mobile/core/logging/app_logger.dart';
+import 'package:techstore_mobile/core/native/app_excursion.dart';
 import 'package:techstore_mobile/core/network/api_client.dart';
 import 'package:techstore_mobile/core/update/app_update_service.dart';
 
@@ -31,6 +32,7 @@ void main() {
       CacheStore(database),
       const _UnusedPlayGateway(),
       const _SilentLogger(),
+      AppExcursion(),
       packageInfo: () async => PackageInfo(
         appName: 'TechStore',
         packageName: 'py.com.techstore.app',

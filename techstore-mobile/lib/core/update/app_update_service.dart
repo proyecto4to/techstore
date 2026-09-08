@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../cache/cache_store.dart';
 import '../errors/app_failure.dart';
 import '../logging/app_logger.dart';
+import '../native/app_excursion.dart';
 import '../network/api_client.dart';
 
 final class UpdatePolicy {
@@ -127,7 +128,8 @@ final class AppUpdateService {
     this._api,
     this._cache,
     this._play,
-    this._logger, {
+    this._logger,
+    this._excursion, {
     Future<PackageInfo> Function()? packageInfo,
     Future<bool> Function(Uri)? openStore,
   }) : _packageInfo = packageInfo ?? PackageInfo.fromPlatform,
@@ -142,6 +144,11 @@ final class AppUpdateService {
   final CacheStore _cache;
   final PlayUpdateGateway _play;
   final AppLogger _logger;
+
+  /// Ir a la tienda saca a la persona de la app. Sin marcarlo, la guarda de
+  /// sesión lo toma por una salida y la cierra: se vuelve de actualizar y hay
+  /// que iniciar sesión otra vez.
+  final AppExcursion _excursion;
   final Future<PackageInfo> Function() _packageInfo;
   final Future<bool> Function(Uri) _openStore;
 
@@ -201,6 +208,6 @@ final class AppUpdateService {
     } on Object catch (error, stackTrace) {
       _logger.warning('Play In-App Update no disponible', error, stackTrace);
     }
-    return _openStore(policy.storeUrl);
+    return _excursion.durante(() => _openStore(policy.storeUrl));
   }
 }

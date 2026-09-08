@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:techstore_mobile/core/logging/app_logger.dart';
+import 'package:techstore_mobile/core/native/app_excursion.dart';
 import 'package:techstore_mobile/core/network/api_client.dart';
 import 'package:techstore_mobile/core/update/apk_installer.dart';
 import 'package:techstore_mobile/core/update/app_update_service.dart';
@@ -44,6 +45,7 @@ void main() {
       ),
       instalador,
       const _SilentLogger(),
+      AppExcursion(),
       cacheDir: () async => temporal,
     );
   }
@@ -73,23 +75,20 @@ void main() {
   test('no instala nada si el hash no coincide y borra el archivo', () async {
     final instalador = _FakeInstaller();
 
-    final resultado = await updater(
-      instalador,
-    ).actualizar(politica(sha: 'f' * 64));
+    final resultado = await updater(instalador)
+        .actualizar(politica(sha: 'f' * 64));
 
     expect(resultado, isA<UpdateFailed>());
     expect(instalador.instalado, isNull);
     // El archivo corrupto no puede quedar tentando a nadie.
-    expect(
-      Directory('${temporal.path}/actualizaciones').listSync(),
-      isEmpty,
-    );
+    expect(Directory('${temporal.path}/actualizaciones').listSync(), isEmpty);
   });
 
   test('rechaza un archivo con tamaño distinto al publicado', () async {
     final instalador = _FakeInstaller();
 
-    final resultado = await updater(instalador).actualizar(politica(tamano: 9999));
+    final resultado = await updater(instalador)
+        .actualizar(politica(tamano: 9999));
 
     expect(resultado, isA<UpdateFailed>());
     expect(instalador.instalado, isNull);
