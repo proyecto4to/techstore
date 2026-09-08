@@ -1,14 +1,11 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:printing/printing.dart';
 
 import '../../../core/di/providers.dart';
-import '../../../core/errors/app_failure.dart';
 import '../../../core/native/document_service.dart';
+import '../../../core/widgets/documento_page.dart';
 import '../../../core/widgets/titulo_de_pantalla.dart';
 import '../application/invoice_providers.dart';
 import '../domain/invoice.dart';
@@ -27,7 +24,7 @@ class _InvoicesPageState extends ConsumerState<InvoicesPage> {
   Widget build(BuildContext context) {
     final result = ref.watch(invoicesProvider(_page));
     return Scaffold(
-      appBar: AppBar(title: const Text('Facturas')),
+      appBar: AppBar(title: const TituloDePantalla('Facturas')),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(invoicesProvider(_page).future),
         child: result.when(
@@ -86,7 +83,7 @@ class InvoiceDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final invoice = ref.watch(invoiceProvider(invoiceId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Detalle de factura')),
+      appBar: AppBar(title: const TituloDePantalla('Detalle de factura')),
       body: invoice.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _MessageList(
@@ -226,74 +223,22 @@ class InvoiceDetailPage extends ConsumerWidget {
   }
 }
 
-class InvoicePdfPreviewPage extends ConsumerStatefulWidget {
+/// La factura, para leerla dentro de la aplicación.
+///
+/// Todo el trabajo lo hace [DocumentoPage], que es la misma pantalla que usa
+/// cualquier otro documento: se descarga una vez, se puede acercar y correr
+/// para leer un número, y desde ahí mismo se comparte o se imprime. Antes era
+/// una vista previa que encajaba la hoja en la pantalla y no dejaba acercarse.
+class InvoicePdfPreviewPage extends StatelessWidget {
   const InvoicePdfPreviewPage({required this.invoice, super.key});
 
   final Invoice invoice;
 
   @override
-  ConsumerState<InvoicePdfPreviewPage> createState() =>
-      _InvoicePdfPreviewPageState();
-}
-
-class _InvoicePdfPreviewPageState extends ConsumerState<InvoicePdfPreviewPage> {
-  late Future<Uint8List> _document;
-
-  @override
-  void initState() {
-    super.initState();
-    _document = _download();
-  }
-
-  Future<Uint8List> _download() async {
-    return ref
-        .read(documentServiceProvider)
-        .bytes('/api/v1/facturas/${widget.invoice.id}/pdf');
-  }
-
-  void _retry() => setState(() => _document = _download());
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: TituloDePantalla('Factura ${widget.invoice.number}')),
-    body: FutureBuilder<Uint8List>(
-      future: _document,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError || !snapshot.hasData) {
-          final message = snapshot.error is AppFailure
-              ? (snapshot.error! as AppFailure).message
-              : 'No se pudo descargar la factura.';
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(message, textAlign: TextAlign.center),
-                  const SizedBox(height: 16),
-                  FilledButton.tonalIcon(
-                    onPressed: _retry,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Reintentar descarga'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-        return PdfPreview(
-          build: (_) async => snapshot.data!,
-          pdfFileName: 'factura-${widget.invoice.number}.pdf',
-          canChangeOrientation: false,
-          canChangePageFormat: false,
-          allowPrinting: true,
-          allowSharing: true,
-        );
-      },
-    ),
+  Widget build(BuildContext context) => DocumentoPage(
+    titulo: 'Factura ${invoice.number}',
+    endpoint: '/api/v1/facturas/${invoice.id}/pdf',
+    nombreDeArchivo: 'factura-${invoice.number}.pdf',
   );
 }
 
