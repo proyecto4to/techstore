@@ -16,9 +16,16 @@ public interface ProductoRepository extends JpaRepository<Producto, Long>, JpaSp
     /**
      * Bloquea las filas de productos durante la transacción para evitar
      * sobreventa cuando dos checkouts compiten por el mismo stock.
+     *
+     * <p>El {@code order by} no es para ordenar el resultado: fija el orden en
+     * que se toman los candados. Sin él, dos ventas simultáneas de los mismos
+     * dos productos pueden agarrarlos en orden cruzado y quedarse esperándose
+     * la una a la otra; Postgres corta el abrazo abortando a una, y quien
+     * compraba ve un error de base de datos en lugar de su compra. Tomándolos
+     * siempre por id ascendente, la segunda simplemente espera su turno.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select p from Producto p where p.id in :ids")
+    @Query("select p from Producto p where p.id in :ids order by p.id")
     List<Producto> findAllForUpdate(@Param("ids") Collection<Long> ids);
 
     @Query("select p from Producto p where p.activo = true "
