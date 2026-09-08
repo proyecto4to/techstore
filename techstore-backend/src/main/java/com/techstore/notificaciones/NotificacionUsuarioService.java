@@ -1,5 +1,6 @@
 package com.techstore.notificaciones;
 
+import com.techstore.comun.EnvioTrasCommit;
 import com.techstore.comun.PageResponse;
 import com.techstore.comun.ResourceNotFoundException;
 import com.techstore.notificaciones.outbox.NotificationOutbox;
@@ -12,12 +13,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class NotificacionUsuarioService {
+    /**
+     * La cola personal de la campana.
+     *
+     * <p>Va por acá y no por el flujo de eventos de la empresa por dos razones:
+     * una notificación es de una sola persona, y el flujo completo solo lo
+     * escucha quien opera la tienda, así que un cliente nunca se enteraría de
+     * la suya.
+     */
+    static final String COLA = "/queue/notifications";
+
     private final NotificacionUsuarioRepository repository;
     private final UsuarioRepository usuarioRepository;
+    private final EnvioTrasCommit envio;
 
     @Transactional
     public void registrarDesdeOutbox(NotificationOutbox outbox, Long usuarioId,
@@ -36,6 +49,7 @@ public class NotificacionUsuarioService {
         notification.setSourceOutboxId(outbox.getId());
         notification.setLeida(false);
         repository.save(notification);
+        avisar(usuario, NotificacionUsuarioResponse.from(notification));
     }
 
     @Transactional(readOnly = true)
@@ -68,14 +82,24 @@ public class NotificacionUsuarioService {
             notification.setLeida(true);
             notification.setLeidaEn(LocalDateTime.now());
         }
-        return NotificacionUsuarioResponse.from(notification);
+        NotificacionUsuarioResponse response = NotificacionUsuarioResponse.from(notification);
+        // También cuando se lee: la persona puede tener el teléfono y la web
+        // abiertos a la vez, y el contador tiene que bajar en los dos.
+        avisar(usuario, response);
+        return response;
     }
 
     @Transactional
     public MarkNotificationsReadResponse marcarTodasLeidas(String email) {
         Usuario usuario = usuario(email);
-        return new MarkNotificationsReadResponse(
+        MarkNotificationsReadResponse response = new MarkNotificationsReadResponse(
                 repository.marcarTodasLeidas(usuario.getId(), LocalDateTime.now()));
+        avisar(usuario, response);
+        return response;
+    }
+
+    private void avisar(Usuario usuario, Object cuerpo) {
+        envio.aCadaUno(List.of(usuario.getEmail()), COLA, cuerpo);
     }
 
     private Usuario usuario(String email) {

@@ -6,6 +6,7 @@ import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../cache/cache_store.dart';
 import '../logging/app_logger.dart';
 import '../network/api_client.dart';
+import 'agregados_de_sincronizacion.dart';
 import 'realtime_event.dart';
 
 final class RealtimeService {
@@ -22,9 +23,16 @@ final class RealtimeService {
 
   Stream<RealtimeEvent> get events => _events.stream;
 
+  /// Se conecta al flujo de eventos de la empresa.
+  ///
+  /// [operaLaTienda] elige el canal. Hay dos por empresa: el completo, que
+  /// lleva también caja, pagos y usuarios, y el acotado, con lo que le toca
+  /// a quien compra. Suscribirse al que no corresponde termina en un rechazo
+  /// del servidor, así que el rol se decide acá y se comprueba allá.
   Future<void> connect({
     required String baseUrl,
     required String accessToken,
+    required bool operaLaTienda,
   }) async {
     disconnect();
     final tenantId = _tenantFromJwt(accessToken);
@@ -56,13 +64,22 @@ final class RealtimeService {
         webSocketConnectHeaders: {'Authorization': bearer},
         onConnect: (frame) {
           _client?.subscribe(
-            destination: '/topic/tenant/$tenantId/events',
+            destination: operaLaTienda
+                ? '/topic/tenant/$tenantId/events'
+                : '/topic/tenant/$tenantId/events/compra',
             callback: (frame) {
               final body = frame.body;
               if (body == null) return;
               _enqueue(Map<String, Object?>.from(jsonDecode(body) as Map));
             },
           );
+          // El chat y la campana no viajan por el canal de la empresa: son de
+          // una sola persona y el servidor ya sabe a quién le tocan, así que
+          // los manda a su cola personal. Sin estas tres suscripciones el
+          // mensaje llegaba recién al volver a entrar a la pantalla.
+          _escucharCola('/user/queue/notifications', agregadoNotificacion);
+          _escucharCola('/user/queue/chat', agregadoMensaje);
+          _escucharCola('/user/queue/chat-read', agregadoMensaje);
           unawaited(_catchUp());
         },
         onStompError: (frame) =>
@@ -72,6 +89,20 @@ final class RealtimeService {
         ),
       ),
     )..activate();
+  }
+
+  /// Escucha una cola personal y traduce lo que llegue a un evento.
+  ///
+  /// Estos avisos no tienen número de bitácora —no pasan por el outbox—, así
+  /// que no tocan el cursor ni se pueden recuperar al reconectar. Lo que sí se
+  /// recupera es el dato: al volver, la pantalla se refresca igual.
+  void _escucharCola(String destino, String agregado) {
+    _client?.subscribe(
+      destination: destino,
+      callback: (frame) => _events.add(
+        RealtimeEvent(id: 0, type: agregado, aggregate: agregado),
+      ),
+    );
   }
 
   void disconnect() {

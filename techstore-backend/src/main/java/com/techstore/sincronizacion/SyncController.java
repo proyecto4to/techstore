@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Set;
 
 @Validated
 @RestController
@@ -23,25 +22,14 @@ import java.util.Set;
 public class SyncController {
 
     /**
-     * Los agregados que puede ver quien no opera la tienda.
+     * Recuperación por cursor, para lo que se perdió mientras no había
+     * conexión.
      *
-     * <p>El flujo de eventos existe para que cada cliente sepa qué caché
-     * invalidar, no para contarle lo que pasa en el negocio. Sin esta lista, un
-     * usuario con rol Cliente también recibía {@code CASH_MOVEMENT},
-     * {@code CASH_OPENING}, {@code CASH_CLOSING}, {@code PAYMENT},
-     * {@code INVOICE}, {@code USER} y {@code DELIVERY_ADDRESS}: la actividad de
-     * la caja, los pagos y los pedidos de otros clientes, las direcciones
-     * ajenas y el alta y baja de cada usuario.
-     *
-     * <p>Quedan los del catálogo, que es público de todos modos, y los del
-     * pedido y el envío, que son los que hacen que la persona vea avanzar su
-     * propia compra. Esos dos siguen revelando que <em>algún</em> pedido se
-     * movió: el evento no trae dueño, así que acotarlo más pide una columna
-     * nueva en la bitácora.
+     * <p>Qué puede ver cada quien vive en {@link DestinosDeEventos}, compartido
+     * con el canal de WebSocket. Estaban separados y solo este camino filtraba,
+     * así que alcanzaba con quedarse escuchando el socket para recibir igual la
+     * actividad de la caja, los pagos y las altas de usuarios.
      */
-    static final Set<String> AGREGADOS_SIN_OPERACION =
-            Set.of("PRODUCT", "BRAND", "MODEL", "ORDER", "ORDER_ITEM", "SHIPMENT");
-
     private final DomainEventStore store;
 
     @GetMapping("/events")
@@ -54,7 +42,7 @@ public class SyncController {
             Authentication auth) {
         return operaLaTienda(auth)
                 ? store.after(after, limit)
-                : store.after(after, limit, AGREGADOS_SIN_OPERACION);
+                : store.after(after, limit, DestinosDeEventos.PARA_QUIEN_COMPRA);
     }
 
     /** Admin y Cajero mueven la caja y las compras, así que ven todo el flujo. */

@@ -16,6 +16,12 @@ export default function RealtimeSync() {
           void queryClient.invalidateQueries({ queryKey })
         }
       },
+      // Sirve tanto para un aviso nuevo como para uno leído desde otro
+      // dispositivo: en los dos casos el número de la campana cambió.
+      onNotification: () => {
+        void queryClient.invalidateQueries({ queryKey: ['notificaciones-no-leidas'] })
+        void queryClient.invalidateQueries({ queryKey: ['notificaciones'] })
+      },
     })
     return () => { void client?.deactivate() }
   }, [accessToken, queryClient])

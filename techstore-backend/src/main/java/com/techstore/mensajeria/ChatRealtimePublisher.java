@@ -1,35 +1,22 @@
 package com.techstore.mensajeria;
 
+import com.techstore.comun.EnvioTrasCommit;
 import lombok.RequiredArgsConstructor;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Collection;
 
+/** Los dos avisos del chat que van a la cola personal de cada participante. */
 @Component
 @RequiredArgsConstructor
 public class ChatRealtimePublisher {
-    private final SimpMessagingTemplate template;
+    private final EnvioTrasCommit envio;
 
     public void mensaje(Collection<String> destinatarios, MensajeResponse response) {
-        despuesDelCommit(() -> destinatarios.stream().distinct().forEach(email ->
-                template.convertAndSendToUser(email, "/queue/chat", response)));
+        envio.aCadaUno(destinatarios, "/queue/chat", response);
     }
 
     public void lectura(Collection<String> destinatarios, LecturaResponse response) {
-        despuesDelCommit(() -> destinatarios.stream().distinct().forEach(email ->
-                template.convertAndSendToUser(email, "/queue/chat-read", response)));
-    }
-
-    private void despuesDelCommit(Runnable accion) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
-            accion.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override public void afterCommit() { accion.run(); }
-        });
+        envio.aCadaUno(destinatarios, "/queue/chat-read", response);
     }
 }

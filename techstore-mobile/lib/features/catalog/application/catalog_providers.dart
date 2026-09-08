@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/realtime_coordinator.dart';
 import '../../../core/di/providers.dart';
+import '../../../core/realtime/agregados_de_sincronizacion.dart';
+import '../../../core/realtime/realtime_event.dart';
 import '../data/catalog_repository.dart';
 import '../data/favorites_repository.dart';
 import '../domain/product.dart';
@@ -25,11 +30,10 @@ typedef ConsultaDeCatalogo = ({String search, int? brandId});
 /// repositorio aceptaba `page` pero nadie se lo pasaba. Ahora acumula lo que ya
 /// se mostró y pide el siguiente bloque al llegar al final de la grilla, para
 /// no bajar cientos de fichas con sus imágenes de una sola vez.
-final catalogProvider =
-    AsyncNotifierProvider.autoDispose
-        .family<CatalogoPaginado, List<Product>, ConsultaDeCatalogo>(
-          CatalogoPaginado.new,
-        );
+final catalogProvider = AsyncNotifierProvider.autoDispose
+    .family<CatalogoPaginado, List<Product>, ConsultaDeCatalogo>(
+      CatalogoPaginado.new,
+    );
 
 class CatalogoPaginado extends AsyncNotifier<List<Product>> {
   CatalogoPaginado(this.consulta);
@@ -49,6 +53,7 @@ class CatalogoPaginado extends AsyncNotifier<List<Product>> {
   Future<List<Product>> build() async {
     _pagina = 0;
     _cargando = false;
+    _escucharCambios();
     final primeros = await ref
         .watch(catalogRepositoryProvider)
         .list(search: consulta.search, brandId: consulta.brandId);
@@ -56,6 +61,73 @@ class CatalogoPaginado extends AsyncNotifier<List<Product>> {
     // para descubrir que no hay nada más.
     _hayMas = primeros.length >= productosPorBloque;
     return primeros;
+  }
+
+  /// Mantiene la grilla al día con lo que pasa en el servidor.
+  ///
+  /// No se invalida el provider entero, que sería lo corto: eso vuelve a la
+  /// primera página y le tira abajo a la persona todo lo que ya bajó, justo en
+  /// el momento en que otro compró algo. Se cambia únicamente la ficha del
+  /// producto que se movió, así el «Quedan 10» pasa a «Quedan 7» sin que se
+  /// mueva nada más de la pantalla.
+  void _escucharCambios() {
+    final suscripcion = ref.watch(eventosRealtimeProvider).listen((evento) {
+      if (agregadosDeCatalogo.contains(evento.aggregate)) {
+        unawaited(_aplicar(evento));
+      }
+    });
+    ref.onDispose(suscripcion.cancel);
+  }
+
+  Future<void> _aplicar(RealtimeEvent evento) async {
+    final actuales = state.value;
+    final id = evento.aggregateId;
+    if (actuales == null || id == null) return;
+    final indice = actuales.indexWhere((producto) => producto.id == id);
+    if (evento.type.endsWith('_DELETED')) {
+      if (indice >= 0) state = AsyncData([...actuales]..removeAt(indice));
+      return;
+    }
+    // Uno que no está en pantalla solo importa si acaba de nacer; para el
+    // resto, lo que cambió no se ve desde acá y pedirlo sería una consulta al
+    // pedo.
+    if (indice < 0) {
+      if (evento.type.endsWith('_CREATED')) await _recargarLoMostrado();
+      return;
+    }
+    try {
+      final actualizado = await ref.read(catalogRepositoryProvider).get(id);
+      final copia = [...actuales];
+      copia[indice] = actualizado;
+      state = AsyncData(copia);
+    } on Object {
+      // Que no se pueda traer la ficha nueva no es motivo para vaciar la
+      // grilla: se queda la anterior hasta el próximo aviso o refresco.
+    }
+  }
+
+  /// Vuelve a pedir los bloques que ya están en pantalla, sin perder ninguno.
+  Future<void> _recargarLoMostrado() async {
+    final repositorio = ref.read(catalogRepositoryProvider);
+    final acumulado = <Product>[];
+    for (var pagina = 0; pagina <= _pagina; pagina++) {
+      try {
+        final bloque = await repositorio.list(
+          search: consulta.search,
+          brandId: consulta.brandId,
+          page: pagina,
+        );
+        acumulado.addAll(bloque);
+        if (bloque.length < productosPorBloque) {
+          _pagina = pagina;
+          _hayMas = false;
+          break;
+        }
+      } on Object {
+        return;
+      }
+    }
+    state = AsyncData(acumulado);
   }
 
   /// Suma el siguiente bloque a lo que ya está en pantalla.

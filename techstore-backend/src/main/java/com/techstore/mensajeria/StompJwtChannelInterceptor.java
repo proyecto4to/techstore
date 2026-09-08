@@ -32,8 +32,11 @@ public class StompJwtChannelInterceptor implements ChannelInterceptor, ExecutorC
     private static final String BEARER = "Bearer ";
     private static final Pattern DESTINO_ENVIO = Pattern.compile("/app/chat/[1-9][0-9]*");
     private static final Set<String> DESTINOS_SUSCRIPCION = Set.of(
-            "/user/queue/chat", "/user/queue/chat-read", "/user/queue/chat-errors");
+            "/user/queue/chat", "/user/queue/chat-read", "/user/queue/chat-errors",
+            "/user/queue/notifications");
     private static final Pattern DESTINO_EVENTOS = Pattern.compile("/topic/tenant/([1-9][0-9]*)/events");
+    private static final Pattern DESTINO_EVENTOS_COMPRA =
+            Pattern.compile("/topic/tenant/([1-9][0-9]*)/events/compra");
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
@@ -56,14 +59,38 @@ public class StompJwtChannelInterceptor implements ChannelInterceptor, ExecutorC
         return message;
     }
 
+    /**
+     * Quién puede escuchar qué.
+     *
+     * <p>Hay dos canales de eventos por empresa. Al completo solo entra quien
+     * opera la tienda; al acotado, cualquiera de la empresa. Antes había uno
+     * solo y bastaba pertenecer a la empresa, así que un cliente conectado
+     * recibía también los movimientos de caja, los pagos y las altas de
+     * usuarios: el mismo filtro que ya cuidaba el endpoint REST no estaba acá.
+     */
     private boolean suscripcionPermitida(StompHeaderAccessor accessor) {
-        String destination = accessor.getDestination();
+        String destination = String.valueOf(accessor.getDestination());
         if (DESTINOS_SUSCRIPCION.contains(destination)) return true;
-        var matcher = DESTINO_EVENTOS.matcher(String.valueOf(destination));
-        if (!matcher.matches()) return false;
+
+        var completo = DESTINO_EVENTOS.matcher(destination);
+        if (completo.matches()) {
+            return esDeLaEmpresa(accessor, completo.group(1)) && operaLaTienda(accessor);
+        }
+        var acotado = DESTINO_EVENTOS_COMPRA.matcher(destination);
+        return acotado.matches() && esDeLaEmpresa(accessor, acotado.group(1));
+    }
+
+    private boolean esDeLaEmpresa(StompHeaderAccessor accessor, String tenantId) {
         return accessor.getUser() instanceof Authentication auth
                 && auth.getDetails() instanceof StompSessionDetails details
-                && details.tenantId().equals(Long.parseLong(matcher.group(1)));
+                && details.tenantId().equals(Long.parseLong(tenantId));
+    }
+
+    private boolean operaLaTienda(StompHeaderAccessor accessor) {
+        return accessor.getUser() instanceof Authentication auth
+                && auth.getAuthorities().stream()
+                        .anyMatch(a -> "ROLE_Admin".equals(a.getAuthority())
+                                || "ROLE_Cajero".equals(a.getAuthority()));
     }
 
     private void autenticar(StompHeaderAccessor accessor) {

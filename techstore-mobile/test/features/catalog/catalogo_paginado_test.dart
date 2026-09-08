@@ -4,8 +4,10 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:techstore_mobile/app/realtime_coordinator.dart';
 import 'package:techstore_mobile/core/logging/app_logger.dart';
 import 'package:techstore_mobile/core/network/api_client.dart';
+import 'package:techstore_mobile/core/realtime/realtime_event.dart';
 import 'package:techstore_mobile/features/catalog/application/catalog_providers.dart';
 import 'package:techstore_mobile/features/catalog/data/catalog_repository.dart';
 
@@ -28,6 +30,11 @@ void main() {
     final servidor = _ServidorDeBloques(tamanos, fallaDespues: fallaDespues);
     final container = ProviderContainer(
       overrides: [
+        // La grilla escucha el flujo de eventos para actualizarse sola. Acá no
+        // interesa: se le da uno vacío para no arrastrar el WebSocket entero.
+        eventosRealtimeProvider.overrideWithValue(
+          const Stream<RealtimeEvent>.empty(),
+        ),
         catalogRepositoryProvider.overrideWith(
           (ref) => CatalogRepository(
             ApiClient(
@@ -45,19 +52,26 @@ void main() {
     // El provider es autoDispose: sin alguien escuchando se descarta entre una
     // lectura y la siguiente, y `read(...notifier)` devolvería un notifier
     // recién creado, con el contador de páginas en cero.
-    container.listen(catalogProvider(consulta), (_, _) {}, fireImmediately: true);
+    container.listen(
+      catalogProvider(consulta),
+      (_, _) {},
+      fireImmediately: true,
+    );
     return (container: container, servidor: servidor);
   }
 
-  test('el primer bloque completo deja la puerta abierta a pedir más', () async {
-    final (:container, :servidor) = conBloques([30, 30]);
+  test(
+    'el primer bloque completo deja la puerta abierta a pedir más',
+    () async {
+      final (:container, :servidor) = conBloques([30, 30]);
 
-    final primeros = await container.read(catalogProvider(consulta).future);
+      final primeros = await container.read(catalogProvider(consulta).future);
 
-    expect(primeros, hasLength(30));
-    expect(container.read(catalogProvider(consulta).notifier).hayMas, isTrue);
-    expect(servidor.paginasPedidas, [0]);
-  });
+      expect(primeros, hasLength(30));
+      expect(container.read(catalogProvider(consulta).notifier).hayMas, isTrue);
+      expect(servidor.paginasPedidas, [0]);
+    },
+  );
 
   test('un bloque incompleto significa que no hay más', () async {
     final (:container, :servidor) = conBloques([12]);

@@ -38,7 +38,16 @@ public class DomainEventWorker {
         TenantContext.comoTenant(claimed.tenantId(), () -> {
             try {
                 DomainEventResponse event = store.find(claimed.id());
-                messaging.convertAndSend("/topic/tenant/" + claimed.tenantId() + "/events", event);
+                // Dos destinos: el completo para quien opera la tienda y el
+                // acotado para quien compra. Antes había uno solo y el
+                // interceptor solo comprobaba la empresa, así que un cliente
+                // conectado escuchaba también la caja, los pagos y las altas de
+                // usuarios.
+                messaging.convertAndSend(DestinosDeEventos.deLaTienda(claimed.tenantId()), event);
+                if (DestinosDeEventos.visibleParaQuienCompra(event.aggregateType())) {
+                    messaging.convertAndSend(
+                            DestinosDeEventos.deQuienCompra(claimed.tenantId()), event);
+                }
                 store.processed(claimed.id());
             } catch (RuntimeException exception) {
                 store.retry(claimed.id(), safe(exception));

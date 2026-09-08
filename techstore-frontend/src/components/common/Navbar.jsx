@@ -12,14 +12,15 @@ function Navbar() {
   const [abierto, setAbierto] = useState(false)
   const navigate = useNavigate()
 
-  // El contador se refresca solo cada minuto: los avisos que importan —una
-  // avería, una transferencia esperando al cajero— no pueden quedar esperando
-  // a que alguien recargue la página.
+  // El número lo mueve el servidor: cada aviso llega por la cola personal y
+  // RealtimeSync invalida esta consulta. La repetición cada cinco minutos queda
+  // como red de seguridad para cuando el socket está caído —esos avisos no se
+  // recuperan por cursor—, no como la forma normal de enterarse.
   const { data: pendientes } = useQuery({
     queryKey: ['notificaciones-no-leidas'],
     queryFn: notificacionService.noLeidas,
     enabled: Boolean(usuario),
-    refetchInterval: 60_000,
+    refetchInterval: 300_000,
   })
   const sinLeer = pendientes?.noLeidas ?? 0
 

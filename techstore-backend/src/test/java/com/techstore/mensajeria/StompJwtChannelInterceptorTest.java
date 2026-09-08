@@ -11,6 +11,7 @@ import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -70,13 +71,46 @@ class StompJwtChannelInterceptorTest {
 
     @Test
     void permiteEventosSoloDelTenantAutenticado() {
-        var principal = UsernamePasswordAuthenticationToken.authenticated(
-                "cliente@techstore.py", null, List.of());
-        principal.setDetails(new StompSessionDetails(7L));
+        var principal = deLaEmpresa(7L, "ROLE_Admin");
         assertEquals("/topic/tenant/7/events", destinoPermitido(
                 StompCommand.SUBSCRIBE, "/topic/tenant/7/events", principal));
         assertThrows(MessageDeliveryException.class, () -> interceptor.preSend(
                 mensaje(StompCommand.SUBSCRIBE, "/topic/tenant/8/events", principal), channel));
+        assertThrows(MessageDeliveryException.class, () -> interceptor.preSend(
+                mensaje(StompCommand.SUBSCRIBE, "/topic/tenant/8/events/compra", principal), channel));
+    }
+
+    /**
+     * El canal completo lleva caja, pagos, facturas y altas de usuarios. El
+     * cuerpo del evento es flaco (la operacion y el id), pero que llegue ya
+     * cuenta que el negocio cobro o facturo, y a que hora. Este filtro por rol
+     * existia en el endpoint REST de recuperacion por cursor y no aca: bastaba
+     * quedarse escuchando el WebSocket para saltearlo.
+     */
+    @Test
+    void alFlujoCompletoSoloEntraQuienOperaLaTienda() {
+        assertEquals("/topic/tenant/7/events", destinoPermitido(
+                StompCommand.SUBSCRIBE, "/topic/tenant/7/events", deLaEmpresa(7L, "ROLE_Cajero")));
+        for (String rol : List.of("ROLE_Cliente", "ROLE_Repartidor")) {
+            assertThrows(MessageDeliveryException.class, () -> interceptor.preSend(
+                    mensaje(StompCommand.SUBSCRIBE, "/topic/tenant/7/events", deLaEmpresa(7L, rol)),
+                    channel), rol + " no opera la tienda");
+        }
+    }
+
+    @Test
+    void alFlujoAcotadoEntraCualquieraDeLaEmpresa() {
+        for (String rol : List.of("ROLE_Admin", "ROLE_Cajero", "ROLE_Cliente", "ROLE_Repartidor")) {
+            assertEquals("/topic/tenant/7/events/compra", destinoPermitido(
+                    StompCommand.SUBSCRIBE, "/topic/tenant/7/events/compra", deLaEmpresa(7L, rol)));
+        }
+    }
+
+    private UsernamePasswordAuthenticationToken deLaEmpresa(long tenantId, String rol) {
+        var principal = UsernamePasswordAuthenticationToken.authenticated(
+                "usuario@techstore.py", null, List.of(new SimpleGrantedAuthority(rol)));
+        principal.setDetails(new StompSessionDetails(tenantId));
+        return principal;
     }
 
     private Message<byte[]> connect(String authorization) {

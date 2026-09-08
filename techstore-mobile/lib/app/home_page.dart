@@ -5,14 +5,27 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/application/session_controller.dart';
 import '../features/auth/domain/auth_user.dart';
 import '../features/courier/presentation/courier_dashboard_page.dart';
+import '../features/notifications/presentation/notifications_page.dart';
 
 /// Un módulo del inicio: a dónde va y con qué nombre.
 final class _Module {
-  const _Module(this.icon, this.label, this.route);
+  const _Module(
+    this.icon,
+    this.label,
+    this.route, {
+    this.cuentaPendientes = false,
+  });
 
   final IconData icon;
   final String label;
   final String route;
+
+  /// Si la baldosa muestra cuántos avisos quedan sin leer.
+  ///
+  /// Solo la campana. El número se pide aparte —es una consulta liviana— y el
+  /// coordinador de tiempo real lo invalida cuando llega una notificación, así
+  /// que se mueve solo, sin entrar a la pantalla.
+  final bool cuentaPendientes;
 }
 
 /// Un bloque de módulos con su título.
@@ -45,6 +58,7 @@ class HomePage extends ConsumerWidget {
         Icons.notifications_outlined,
         'Notificaciones',
         '/notifications',
+        cuentaPendientes: true,
       ),
       _Module(
         role == AppRole.customer
@@ -107,10 +121,7 @@ class HomePage extends ConsumerWidget {
     }
 
     // Cliente: su tienda primero, su cuenta después.
-    return [
-      _Section('Comprar', shopping),
-      _Section('Tu cuenta', account),
-    ];
+    return [_Section('Comprar', shopping), _Section('Tu cuenta', account)];
   }
 
   @override
@@ -170,10 +181,24 @@ class HomePage extends ConsumerWidget {
                 itemCount: section.modules.length,
                 itemBuilder: (context, index) {
                   final module = section.modules[index];
-                  return _ModuleCard(
-                    icon: module.icon,
-                    label: module.label,
-                    onTap: () => context.push(module.route),
+                  void abrir() => context.push(module.route);
+                  if (!module.cuentaPendientes) {
+                    return _ModuleCard(
+                      icon: module.icon,
+                      label: module.label,
+                      onTap: abrir,
+                    );
+                  }
+                  // Un Consumer propio para que el número no reconstruya la
+                  // grilla entera cada vez que llega un aviso.
+                  return Consumer(
+                    builder: (context, ref, _) => _ModuleCard(
+                      icon: module.icon,
+                      label: module.label,
+                      onTap: abrir,
+                      pendientes:
+                          ref.watch(unreadNotificationsProvider).value ?? 0,
+                    ),
                   );
                 },
               ),
@@ -190,28 +215,46 @@ class _ModuleCard extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.pendientes = 0,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
+  /// Cuántos avisos sin leer anunciar sobre el icono. Cero no muestra nada.
+  final int pendientes;
+
   @override
   Widget build(BuildContext context) => Card(
     clipBehavior: Clip.antiAlias,
     child: Semantics(
       button: true,
-      label: label,
+      // El número va también en la etiqueta hablada: el globo del icono queda
+      // fuera de la semántica y, sin esto, quien usa lector de pantalla no se
+      // entera de que hay algo pendiente.
+      label: pendientes == 0 ? label : '$label, $pendientes sin leer',
       child: InkWell(
         onTap: onTap,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ExcludeSemantics(child: Icon(icon, size: 40)),
+            ExcludeSemantics(
+              child: Badge(
+                isLabelVisible: pendientes > 0,
+                label: Text(pendientes > 99 ? '99+' : '$pendientes'),
+                child: Icon(icon, size: 40),
+              ),
+            ),
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(label, textAlign: TextAlign.center, maxLines: 2),
+              // Fuera de la semántica porque el nombre ya está en la etiqueta
+              // de la baldosa: sin esto el lector de pantalla lo decía dos
+              // veces, «Notificaciones, Notificaciones».
+              child: ExcludeSemantics(
+                child: Text(label, textAlign: TextAlign.center, maxLines: 2),
+              ),
             ),
           ],
         ),

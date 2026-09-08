@@ -11,6 +11,28 @@ function websocketUrl() {
   return url.toString()
 }
 
+/**
+ * Quién opera la tienda.
+ *
+ * <p>Hay dos canales de eventos por empresa: el completo, que lleva también
+ * caja, pagos y usuarios, y el acotado, con lo que le toca a quien compra.
+ * Suscribirse al que no corresponde termina en un rechazo del servidor y el
+ * cliente se queda sin tiempo real, así que el rol se decide acá y se comprueba
+ * allá.
+ */
+const ROLES_DE_MOSTRADOR = ['Admin', 'Cajero']
+
+export function operaLaTienda(usuario) {
+  return ROLES_DE_MOSTRADOR.includes(usuario?.rol)
+}
+
+/** El canal que le corresponde a este usuario. */
+export function destinoDeEventos(tenantId, usuario) {
+  return operaLaTienda(usuario)
+    ? `/topic/tenant/${tenantId}/events`
+    : `/topic/tenant/${tenantId}/events/compra`
+}
+
 export function tenantFromToken(token) {
   try {
     const body = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
@@ -47,10 +69,20 @@ export const queryKeysForEvent = (event) => {
   return keys[event.aggregateType] ?? []
 }
 
-export function connectDomainEvents({ onEvent, onConnectionChange, onError }) {
+/**
+ * La cola personal de la campana.
+ *
+ * <p>Va aparte del canal de la empresa porque una notificación es de una sola
+ * persona, y porque el canal completo lo escucha únicamente quien opera la
+ * tienda: un cliente jamás se enteraría de la suya.
+ */
+export const COLA_DE_NOTIFICACIONES = '/user/queue/notifications'
+
+export function connectDomainEvents({ onEvent, onNotification, onConnectionChange, onError }) {
   const token = useAuthStore.getState().accessToken
   const tenantId = tenantFromToken(token ?? '')
   if (!token || !tenantId) return null
+  const destino = destinoDeEventos(tenantId, useAuthStore.getState().usuario)
   const cursorKey = `techstore-sync-cursor:${tenantId}`
   let cursor = Number(localStorage.getItem(cursorKey)) || 0
   let recovering = true
@@ -93,7 +125,7 @@ export function connectDomainEvents({ onEvent, onConnectionChange, onError }) {
     },
     onConnect: () => {
       onConnectionChange?.(true)
-      client.subscribe(`/topic/tenant/${tenantId}/events`, (frame) => {
+      client.subscribe(destino, (frame) => {
         try {
           const event = JSON.parse(frame.body)
           if (recovering) pending.push(event)
@@ -102,6 +134,9 @@ export function connectDomainEvents({ onEvent, onConnectionChange, onError }) {
           onError?.(new Error('Evento de sincronización inválido'))
         }
       })
+      // Los avisos personales viajan por la misma conexión: abrir un segundo
+      // socket para la campana sería pagar dos veces el mismo enlace.
+      client.subscribe(COLA_DE_NOTIFICACIONES, () => onNotification?.())
       void recover()
     },
     onWebSocketClose: () => onConnectionChange?.(false),
