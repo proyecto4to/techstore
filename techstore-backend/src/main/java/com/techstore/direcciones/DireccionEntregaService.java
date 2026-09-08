@@ -84,12 +84,13 @@ public class DireccionEntregaService {
         if (telefono == null) {
             throw new BusinessException("direcciones.telefono.invalido");
         }
+        direccion.setDescripcion(vacioANull(request.descripcion()));
         direccion.setNombreDestinatario(limpiar(request.nombreDestinatario()));
         direccion.setTelefono(telefono);
-        direccion.setDepartamento(limpiar(request.departamento()));
-        direccion.setCiudad(limpiar(request.ciudad()));
+        direccion.setDepartamento(vacioANull(request.departamento()));
+        direccion.setCiudad(vacioANull(request.ciudad()));
         direccion.setBarrio(vacioANull(request.barrio()));
-        direccion.setDireccionLinea1(limpiar(request.direccionLinea1()));
+        direccion.setDireccionLinea1(vacioANull(request.direccionLinea1()));
         direccion.setDireccionLinea2(vacioANull(request.direccionLinea2()));
         direccion.setNumeroCasa(vacioANull(request.numeroCasa()));
         direccion.setReferencia(vacioANull(request.referencia()));
@@ -111,7 +112,8 @@ public class DireccionEntregaService {
 
     private DireccionEntregaResponse respuesta(DireccionEntrega direccion) {
         return new DireccionEntregaResponse(
-                direccion.getId(), direccion.getNombreDestinatario(), direccion.getTelefono(),
+                direccion.getId(), direccion.getDescripcion(),
+                direccion.getNombreDestinatario(), direccion.getTelefono(),
                 direccion.getDepartamento(), direccion.getCiudad(), direccion.getBarrio(),
                 direccion.getDireccionLinea1(), direccion.getDireccionLinea2(), direccion.getNumeroCasa(),
                 direccion.getReferencia(), direccion.getCodigoPostal(), direccion.getLatitud(),

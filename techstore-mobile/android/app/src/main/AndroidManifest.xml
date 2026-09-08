@@ -8,6 +8,11 @@
     <!-- Dictado por voz: el motor del sistema procesa el audio y solo devuelve
          texto. TechStore no graba, no guarda ni sube audio. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Para el botón «Mi ubicación» al marcar una dirección de entrega. La app
+         funciona igual sin este permiso: el punto también se marca tocando el
+         mapa o buscando la calle. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- Plugins multimedia pueden declarar acceso a archivos de audio/video;
          TechStore solo selecciona imágenes y no debe conservar permisos
          innecesarios. -->

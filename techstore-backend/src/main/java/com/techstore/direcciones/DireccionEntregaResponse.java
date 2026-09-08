@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 public record DireccionEntregaResponse(
         Long id,
+        String descripcion,
         String nombreDestinatario,
         String telefono,
         String departamento,

@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.math.BigDecimal;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -88,8 +89,8 @@ class DireccionEntregaServiceTest {
 
     private DireccionEntregaRequest request(boolean principal) {
         return new DireccionEntregaRequest(
-                "Cliente Uno", "0981 123 456", "Central", "Luque", "Centro",
+                "Casa", "Cliente Uno", "0981 123 456", "Central", "Luque", "Centro",
                 "Av. Humaitá", null, null, "Portón negro", null,
-                null, null, principal);
+                new BigDecimal("-25.2637"), new BigDecimal("-57.5759"), principal);
     }
 }

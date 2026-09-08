@@ -18,6 +18,8 @@ import '../network/connectivity_service.dart';
 import '../offline/offline_queue_service.dart';
 import '../push/push_service.dart';
 import '../storage/secure_store.dart';
+import '../ubicacion/directorio_de_lugares.dart';
+import '../ubicacion/ubicacion_service.dart';
 import '../update/apk_installer.dart';
 import '../update/app_update_service.dart';
 import '../update/self_hosted_updater.dart';
@@ -69,6 +71,7 @@ final appUpdateServiceProvider = Provider<AppUpdateService>(
     ref.watch(cacheStoreProvider),
     const GooglePlayUpdateGateway(),
     ref.watch(loggerProvider),
+    ref.watch(appExcursionProvider),
   ),
 );
 
@@ -79,6 +82,7 @@ final selfHostedUpdaterProvider = Provider<SelfHostedUpdater>(
     ref.watch(apiClientProvider),
     const AndroidApkInstaller(),
     ref.watch(loggerProvider),
+    ref.watch(appExcursionProvider),
   ),
 );
 
@@ -87,7 +91,10 @@ final biometricServiceProvider = Provider<BiometricService>(
 );
 
 final documentServiceProvider = Provider<DocumentService>(
-  (ref) => DocumentService(ref.watch(apiClientProvider)),
+  (ref) => DocumentService(
+    ref.watch(apiClientProvider),
+    ref.watch(appExcursionProvider),
+  ),
 );
 
 /// Marca las salidas que la propia app provoca, para que no se confundan con
@@ -120,3 +127,13 @@ final voiceInputServiceProvider = Provider<VoiceInputService>((ref) {
   ref.onDispose(() => unawaited(service.cancel()));
   return service;
 });
+
+/// Dónde está el teléfono, para el botón «Mi ubicación» del mapa.
+final ubicacionServiceProvider = Provider<UbicacionService>(
+  (ref) => UbicacionService(ref.watch(appExcursionProvider)),
+);
+
+/// El buscador de calles y el texto de la dirección, desde OpenStreetMap.
+final directorioDeLugaresProvider = Provider<DirectorioDeLugares>(
+  (ref) => DirectorioDeLugares(),
+);

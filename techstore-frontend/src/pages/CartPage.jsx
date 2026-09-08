@@ -12,10 +12,25 @@ import { useAuthStore } from '../store/authStore'
 import { pedidoService } from '../services/pedidoService'
 import { formatPrecio, formatRangoEntrega } from '../utils/format'
 import { checkoutService } from '../services/checkoutService'
+import MapaDeDireccion from '../components/common/MapaDeDireccion'
 
+/**
+ * Lo que hace falta escribir de una direccion.
+ *
+ * Antes eran doce campos, dos de ellos «Latitud» y «Longitud» a mano. Ahora el
+ * punto se marca en el mapa y la calle se deduce de ese punto: queda solo lo
+ * que ningun mapa sabe.
+ */
 const DIRECCION_VACIA = {
-  nombreDestinatario: '', telefono: '', departamento: '', ciudad: '', barrio: '',
-  direccionLinea1: '', numeroCasa: '', referencia: '', latitud: '', longitud: '', principal: true,
+  descripcion: '', nombreDestinatario: '', telefono: '', referencia: '', principal: true,
+}
+
+/** Como se lee una direccion en la lista: por su nombre, no por su calle. */
+const nombreDeDireccion = (direccion) => {
+  const calle = [direccion.direccionLinea1, direccion.numeroCasa].filter(Boolean).join(' ')
+  const lugar = [calle, direccion.ciudad].filter(Boolean).join(', ')
+  if (direccion.descripcion) return lugar ? direccion.descripcion + ' · ' + lugar : direccion.descripcion
+  return lugar || 'Ubicacion marcada en el mapa'
 }
 
 function CartPage() {
@@ -38,6 +53,10 @@ function CartPage() {
   const [cargandoEnvio, setCargandoEnvio] = useState(false)
   const [mostrarDireccion, setMostrarDireccion] = useState(false)
   const [direccionForm, setDireccionForm] = useState(DIRECCION_VACIA)
+  // El punto marcado y la direccion que se dedujo de el. Van aparte del
+  // formulario porque no los escribe nadie: los pone el mapa.
+  const [punto, setPunto] = useState(null)
+  const [detectada, setDetectada] = useState(null)
   const intentoCheckout = useRef(null)
   const hayProductoSinStock = items.some(({ producto }) => !productoDisponible(producto))
 
@@ -164,20 +183,34 @@ function CartPage() {
 
   const guardarDireccion = async (event) => {
     event.preventDefault()
+    if (!punto) {
+      setError('Marca en el mapa donde te llevamos el pedido.')
+      return
+    }
     setError(null)
     setCargandoEnvio(true)
     try {
       const creada = await checkoutService.crearDireccion({
-        ...direccionForm,
-        barrio: direccionForm.barrio.trim() || null,
-        numeroCasa: direccionForm.numeroCasa.trim() || null,
+        descripcion: direccionForm.descripcion.trim() || null,
+        nombreDestinatario: direccionForm.nombreDestinatario.trim(),
+        telefono: direccionForm.telefono.trim(),
         referencia: direccionForm.referencia.trim() || null,
-        latitud: Number(direccionForm.latitud),
-        longitud: Number(direccionForm.longitud),
+        // La calle sale del punto marcado, no de lo que alguien escriba.
+        departamento: detectada?.departamento ?? null,
+        ciudad: detectada?.ciudad ?? null,
+        barrio: detectada?.barrio ?? null,
+        direccionLinea1: detectada?.calle ?? null,
+        numeroCasa: detectada?.numeroCasa ?? null,
+        codigoPostal: detectada?.codigoPostal ?? null,
+        latitud: punto.lat,
+        longitud: punto.lon,
+        principal: direccionForm.principal,
       })
       setDirecciones((current) => [...current, creada])
       setDireccionId(String(creada.id))
       setDireccionForm(DIRECCION_VACIA)
+      setPunto(null)
+      setDetectada(null)
       setMostrarDireccion(false)
     } catch (err) {
       setError(err.response?.data?.detail ?? 'No se pudo guardar la dirección.')
@@ -372,7 +405,7 @@ function CartPage() {
               <select value={direccionId} onChange={(event) => setDireccionId(event.target.value)} className="input" aria-label="Dirección de entrega">
                 {direcciones.map((direccion) => (
                   <option key={direccion.id} value={direccion.id}>
-                    {direccion.direccionLinea1}{direccion.numeroCasa ? ` ${direccion.numeroCasa}` : ''} · {direccion.ciudad}
+                    {nombreDeDireccion(direccion)}
                   </option>
                 ))}
               </select>
@@ -381,27 +414,56 @@ function CartPage() {
               <p className="text-sm text-orange-400">Agregá una dirección para poder calcular el envío.</p>
             )}
             {mostrarDireccion && (
-              <form onSubmit={guardarDireccion} className="grid gap-3 md:grid-cols-2">
-                {[
-                  ['nombreDestinatario', 'Nombre del destinatario'], ['telefono', 'Teléfono'],
-                  ['departamento', 'Departamento'], ['ciudad', 'Ciudad'], ['barrio', 'Barrio'],
-                  ['direccionLinea1', 'Calle / dirección'], ['numeroCasa', 'Número de casa'],
-                  ['referencia', 'Referencia'], ['latitud', 'Latitud para la ruta'], ['longitud', 'Longitud para la ruta'],
-                ].map(([key, label]) => (
-                  <label key={key} className="block text-sm font-medium text-neutral-text">
-                    {label}{['nombreDestinatario', 'telefono', 'departamento', 'ciudad', 'direccionLinea1', 'latitud', 'longitud'].includes(key) ? ' *' : ''}
+              <form onSubmit={guardarDireccion} className="space-y-4">
+                <MapaDeDireccion punto={punto} onPunto={setPunto} onDireccion={setDetectada} />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="block text-sm font-medium text-neutral-text">
+                    Como le decis a este lugar
                     <input
-                      required={['nombreDestinatario', 'telefono', 'departamento', 'ciudad', 'direccionLinea1', 'latitud', 'longitud'].includes(key)}
-                      type={['latitud', 'longitud'].includes(key) ? 'number' : 'text'}
-                      step={['latitud', 'longitud'].includes(key) ? 'any' : undefined}
-                      value={direccionForm[key]}
-                      onChange={(event) => setDireccionForm({ ...direccionForm, [key]: event.target.value })}
+                      type="text"
+                      maxLength={60}
+                      placeholder="Casa, Trabajo…"
+                      value={direccionForm.descripcion}
+                      onChange={(event) => setDireccionForm({ ...direccionForm, descripcion: event.target.value })}
                       className="input mt-2"
                     />
                   </label>
-                ))}
-                <button type="submit" disabled={cargandoEnvio} className="btn btn-primary md:col-span-2">
-                  Guardar y usar dirección
+                  <label className="block text-sm font-medium text-neutral-text">
+                    Referencia para encontrarlo
+                    <input
+                      type="text"
+                      maxLength={300}
+                      placeholder="Porton negro, al lado de la despensa"
+                      value={direccionForm.referencia}
+                      onChange={(event) => setDireccionForm({ ...direccionForm, referencia: event.target.value })}
+                      className="input mt-2"
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-neutral-text">
+                    Nombre de quien recibe *
+                    <input
+                      required
+                      type="text"
+                      maxLength={120}
+                      value={direccionForm.nombreDestinatario}
+                      onChange={(event) => setDireccionForm({ ...direccionForm, nombreDestinatario: event.target.value })}
+                      className="input mt-2"
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-neutral-text">
+                    Telefono de contacto *
+                    <input
+                      required
+                      type="tel"
+                      maxLength={30}
+                      value={direccionForm.telefono}
+                      onChange={(event) => setDireccionForm({ ...direccionForm, telefono: event.target.value })}
+                      className="input mt-2"
+                    />
+                  </label>
+                </div>
+                <button type="submit" disabled={cargandoEnvio || !punto} className="btn btn-primary w-full">
+                  {punto ? 'Guardar y usar direccion' : 'Marca el punto en el mapa'}
                 </button>
               </form>
             )}

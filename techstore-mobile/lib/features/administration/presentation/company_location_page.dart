@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/widgets/async_states.dart';
+import '../../../core/widgets/mapa_osm.dart';
 import '../../../core/widgets/titulo_de_pantalla.dart';
 
 /// Dónde centrar el mapa cuando todavía nadie marcó la ubicación.
@@ -13,12 +14,6 @@ import '../../../core/widgets/titulo_de_pantalla.dart';
 /// Asunción: es donde está la tienda, y evita abrir el mapa en el punto cero
 /// del Atlántico, que no le sirve a nadie para orientarse.
 const _centroPorDefecto = LatLng(-25.2637, -57.5759);
-
-/// Los tiles vienen de OpenStreetMap, que exige identificar la aplicación.
-///
-/// Sin este encabezado el servidor puede devolver 403 y el mapa queda en gris
-/// sin decir por qué.
-const _agente = 'py.com.techstore.app';
 
 final ubicacionEmpresaProvider = FutureProvider.autoDispose((ref) async {
   final respuesta = await ref
@@ -127,13 +122,7 @@ class _Vista extends ConsumerWidget {
           label: Text(definida ? 'Editar ubicación' : 'Marcar ubicación'),
         ),
         const SizedBox(height: 12),
-        Text(
-          'El mapa usa OpenStreetMap, que es de uso libre.',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
+        const CreditoDelMapa(),
       ],
     );
   }
@@ -241,24 +230,18 @@ class _MapaSoloLectura extends StatelessWidget {
         initialZoom: 16,
         // Es una vista previa, no un mapa para explorar: si se pudiera mover,
         // parecería que se está editando cuando en realidad no se guarda nada.
-        interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.none,
+        ),
       ),
       children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: _agente,
-        ),
+        capaDeMapa(),
         MarkerLayer(
           markers: [
-            Marker(
-              point: punto,
-              width: 40,
-              height: 40,
-              child: Icon(
-                Icons.location_on,
-                size: 40,
-                color: Theme.of(context).colorScheme.error,
-              ),
+            marcadorDePunto(
+              punto: punto,
+              color: Theme.of(context).colorScheme.error,
+              tamano: 40,
             ),
           ],
         ),
@@ -344,26 +327,12 @@ class _EditorDeUbicacionState extends ConsumerState<_EditorDeUbicacion> {
                     onTap: (_, punto) => setState(() => _punto = punto),
                   ),
                   children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: _agente,
-                    ),
+                    capaDeMapa(),
                     MarkerLayer(
                       markers: [
-                        Marker(
-                          point: _punto,
-                          width: 44,
-                          height: 44,
-                          // El icono apunta hacia abajo: sin esta alineación,
-                          // el marcador queda centrado en el punto y la punta
-                          // señala unos metros más al norte de lo elegido.
-                          alignment: Alignment.topCenter,
-                          child: Icon(
-                            Icons.location_on,
-                            size: 44,
-                            color: theme.colorScheme.error,
-                          ),
+                        marcadorDePunto(
+                          punto: _punto,
+                          color: theme.colorScheme.error,
                         ),
                       ],
                     ),
@@ -377,16 +346,20 @@ class _EditorDeUbicacionState extends ConsumerState<_EditorDeUbicacion> {
                       FloatingActionButton.small(
                         heroTag: 'acercar',
                         tooltip: 'Acercar',
-                        onPressed: () =>
-                            _mapa.move(_mapa.camera.center, _mapa.camera.zoom + 1),
+                        onPressed: () => _mapa.move(
+                          _mapa.camera.center,
+                          _mapa.camera.zoom + 1,
+                        ),
                         child: const Icon(Icons.add),
                       ),
                       const SizedBox(height: 8),
                       FloatingActionButton.small(
                         heroTag: 'alejar',
                         tooltip: 'Alejar',
-                        onPressed: () =>
-                            _mapa.move(_mapa.camera.center, _mapa.camera.zoom - 1),
+                        onPressed: () => _mapa.move(
+                          _mapa.camera.center,
+                          _mapa.camera.zoom - 1,
+                        ),
                         child: const Icon(Icons.remove),
                       ),
                     ],
@@ -418,7 +391,8 @@ class _EditorDeUbicacionState extends ConsumerState<_EditorDeUbicacion> {
                     enabled: !_guardando,
                     decoration: const InputDecoration(
                       labelText: 'Referencia (opcional)',
-                      helperText: 'Por ejemplo: sobre la avenida, frente a la plaza',
+                      helperText:
+                          'Por ejemplo: sobre la avenida, frente a la plaza',
                       counterText: '',
                     ),
                   ),

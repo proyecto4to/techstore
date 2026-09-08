@@ -31,13 +31,32 @@ public record RepartoResponse(
         String resultadoFinal,
         Boolean cobroRegistrado) {
 
+    /**
+     * La dirección escrita, para que el repartidor sepa a qué timbre tocar.
+     *
+     * <p>Desde que se marca en el mapa, el nombre de la calle se deduce del
+     * punto y puede no existir: en un asentamiento o un camino nuevo no hay
+     * calle que deducir. Por eso entra también la referencia —«portón negro,
+     * al lado de la despensa»—, que es lo que de verdad usa quien entrega, y
+     * por eso devuelve {@code null} en vez de una cadena vacía: la aplicación
+     * distingue «no hay dirección» de una línea en blanco.
+     */
+    private static String domicilio(DireccionPedidoSnapshot d) {
+        if (d == null) {
+            return null;
+        }
+        String texto = String.join(", ", java.util.stream.Stream.of(
+                        d.getDireccionLinea1(), d.getNumeroCasa(), d.getBarrio(),
+                        d.getCiudad(), d.getReferencia())
+                .filter(v -> v != null && !v.isBlank()).toList());
+        return texto.isBlank() ? null : texto;
+    }
+
     public static RepartoResponse from(AsignacionReparto asignacion, boolean cobrado) {
         var pedido = asignacion.getPedido();
         var cliente = pedido.getUsuario();
         DireccionPedidoSnapshot d = pedido.getDireccionEntrega();
-        String direccion = d == null ? null : String.join(", ",
-                java.util.stream.Stream.of(d.getDireccionLinea1(), d.getNumeroCasa(), d.getBarrio(), d.getCiudad())
-                        .filter(v -> v != null && !v.isBlank()).toList());
+        String direccion = domicilio(d);
         return new RepartoResponse(
                 asignacion.getId(), pedido.getId(), pedido.getNumero(),
                 asignacion.getRepartidor().getId(),

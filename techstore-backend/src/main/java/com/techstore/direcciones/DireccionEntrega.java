@@ -39,22 +39,35 @@ public class DireccionEntrega {
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
+    /**
+     * Cómo le dice la persona a este lugar: «Casa», «Trabajo», «Depósito».
+     *
+     * <p>Es lo único de la dirección que el mapa no puede deducir, y es lo que
+     * se lee en la lista: elegir entre dos calles parecidas es más difícil que
+     * elegir entre «Casa» y «Trabajo».
+     */
+    @Column(length = 60)
+    private String descripcion;
+
     @Column(name = "nombre_destinatario", nullable = false, length = 120)
     private String nombreDestinatario;
 
     @Column(nullable = false, length = 20)
     private String telefono;
 
-    @Column(nullable = false, length = 80)
+    // Departamento, ciudad y la primera línea se completan solos desde el
+    // punto marcado. Si el servicio de direcciones no contesta, la ubicación
+    // igual queda guardada: la fuente principal son las coordenadas.
+    @Column(length = 80)
     private String departamento;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String ciudad;
 
     @Column(length = 100)
     private String barrio;
 
-    @Column(name = "direccion_linea_1", nullable = false, length = 200)
+    @Column(name = "direccion_linea_1", length = 200)
     private String direccionLinea1;
 
     @Column(name = "direccion_linea_2", length = 200)

@@ -413,8 +413,11 @@ class _DeliveryStep extends ConsumerWidget {
                       for (final address in items)
                         DropdownMenuItem(
                           value: address.id,
+                          // El nombre que le puso la persona va primero: en
+                          // la lista «Casa» se distingue de un vistazo y dos
+                          // calles parecidas no.
                           child: Text(
-                            '${address.line1}, ${address.city}',
+                            '${address.label} · ${address.calleYCiudad}',
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
