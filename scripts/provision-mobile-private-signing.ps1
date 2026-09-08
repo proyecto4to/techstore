@@ -22,6 +22,7 @@ if (Test-Path -LiteralPath $keystore) {
 
 $keytoolCandidates = @(
     $(if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\keytool.exe' }),
+    (Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\jdk-21\bin\keytool.exe'),
     'C:\Program Files\Java\jdk-22\bin\keytool.exe',
     'C:\Program Files\Microsoft\jdk-17.0.20.8-hotspot\bin\keytool.exe'
 ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }

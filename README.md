@@ -93,7 +93,10 @@ Backend:
 
 ```powershell
 cd techstore-backend
-$env:JAVA_HOME='C:\Program Files\Java\jdk-22'
+# El JDK del proyecto, en tools\jdk-21. Es un 21 LTS con la base de zonas al
+# día: el JDK 22.0.1 que suele estar instalado trae la 2024a, que todavía cree
+# que Paraguay tiene horario de verano y graba todo una hora antes.
+$env:JAVA_HOME='..\tools\jdk-21'
 ..\tools\apache-maven-3.9.9\bin\mvn.cmd test
 ..\tools\apache-maven-3.9.9\bin\mvn.cmd verify
 ```

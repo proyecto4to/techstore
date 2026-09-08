@@ -13,15 +13,18 @@ import java.time.ZoneOffset;
 /**
  * Avisa si el reloj del sistema no está en la hora legal del país.
  *
- * <p>Existe por un problema real y silencioso: el JDK 22 trae la base de zonas
- * {@code 2024a}, que todavía resuelve {@code America/Asuncion} a
+ * <p>Existe por un problema real y silencioso: el JDK 22.0.1 trae la base de
+ * zonas {@code 2024a}, que todavía resuelve {@code America/Asuncion} a
  * {@code -04:00}. Paraguay está en {@code -03:00} permanente desde 2024, así
  * que {@code LocalDateTime.now()} devolvía una hora menos y el sistema grababa
  * cada pedido, factura y cierre de caja con la hora corrida. No fallaba nada:
  * simplemente los papeles decían otra hora.
  *
- * <p>El arreglo vive en el script de arranque, que fija
- * {@code -Duser.timezone=Etc/GMT+3}. Esta guarda está para que ese flag no se
+ * <p>El arreglo de fondo ya está: el proyecto trae su propio JDK 21 LTS en
+ * {@code tools/jdk-21}, con base de zonas al día, y el script de arranque elige
+ * el runtime por eso y no por tener el número de versión más alto. Si el único
+ * runtime disponible fuera viejo, el script compensa con
+ * {@code -Duser.timezone=Etc/GMT+3}. Esta guarda está para que nada de eso se
  * pierda sin que nadie se entere: si el desfase no es el esperado, lo dice en
  * el log al arrancar, con qué hacer.
  *
@@ -55,8 +58,8 @@ public class ZonaHorariaGuard implements ApplicationRunner {
                   Esperada    : {}
                 Todo lo que se registre desde ahora —pedidos, facturas, cierres de caja—
                 va a quedar con la hora corrida. Suele pasar porque la base de zonas del
-                JDK es vieja: arrancá el backend con -Duser.timezone=Etc/GMT+3, o
-                actualizá el JDK a uno con la base de zonas 2024b o posterior.""",
+                runtime es vieja: arrancá con el JDK de tools/jdk-21, o con cualquiera
+                cuya base sea 2024b o posterior. Como parche, -Duser.timezone=Etc/GMT+3.""",
                 zona, actual, esperado);
     }
 }

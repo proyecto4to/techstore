@@ -42,6 +42,7 @@ function Find-Keytool {
     $command = Get-Command keytool -ErrorAction SilentlyContinue
     if ($null -ne $command) { return $command.Source }
     foreach ($candidate in @(
+        (Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\jdk-21\bin\keytool.exe'),
         'C:\Program Files\Java\jdk-22\bin\keytool.exe',
         'C:\Program Files\Microsoft\jdk-17.0.20.8-hotspot\bin\keytool.exe'
     )) {

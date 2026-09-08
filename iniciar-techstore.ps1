@@ -98,8 +98,32 @@ function Get-JavaMajor([string]$javaPath) {
     return 0
 }
 
+# Version de la base de zonas horarias que trae un runtime.
+#
+# Se lee de lib\tzdb.dat en vez de arrancar la JVM: son unos pocos bytes y el
+# arranque ya es lento de por si. El formato lo escribe el propio compilador de
+# zonas del JDK: un byte de version, la cadena "TZDB-ZoneRules", la cantidad de
+# versiones y despues cada una, con la forma 2026b. Si el archivo no esta o no
+# se entiende se devuelve cadena vacia, y quien llama decide: nunca se adivina.
+function Get-VersionZonas([string]$javaPath) {
+    try {
+        $tzdb = Join-Path (Split-Path -Parent (Split-Path -Parent $javaPath)) 'lib\tzdb.dat'
+        if (-not (Test-Path -LiteralPath $tzdb)) { return '' }
+        $bytes = [System.IO.File]::ReadAllBytes($tzdb)
+        $i = 1                                   # byte de version del formato
+        $largo = ($bytes[$i] -shl 8) -bor $bytes[$i + 1]
+        $i += 2 + $largo                         # la cadena "TZDB-ZoneRules"
+        $i += 2                                  # cuantas versiones vienen
+        $largo = ($bytes[$i] -shl 8) -bor $bytes[$i + 1]
+        return [System.Text.Encoding]::UTF8.GetString($bytes, $i + 2, $largo)
+    } catch { return '' }
+}
+
 function Resolve-Java21 {
     $candidatos = @()
+    # El JDK que trae el proyecto va primero: es el unico cuya base de zonas
+    # conocemos. Lo que haya suelto en la maquina sirve de respaldo.
+    $candidatos += (Join-Path $root 'tools\jdk-21\bin\java.exe')
     if ($env:JAVA_HOME) { $candidatos += (Join-Path $env:JAVA_HOME 'bin\java.exe') }
     $javaPath = Get-Command java.exe -ErrorAction SilentlyContinue
     if ($null -ne $javaPath) { $candidatos += $javaPath.Source }
@@ -111,9 +135,21 @@ function Resolve-Java21 {
     $compatibles = foreach ($candidato in ($candidatos | Select-Object -Unique)) {
         if (Test-Path -LiteralPath $candidato) {
             $major = Get-JavaMajor $candidato
-            if ($major -ge 21) { [pscustomobject]@{ Path = $candidato; Major = $major } }
+            if ($major -ge 21) {
+                [pscustomobject]@{
+                    Path  = $candidato
+                    Major = $major
+                    Zonas = Get-VersionZonas $candidato
+                }
+            }
         }
     }
+    # No gana el numero de version mas alto: gana el que sepa que hora es en
+    # Paraguay. El JDK 22.0.1 es mas nuevo que el 21 LTS y trae la base 2024a,
+    # que todavia cree que aca hay horario de verano; elegirlo por ser mayor
+    # hacia que el sistema grabara cada papel una hora antes.
+    $alDia = $compatibles | Where-Object { $_.Zonas -ge '2024b' }
+    if ($alDia) { return ($alDia | Sort-Object Major -Descending | Select-Object -First 1) }
     return ($compatibles | Sort-Object Major -Descending | Select-Object -First 1)
 }
 
@@ -123,7 +159,15 @@ foreach ($requerido in @($pgCtl, $pgIsReady, $backendJar)) {
 $javaRuntime = Resolve-Java21
 if ($null -eq $javaRuntime) { Fallar 'Java 21 o superior no esta instalado.' }
 $javaExe = $javaRuntime.Path
+$zonasDelRuntime = $javaRuntime.Zonas
 Write-Host "  [java] Runtime seleccionado: Java $($javaRuntime.Major)" -ForegroundColor Green
+if ($zonasDelRuntime -ge '2024b') {
+    Write-Host "  [zonas] Base ${zonasDelRuntime}: America/Asuncion se resuelve sola." -ForegroundColor Green
+} elseif ($zonasDelRuntime) {
+    Write-Host "  [zonas] Base $zonasDelRuntime, vieja: se fuerza -03:00 a mano." -ForegroundColor Yellow
+} else {
+    Write-Host '  [zonas] No se pudo leer la base de zonas: se fuerza -03:00 a mano.' -ForegroundColor Yellow
+}
 if (-not (Get-Command node.exe -ErrorAction SilentlyContinue)) { Fallar 'Node.js no esta disponible en PATH.' }
 if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) { Fallar 'Node/npm no esta disponible en PATH.' }
 $versionNodeTexto = (& node.exe --version 2>$null).TrimStart('v')
@@ -228,12 +272,14 @@ if (Test-Url 'http://localhost:8090/actuator/health') {
     $ocupanteBackend = Get-PidPuerto 8090
     if ($null -ne $ocupanteBackend) { Fallar "el puerto 8090 ya pertenece al PID $ocupanteBackend" }
     Write-Host '  [2/3] Iniciando backend (Spring Boot)...' -NoNewline
-    # Paraguay esta en -03:00 permanente desde 2024, pero la base de zonas que
-    # trae este JDK (2024a) todavia resuelve America/Asuncion a -04:00. Sin este
-    # flag el sistema graba cada pedido, factura y cierre de caja una hora antes
-    # de la real. Se fija el desfase correcto hasta que se actualice el JDK a uno
-    # con la base 2024b o posterior; ahi el flag se puede sacar.
-    $procesoBackend = Start-Process -FilePath $javaExe -ArgumentList '-Dtechstore.launcher=local-portable', '-Duser.timezone=Etc/GMT+3', '-jar', 'target\techstore-backend-1.0.0.jar' `
+    # Paraguay esta en -03:00 permanente desde 2024. Un runtime con la base de
+    # zonas al dia lo sabe solo. Uno viejo cree que todavia hay horario de
+    # verano y graba cada pedido, factura y cierre de caja una hora antes de la
+    # real: a ese, y solo a ese, se le fija el desfase a mano.
+    $argumentosJava = @('-Dtechstore.launcher=local-portable')
+    if ($zonasDelRuntime -lt '2024b') { $argumentosJava += '-Duser.timezone=Etc/GMT+3' }
+    $argumentosJava += @('-jar', 'target\techstore-backend-1.0.0.jar')
+    $procesoBackend = Start-Process -FilePath $javaExe -ArgumentList $argumentosJava `
         -WorkingDirectory $backendDir -WindowStyle Hidden -PassThru
     Registrar-Proceso $procesoBackend.Id 'backend'
     $backendListo = $false

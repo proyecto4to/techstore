@@ -50,8 +50,12 @@ function Read-SimpleProperties([string]$Path) {
 function Find-Keytool {
     $command = Get-Command keytool -ErrorAction SilentlyContinue
     if ($null -ne $command) { return $command.Source }
-    $candidate = 'C:\Program Files\Java\jdk-22\bin\keytool.exe'
-    if (Test-Path -LiteralPath $candidate) { return $candidate }
+    foreach ($candidate in @(
+        (Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\jdk-21\bin\keytool.exe'),
+        'C:\Program Files\Java\jdk-22\bin\keytool.exe'
+    )) {
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
     return $null
 }
 
