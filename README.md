@@ -4,11 +4,12 @@ TechStore es un sistema de comercio e inventario con dos clientes del mismo back
 
 ## Estado verificable
 
-- Backend: Spring Boot 3.5.16, Java 21+, PostgreSQL 15, 45 migraciones Flyway.
+- Backend: Spring Boot 3.5.16, Java 21+, PostgreSQL 15, 56 migraciones Flyway.
 - Web: React 18, Vite 8, TanStack Query, Zustand y STOMP.
 - Mobile: Flutter 3.47.1 / Dart 3.13.1, Android 24–36, Riverpod, Dio, Drift y FCM.
-- API canónica: OpenAPI 3.1 con 102 rutas y 125 operaciones.
-- Última regresión: 328 unit + 44 integration backend, 14 Web y 21 Flutter, además de E2E auth/negocio/realtime/offline/update.
+- API canónica: OpenAPI 3.1 con 147 rutas y 176 operaciones.
+- Autorización: rol, permisos por módulo y acción, y excepciones por persona, resueltos en backend para Web y APK. Ver [MODULO_SEGURIDAD.md](docs/security/MODULO_SEGURIDAD.md).
+- Última regresión (2026-09-13): 367 unit + 95 integration backend, 54 Web y 175 Flutter, además de E2E auth/negocio/realtime/offline/update.
 
 La entrega privada Android está completa: APK release firmada, instalada y actualizada en un Redmi Note 8 Pro con pruebas reales de backend, offline/reconexión, cámara y biometría. Google Play/Firebase quedan postergados para una publicación futura. Ver [estado persistente](docs/mobile-expansion/PROJECT_STATUS.md).
 

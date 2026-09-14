@@ -4,6 +4,7 @@ import { UserPlus, KeyRound } from 'lucide-react'
 import { usuarioService } from '../services/usuarioService'
 import { empresaService } from '../services/empresaService'
 import { useAuthStore } from '../store/authStore'
+import { usePermisos } from '../hooks/usePermisos'
 import AdminTabs from '../components/admin/AdminTabs'
 import { REQUISITOS_PASSWORD, errorDePassword } from '../utils/password'
 import ErrorDeCarga from '../components/common/ErrorDeCarga'
@@ -28,6 +29,8 @@ function AdminUsuariosPage() {
   const [mensaje, setMensaje] = useState(null)
   const [error, setError] = useState(null)
   const { usuario: usuarioActual } = useAuthStore()
+  const { puede } = usePermisos()
+  const puedeEditar = puede('USUARIOS', 'EDITAR')
   const queryClient = useQueryClient()
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -117,6 +120,12 @@ function AdminUsuariosPage() {
         </p>
       )}
 
+      {/*
+        El alta aparece si la persona tiene «crear usuarios». No es la
+        protección —el backend rechaza el POST igual—, es no ofrecer un
+        formulario que va a terminar en un error.
+      */}
+      {puede('USUARIOS', 'CREAR') && (
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -194,6 +203,7 @@ function AdminUsuariosPage() {
           </button>
         </div>
       </form>
+      )}
 
       {isLoading && <p className="text-neutral-muted">Cargando usuarios…</p>}
       {isError && <ErrorDeCarga que="los usuarios" onReintentar={refetch} />}
@@ -232,7 +242,7 @@ function AdminUsuariosPage() {
                         <select
                           aria-label={`Punto de expedición de ${u.email}`}
                           value={u.puntoExpedicionId ?? ''}
-                          disabled={puntoMutation.isPending}
+                          disabled={puntoMutation.isPending || !puedeEditar}
                           onChange={(e) =>
                             puntoMutation.mutate({
                               id: u.id,
@@ -267,7 +277,10 @@ function AdminUsuariosPage() {
                     </td>
                     <td data-label="Acciones">
                       <div className="flex flex-wrap items-center gap-2">
-                        {!esYo && (
+                        {!puedeEditar && (
+                          <span className="text-xs text-neutral-muted">Sin permiso para editar</span>
+                        )}
+                        {puedeEditar && !esYo && (
                           <button
                             onClick={() => activoMutation.mutate({ id: u.id, activo: !u.activo })}
                             disabled={activoMutation.isPending}
@@ -301,12 +314,14 @@ function AdminUsuariosPage() {
                             </button>
                           </span>
                         ) : (
-                          <button
-                            onClick={() => { setResetId(u.id); setResetPassword('') }}
-                            className="btn btn-secondary inline-flex items-center gap-1 text-sm"
-                          >
-                            <KeyRound size={14} /> Resetear clave
-                          </button>
+                          puedeEditar && (
+                            <button
+                              onClick={() => { setResetId(u.id); setResetPassword('') }}
+                              className="btn btn-secondary inline-flex items-center gap-1 text-sm"
+                            >
+                              <KeyRound size={14} /> Resetear clave
+                            </button>
+                          )
                         )}
                       </div>
                     </td>

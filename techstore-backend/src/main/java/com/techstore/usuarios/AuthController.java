@@ -1,5 +1,7 @@
 package com.techstore.usuarios;
 
+import com.techstore.seguridad.PermisoService;
+import com.techstore.seguridad.PermisosEfectivosResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +26,7 @@ public class AuthController {
     private final AuthService authService;
     private final PasswordRecoveryService passwordRecoveryService;
     private final ReautenticacionService reautenticacionService;
+    private final PermisoService permisoService;
 
     @PostMapping("/password/forgot")
     @SecurityRequirements
@@ -102,5 +105,27 @@ public class AuthController {
     @Operation(summary = "Perfil actual", description = "Datos del usuario autenticado")
     public UsuarioResponse me(Authentication authentication) {
         return authService.me(authentication.getName());
+    }
+
+    /**
+     * Los permisos de quien está preguntando.
+     *
+     * <p>Vive acá y no en {@code /api/v1/seguridad} por una razón concreta: ese
+     * prefijo pertenece al módulo Seguridad, que los roles que no administran
+     * tienen cerrado. Preguntar qué puedo hacer yo no es administrar seguridad
+     * —lo necesita cualquiera para dibujar su propio menú— y tiene que
+     * responder siempre.
+     *
+     * <p>Es la única fuente de la que sacan sus permisos la Web y el APK.
+     * Ninguno de los dos decide nada por su cuenta: lo que muestran sale de
+     * acá, y lo que de verdad restringe es el backend en cada llamada.
+     */
+    @GetMapping("/mis-permisos")
+    @Operation(summary = "Qué puedo hacer yo",
+            description = "Permisos efectivos del usuario autenticado, con el origen de cada uno. "
+                    + "Sirve para dibujar menús y botones; la autorización real la aplica el backend "
+                    + "en cada pedido")
+    public PermisosEfectivosResponse misPermisos(Authentication authentication) {
+        return permisoService.mios(authentication.getName());
     }
 }

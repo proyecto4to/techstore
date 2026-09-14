@@ -31,6 +31,17 @@ public class Rol {
     @Column(columnDefinition = "text")
     private String descripcion;
 
+    /**
+     * Si se puede asignar a alguien nuevo.
+     *
+     * <p>Un rol no se borra: las facturas y la auditoria guardan con que rol se
+     * hizo cada cosa, y borrarlo dejaria ese historial hablando de algo que ya
+     * no existe. Desactivarlo lo saca de las listas de asignacion y no le
+     * cambia nada a quienes ya lo tienen.
+     */
+    @Column(nullable = false)
+    private Boolean activo = true;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

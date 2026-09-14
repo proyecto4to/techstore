@@ -37,12 +37,15 @@ public class AuditoriaController {
     @GetMapping
     @Operation(summary = "Listar acciones auditadas (Admin)",
             description = "Filtros opcionales por entidad, usuario, acción, rol y rango de fechas "
-                    + "(inclusivo). El rol es el que tenía el autor al hacer la acción")
+                    + "(inclusivo). El rol es el que tenía el autor al hacer la acción. "
+                    + "Resultado acepta Permitido o Rechazado; plataforma, Web, Movil o Api")
     public PageResponse<AuditoriaResponse> listar(
             @RequestParam(required = false) String entidad,
             @RequestParam(required = false) Long usuarioId,
             @RequestParam(required = false) String accion,
             @RequestParam(required = false) String rol,
+            @RequestParam(required = false) String resultado,
+            @RequestParam(required = false) String plataforma,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
             @ParameterObject @PageableDefault(size = 20, sort = "fecha", direction = Sort.Direction.DESC)
@@ -54,7 +57,8 @@ public class AuditoriaController {
 
         return PageResponse.from(auditLogRepository
                 .findAll(AuditLogSpecs.conFiltros(
-                        entidad, FiltroOpcional.id(usuarioId), accion, rol, inicio, fin), pageable)
+                        entidad, FiltroOpcional.id(usuarioId), accion, rol, inicio, fin,
+                        vacioComoNulo(resultado), vacioComoNulo(plataforma)), pageable)
                 .map(AuditoriaResponse::from));
     }
 

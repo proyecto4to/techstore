@@ -54,7 +54,14 @@ public class AuditoriaService {
 
     /** Acciones posibles. Se guarda el nombre tal cual (la columna admite 20 caracteres). */
     public enum Accion {
-        Crear, Editar, Eliminar, Anular, Abrir, Cerrar, Cobrar, Pagar, Devolver
+        Crear, Editar, Eliminar, Anular, Abrir, Cerrar, Cobrar, Pagar, Devolver,
+        /** Consultar. Aparece sobre todo en los intentos rechazados: nadie audita una lectura que salio bien. */
+        Ver
+    }
+
+    /** En que termino el intento. */
+    public enum Resultado {
+        Permitido, Rechazado
     }
 
     public void registrar(String entidad, Long entidadId, Accion accion, String detalle) {
@@ -62,9 +69,25 @@ public class AuditoriaService {
     }
 
     public void registrar(String entidad, Long entidadId, Accion accion, String detalle, Cambios cambios) {
+        registrar(entidad, entidadId, accion, detalle, cambios, Resultado.Permitido);
+    }
+
+    /**
+     * Lo mismo, diciendo en que termino.
+     *
+     * <p>Las llamadas de siempre no informan resultado y quedan como
+     * {@code Permitido}: se auditan despues de hacer la operacion, asi que eso
+     * es exactamente lo que paso. El rechazo hay que pedirlo, y lo pide la capa
+     * de permisos cuando cierra la puerta.
+     */
+    public void registrar(String entidad, Long entidadId, Accion accion, String detalle,
+                          Cambios cambios, Resultado resultado) {
         // El usuario se resuelve fuera de la transacción nueva: el contexto de
         // seguridad es del hilo, no de la transacción.
         Optional<Usuario> autor = usuarioActual();
+        // Igual que el autor: el pedido HTTP vive en el hilo, no en la
+        // transaccion nueva, asi que se resuelve antes de abrirla.
+        String plataforma = Plataforma.actual();
         try {
             transaccionPropia.executeWithoutResult(estado -> {
                 AuditLog registro = new AuditLog();
@@ -73,6 +96,8 @@ public class AuditoriaService {
                 registro.setAccion(accion.name());
                 registro.setDetalle(recortar(detalle));
                 registro.setCambios(cambios == null || cambios.vacio() ? null : cambios.mapa());
+                registro.setResultado(resultado.name());
+                registro.setPlataforma(plataforma);
                 autor.ifPresent(usuario -> {
                     registro.setUsuarioId(usuario.getId());
                     registro.setUsuarioEmail(usuario.getEmail());

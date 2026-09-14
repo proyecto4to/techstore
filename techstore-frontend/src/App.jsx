@@ -28,6 +28,7 @@ const AdminAuditoriaPage = lazy(() => import('./pages/AdminAuditoriaPage'))
 const AdminMensajesPage = lazy(() => import('./pages/AdminMensajesPage'))
 const AdminVehiculosPage = lazy(() => import('./pages/AdminVehiculosPage'))
 const AdminSolicitudesPage = lazy(() => import('./pages/AdminSolicitudesPage'))
+const AdminSeguridadPage = lazy(() => import('./pages/AdminSeguridadPage'))
 const CuentaPage = lazy(() => import('./pages/CuentaPage'))
 const NotificacionesPage = lazy(() => import('./pages/NotificacionesPage'))
 const PasswordRecoveryPage = lazy(() => import('./pages/PasswordRecoveryPage'))
@@ -77,7 +78,7 @@ function App() {
               <Route
                 path="/admin"
                 element={
-                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                  <ProtectedRoute roles={['Admin', 'Cajero']} modulo="PEDIDOS">
                     <AdminPage />
                   </ProtectedRoute>
                 }
@@ -85,7 +86,7 @@ function App() {
               <Route
                 path="/admin/productos"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute rol="Admin" modulo="PRODUCTOS">
                     <AdminProductosPage />
                   </ProtectedRoute>
                 }
@@ -93,7 +94,7 @@ function App() {
               <Route
                 path="/admin/facturas"
                 element={
-                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                  <ProtectedRoute roles={['Admin', 'Cajero']} modulo="FACTURAS">
                     <AdminFacturasPage />
                   </ProtectedRoute>
                 }
@@ -101,7 +102,7 @@ function App() {
               <Route
                 path="/admin/caja"
                 element={
-                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                  <ProtectedRoute roles={['Admin', 'Cajero']} modulo="CAJA">
                     <AdminCajaPage />
                   </ProtectedRoute>
                 }
@@ -109,7 +110,7 @@ function App() {
               <Route
                 path="/admin/usuarios"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute rol="Admin" modulo="USUARIOS">
                     <AdminUsuariosPage />
                   </ProtectedRoute>
                 }
@@ -117,7 +118,7 @@ function App() {
               <Route
                 path="/admin/compras"
                 element={
-                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                  <ProtectedRoute roles={['Admin', 'Cajero']} modulo="COMPRAS">
                     <AdminComprasPage />
                   </ProtectedRoute>
                 }
@@ -125,7 +126,7 @@ function App() {
               <Route
                 path="/admin/venta"
                 element={
-                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                  <ProtectedRoute roles={['Admin', 'Cajero']} modulo="FACTURAS">
                     <AdminVentaDirectaPage />
                   </ProtectedRoute>
                 }
@@ -133,7 +134,7 @@ function App() {
               <Route
                 path="/admin/empresa"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute rol="Admin" modulo="EMPRESA">
                     <AdminEmpresaPage />
                   </ProtectedRoute>
                 }
@@ -157,7 +158,7 @@ function App() {
               <Route
                 path="/admin/reportes"
                 element={
-                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                  <ProtectedRoute roles={['Admin', 'Cajero']} modulo="REPORTES">
                     <AdminReportesPage />
                   </ProtectedRoute>
                 }
@@ -165,7 +166,7 @@ function App() {
               <Route
                 path="/admin/contabilidad"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute rol="Admin" modulo="CONTABILIDAD">
                     <AdminContabilidadPage />
                   </ProtectedRoute>
                 }
@@ -173,7 +174,7 @@ function App() {
               <Route
                 path="/admin/correos"
                 element={
-                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                  <ProtectedRoute roles={['Admin', 'Cajero']} modulo="CONFIGURACION">
                     <AdminCorreosPage />
                   </ProtectedRoute>
                 }
@@ -181,7 +182,7 @@ function App() {
               <Route
                 path="/admin/mensajes"
                 element={
-                  <ProtectedRoute roles={['Admin', 'Cajero']}>
+                  <ProtectedRoute roles={['Admin', 'Cajero']} modulo="CONVERSACIONES">
                     <AdminMensajesPage />
                   </ProtectedRoute>
                 }
@@ -189,7 +190,7 @@ function App() {
               <Route
                 path="/admin/auditoria"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute rol="Admin" modulo="AUDITORIA">
                     <AdminAuditoriaPage />
                   </ProtectedRoute>
                 }
@@ -197,7 +198,7 @@ function App() {
               <Route
                 path="/admin/vehiculos"
                 element={
-                  <ProtectedRoute rol="Admin">
+                  <ProtectedRoute rol="Admin" modulo="VEHICULOS">
                     <AdminVehiculosPage />
                   </ProtectedRoute>
                 }
@@ -205,8 +206,23 @@ function App() {
               <Route
                 path="/admin/solicitudes"
                 element={
-                  <ProtectedRoute rol="Cajero">
+                  <ProtectedRoute rol="Cajero" modulo="REPARTOS">
                     <AdminSolicitudesPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/*
+                Seguridad tiene doble cerrojo a propósito: el rol Administrador
+                y el permiso del módulo. Y ninguno de los dos es la protección
+                real: quien escriba la URL a mano llega igual a una pantalla que
+                no va a poder usar, porque cada endpoint que hay detrás exige lo
+                mismo en el servidor.
+              */}
+              <Route
+                path="/admin/seguridad"
+                element={
+                  <ProtectedRoute rol="Admin" modulo="SEGURIDAD">
+                    <AdminSeguridadPage />
                   </ProtectedRoute>
                 }
               />

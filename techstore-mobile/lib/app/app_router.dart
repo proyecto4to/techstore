@@ -32,8 +32,22 @@ import '../features/notifications/presentation/notifications_page.dart';
 import '../features/orders/presentation/orders_page.dart';
 import '../features/purchases/presentation/purchase_form_page.dart';
 import '../features/sales/presentation/direct_sale_page.dart';
+import '../features/security/application/security_providers.dart';
+import '../features/security/domain/app_permissions.dart';
 import 'deep_links.dart';
 import 'home_page.dart';
+
+/// Qué módulo gobierna cada pantalla de trabajo.
+///
+/// Solo están las de trabajo. El catálogo, el carrito y la cuenta propia no se
+/// tocan: son el uso normal de la tienda y bloquearlos por permisos convertiría
+/// un error de configuración en una app que no abre.
+const _modulosPorRuta = <String, String>{
+  '/admin/seguridad': Modulos.seguridad,
+  '/sales/new': Modulos.facturas,
+  '/cash/actions': Modulos.caja,
+  '/purchases/new': Modulos.compras,
+};
 
 final routerProvider = Provider<GoRouter>((ref) {
   final environment = ref.watch(environmentProvider);
@@ -42,6 +56,9 @@ final routerProvider = Provider<GoRouter>((ref) {
     authSessionProvider,
     (previous, next) => refresh.notify(),
   );
+  // Los permisos llegan un instante después de la sesión. Sin este aviso, la
+  // primera pantalla se decidiría sin ellos y no se volvería a revisar.
+  ref.listen(permisosProvider, (previous, next) => refresh.notify());
 
   final router = GoRouter(
     initialLocation: '/splash',
@@ -104,6 +121,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             !auth.user!.role.canAdminister) {
           return '/';
         }
+      }
+
+      // El permiso configurado, encima del rol. Mientras no llegó la respuesta
+      // del servidor no se decide nada acá: `valueOrNull` en nulo significa
+      // «todavía no sé», y frenar la navegación por no saber dejaría la app
+      // trabada en el inicio. Lo que de verdad protege cada operación es el
+      // backend, que la rechaza aunque la pantalla se haya abierto.
+      final permisos = ref.read(permisosProvider).value;
+      if (permisos != null) {
+        final modulo = _moduloDeRuta(path, state.pathParameters['key']);
+        if (modulo != null && !permisos.puede(modulo)) return '/';
       }
       return null;
     },
@@ -276,6 +304,19 @@ final routerProvider = Provider<GoRouter>((ref) {
   });
   return router;
 });
+
+/// El módulo al que pertenece esta pantalla, si es una de las gobernadas.
+///
+/// Las fichas de `/resources/:key` lo declaran en su propia definición, así que
+/// agregar un recurso nuevo no obliga a tocar este archivo.
+String? _moduloDeRuta(String path, String? resourceKey) {
+  final directo = _modulosPorRuta[path];
+  if (directo != null) return directo;
+  if (path.startsWith('/resources/') && resourceKey != null) {
+    return resources[resourceKey]?.modulo;
+  }
+  return null;
+}
 
 final class _RouterRefresh extends ChangeNotifier {
   void notify() => notifyListeners();

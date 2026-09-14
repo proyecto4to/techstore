@@ -1,6 +1,7 @@
 package com.techstore.usuarios;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -12,7 +13,15 @@ import java.util.Optional;
 import java.util.Collection;
 import java.util.List;
 
-public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
+public interface UsuarioRepository extends JpaRepository<Usuario, Long>, JpaSpecificationExecutor<Usuario> {
+
+    /** Cuantas personas tienen este rol hoy. */
+    long countByRolNombre(String rolNombre);
+
+    /** Cuantas lo tienen y pueden entrar: es el numero que importa antes de desactivar a alguien. */
+    long countByRolNombreAndActivoTrue(String rolNombre);
+
+    List<Usuario> findByRolNombreOrderByNombreAscApellidoAsc(String rolNombre);
 
     Optional<Usuario> findByEmail(String email);
 

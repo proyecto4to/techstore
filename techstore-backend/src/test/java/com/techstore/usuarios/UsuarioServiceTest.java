@@ -6,6 +6,7 @@ import com.techstore.empresa.PuntoExpedicion;
 import com.techstore.empresa.PuntoExpedicionService;
 import com.techstore.notificaciones.CorreoService;
 import com.techstore.notificaciones.EmailTemplateService;
+import com.techstore.seguridad.AdministradoresGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +47,9 @@ class UsuarioServiceTest {
     @Mock
     private PuntoExpedicionService puntoExpedicionService;
 
+    @Mock
+    private AdministradoresGuard administradores;
+
     private UsuarioService usuarioService;
     private Rol rolCajero;
 
@@ -53,7 +57,7 @@ class UsuarioServiceTest {
     void setUp() {
         usuarioService = new UsuarioService(
                 usuarioRepository, rolRepository, encoder, correoService, emailTemplateService,
-                auditoriaService, puntoExpedicionService);
+                auditoriaService, puntoExpedicionService, administradores);
         rolCajero = new Rol();
         rolCajero.setId(2L);
         rolCajero.setNombre("Cajero");

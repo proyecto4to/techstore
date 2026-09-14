@@ -1,8 +1,18 @@
 import api from './api'
 
 export const usuarioService = {
-  async listar({ page = 0, size = 10 } = {}) {
-    const { data } = await api.get('/usuarios', { params: { page, size } })
+  async listar({ page = 0, size = 10, q = '', rol = '', activo = null } = {}) {
+    const params = { page, size }
+    if (q) params.q = q
+    if (rol) params.rol = rol
+    if (activo !== null && activo !== '') params.activo = activo
+    const { data } = await api.get('/usuarios', { params })
+    return data
+  },
+
+  /** Le cambia el rol. Cambia de golpe todo lo que esa persona puede hacer. */
+  async asignarRol(id, rol) {
+    const { data } = await api.put(`/usuarios/${id}/rol`, { rol })
     return data
   },
 

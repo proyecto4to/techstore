@@ -79,5 +79,19 @@ public class AuditLog {
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> cambios;
 
+    /**
+     * Si la operacion se hizo o se rechazo.
+     *
+     * <p>Nulo en todo lo anterior a que existiera la columna. Un rechazo es el
+     * registro mas util de una auditoria de seguridad: dice quien intento algo
+     * que no le correspondia, que es justo lo que nadie cuenta despues.
+     */
+    @Column(length = 20)
+    private String resultado;
+
+    /** Web, Movil o Api, segun lo declara el cliente. */
+    @Column(length = 20)
+    private String plataforma;
+
     private LocalDateTime fecha = LocalDateTime.now();
 }

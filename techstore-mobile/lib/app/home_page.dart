@@ -6,6 +6,8 @@ import '../features/auth/application/session_controller.dart';
 import '../features/auth/domain/auth_user.dart';
 import '../features/courier/presentation/courier_dashboard_page.dart';
 import '../features/notifications/presentation/notifications_page.dart';
+import '../features/security/application/security_providers.dart';
+import '../features/security/domain/app_permissions.dart';
 
 /// Un módulo del inicio: a dónde va y con qué nombre.
 final class _Module {
@@ -14,11 +16,19 @@ final class _Module {
     this.label,
     this.route, {
     this.cuentaPendientes = false,
+    this.modulo,
   });
 
   final IconData icon;
   final String label;
   final String route;
+
+  /// Qué permiso hace falta para que esta baldosa se muestre.
+  ///
+  /// Solo lo llevan las de trabajo. Lo de comprar —catálogo, carrito, mi
+  /// cuenta— no se esconde nunca: es el uso normal de la tienda, y un permiso
+  /// mal puesto no puede dejar a un cliente sin poder comprar.
+  final String? modulo;
 
   /// Si la baldosa muestra cuántos avisos quedan sin leer.
   ///
@@ -81,10 +91,30 @@ class HomePage extends ConsumerWidget {
     if (role.isCashier) {
       return [
         _Section('En el mostrador', [
-          _Module(Icons.point_of_sale_outlined, 'Vender', '/sales/new'),
-          _Module(Icons.savings_outlined, 'Operar caja', '/cash/actions'),
-          _Module(Icons.receipt_long_outlined, 'Pedidos', '/orders'),
-          _Module(Icons.description_outlined, 'Facturas', '/invoices'),
+          _Module(
+            Icons.point_of_sale_outlined,
+            'Vender',
+            '/sales/new',
+            modulo: Modulos.facturas,
+          ),
+          _Module(
+            Icons.savings_outlined,
+            'Operar caja',
+            '/cash/actions',
+            modulo: Modulos.caja,
+          ),
+          _Module(
+            Icons.receipt_long_outlined,
+            'Pedidos',
+            '/orders',
+            modulo: Modulos.pedidos,
+          ),
+          _Module(
+            Icons.description_outlined,
+            'Facturas',
+            '/invoices',
+            modulo: Modulos.facturas,
+          ),
           _Module(Icons.storefront_outlined, 'Buscar producto', '/catalog'),
           _Module(Icons.dashboard_outlined, 'Más operaciones', '/operations'),
         ]),
@@ -106,15 +136,35 @@ class HomePage extends ConsumerWidget {
             '/admin',
           ),
           _Module(Icons.dashboard_outlined, 'Operaciones', '/operations'),
-          _Module(Icons.point_of_sale_outlined, 'Vender', '/sales/new'),
-          _Module(Icons.savings_outlined, 'Operar caja', '/cash/actions'),
+          _Module(
+            Icons.point_of_sale_outlined,
+            'Vender',
+            '/sales/new',
+            modulo: Modulos.facturas,
+          ),
+          _Module(
+            Icons.savings_outlined,
+            'Operar caja',
+            '/cash/actions',
+            modulo: Modulos.caja,
+          ),
           _Module(Icons.folder_open_outlined, 'Documentos', '/documents'),
-          _Module(Icons.receipt_long_outlined, 'Pedidos', '/orders'),
+          _Module(
+            Icons.receipt_long_outlined,
+            'Pedidos',
+            '/orders',
+            modulo: Modulos.pedidos,
+          ),
         ]),
         _Section('Tu cuenta', account),
         _Section('Tienda', [
           _Module(Icons.storefront_outlined, 'Catálogo', '/catalog'),
-          _Module(Icons.description_outlined, 'Facturas', '/invoices'),
+          _Module(
+            Icons.description_outlined,
+            'Facturas',
+            '/invoices',
+            modulo: Modulos.facturas,
+          ),
           _Module(Icons.shopping_cart_outlined, 'Carrito', '/cart'),
         ]),
       ];
@@ -124,13 +174,31 @@ class HomePage extends ConsumerWidget {
     return [_Section('Comprar', shopping), _Section('Tu cuenta', account)];
   }
 
+  /// Saca las baldosas de trabajo que esta persona no puede usar, y las
+  /// secciones que quedaron vacías con ellas.
+  List<_Section> _visibles(List<_Section> secciones, AppPermissions? permisos) {
+    if (permisos == null) return secciones;
+    return [
+      for (final seccion in secciones)
+        if (seccion.modules
+            .where((m) => m.modulo == null || permisos.puede(m.modulo!))
+            .toList()
+            case final visibles when visibles.isNotEmpty)
+          _Section(seccion.title, visibles),
+    ];
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authSessionProvider).user!;
     if (user.role.isCourier) return const CourierDashboardPage();
 
     final theme = Theme.of(context);
-    final sections = _sectionsFor(user.role);
+    // Mientras la respuesta no llegó se muestra todo: esta pantalla es el
+    // inicio, y dejarla en blanco medio segundo se ve como si la app no
+    // hubiera cargado. Lo que restringe de verdad está en el servidor.
+    final permisos = ref.watch(permisosProvider).value;
+    final sections = _visibles(_sectionsFor(user.role), permisos);
 
     return Scaffold(
       appBar: AppBar(

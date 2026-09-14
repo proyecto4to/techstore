@@ -28,7 +28,10 @@ final class ApiClient {
       receiveTimeout: const Duration(seconds: 20),
       sendTimeout: const Duration(seconds: 20),
       responseType: ResponseType.json,
-      headers: const {'Accept': 'application/json'},
+      // La plataforma viaja en cada pedido para que la auditoría del servidor
+      // pueda decir desde dónde se hizo cada cosa. El backend la deduce igual
+      // del User-Agent; declararla evita depender de eso.
+      headers: const {'Accept': 'application/json', 'X-Plataforma': 'Movil'},
     );
     _dio.interceptors.add(
       InterceptorsWrapper(

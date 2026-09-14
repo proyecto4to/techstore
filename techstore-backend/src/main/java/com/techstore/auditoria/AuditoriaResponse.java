@@ -20,6 +20,10 @@ public record AuditoriaResponse(
         /** El rol que tenía el autor al hacer la acción, no el de hoy. */
         String usuarioRol,
         Map<String, Object> cambios,
+        /** Permitido o Rechazado. Nulo en los registros anteriores a la columna. */
+        String resultado,
+        /** Web, Movil o Api, segun lo declaró el cliente. */
+        String plataforma,
         LocalDateTime fecha) {
 
     public static AuditoriaResponse from(AuditLog log) {
@@ -33,6 +37,8 @@ public record AuditoriaResponse(
                 log.getUsuarioEmail() == null ? "sistema" : log.getUsuarioEmail(),
                 log.getUsuarioRol(),
                 log.getCambios(),
+                log.getResultado(),
+                log.getPlataforma(),
                 log.getFecha());
     }
 }

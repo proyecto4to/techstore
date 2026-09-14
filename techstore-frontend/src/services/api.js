@@ -15,6 +15,10 @@ api.interceptors.request.use((config) => {
   if (accessToken && !esEndpointDeAuth(config.url)) {
     config.headers.Authorization = `Bearer ${accessToken}`
   }
+  // Desde dónde se hizo la operación, para la auditoría. El backend lo deduce
+  // igual del User-Agent; declararlo evita que un navegador raro quede como
+  // "Api" en un registro que después alguien tiene que leer.
+  config.headers['X-Plataforma'] = 'Web'
   return config
 })
 

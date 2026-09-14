@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,10 +32,15 @@ public class UsuarioController {
     private final UsuarioService usuarioService;
 
     @GetMapping
-    @Operation(summary = "Listar usuarios")
+    @Operation(summary = "Listar usuarios",
+            description = "Filtros opcionales: texto libre sobre nombre, apellido y correo; "
+                    + "rol exacto; y si está activo. Se aplican en la base, no sobre la página")
     public PageResponse<UsuarioAdminResponse> listar(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String rol,
+            @RequestParam(required = false) Boolean activo,
             @ParameterObject @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
-        return usuarioService.listar(pageable);
+        return usuarioService.buscar(q, rol, activo, pageable);
     }
 
     @PostMapping
@@ -50,6 +56,15 @@ public class UsuarioController {
     public UsuarioAdminResponse cambiarActivo(
             @PathVariable Long id, @Valid @RequestBody CambioActivoRequest request, Authentication auth) {
         return usuarioService.cambiarActivo(id, request.activo(), auth.getName());
+    }
+
+    @PutMapping("/{id}/rol")
+    @Operation(summary = "Cambiar el rol de un usuario",
+            description = "Cambia de golpe todo lo que puede hacer, así que queda auditado. "
+                    + "No podés bajarte a vos mismo de administrador ni dejar al sistema sin ninguno")
+    public UsuarioAdminResponse asignarRol(
+            @PathVariable Long id, @Valid @RequestBody AsignarRolRequest request, Authentication auth) {
+        return usuarioService.asignarRol(id, request.rol(), auth.getName());
     }
 
     @PutMapping("/{id}/punto-expedicion")

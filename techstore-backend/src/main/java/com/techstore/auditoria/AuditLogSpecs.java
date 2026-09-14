@@ -20,6 +20,13 @@ public final class AuditLogSpecs {
 
     public static Specification<AuditLog> conFiltros(String entidad, Long usuarioId, String accion,
                                                      String rol, LocalDateTime desde, LocalDateTime hasta) {
+        return conFiltros(entidad, usuarioId, accion, rol, desde, hasta, null, null);
+    }
+
+    /** Los mismos filtros más el resultado y la plataforma, que usa la auditoría de seguridad. */
+    public static Specification<AuditLog> conFiltros(String entidad, Long usuarioId, String accion,
+                                                     String rol, LocalDateTime desde, LocalDateTime hasta,
+                                                     String resultado, String plataforma) {
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
             if (entidad != null && !entidad.isBlank()) {
@@ -39,6 +46,12 @@ public final class AuditLogSpecs {
             }
             if (hasta != null) {
                 predicados.add(cb.lessThan(root.get("fecha"), hasta));
+            }
+            if (resultado != null && !resultado.isBlank()) {
+                predicados.add(cb.equal(root.get("resultado"), resultado.trim()));
+            }
+            if (plataforma != null && !plataforma.isBlank()) {
+                predicados.add(cb.equal(root.get("plataforma"), plataforma.trim()));
             }
             return predicados.isEmpty() ? cb.conjunction() : cb.and(predicados.toArray(new Predicate[0]));
         };

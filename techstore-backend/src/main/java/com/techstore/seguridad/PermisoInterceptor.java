@@ -1,5 +1,6 @@
 package com.techstore.seguridad;
 
+import com.techstore.auditoria.AuditoriaService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -9,7 +10,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -21,9 +24,12 @@ import java.util.Set;
  * antes de llegar al controlador.
  *
  * <p>Es una capa <b>encima</b> de las anotaciones, no en lugar de ellas. Un
- * pedido tiene que pasar las dos: primero el {@code @PreAuthorize} del método,
- * después el permiso configurado. Por eso destildar una casilla cierra, pero
+ * pedido tiene que pasar las dos: primero el permiso configurado, después el
+ * {@code @PreAuthorize} del método. Por eso destildar una casilla cierra, pero
  * tildarla no abre nada que el código niegue.
+ *
+ * <p>Lo que decide es el permiso <b>de la persona</b>: su excepción individual
+ * si la tiene y, si no, la matriz de su rol. Ver {@link PermisoService}.
  *
  * <p>Lo que no está mapeado pasa de largo y queda gobernado por su anotación de
  * siempre. Se prefirió eso a negar por omisión: un endpoint nuevo sin mapear
@@ -68,6 +74,16 @@ public class PermisoInterceptor implements HandlerInterceptor {
     }
 
     /**
+     * Qué gobierna cada módulo, para mostrarlo en la pantalla de Seguridad.
+     *
+     * <p>Quien configura una fila tiene derecho a saber sobre qué parte de la
+     * API está decidiendo, en vez de deducirlo del nombre.
+     */
+    public static Map<String, Modulo> rutasPorModulo() {
+        return Collections.unmodifiableMap(RUTAS);
+    }
+
+    /**
      * POST que en realidad consultan.
      *
      * <p>Deducir la accion del verbo funciona casi siempre, pero no cuando se
@@ -83,6 +99,7 @@ public class PermisoInterceptor implements HandlerInterceptor {
             "/api/v1/compras/comparar");
 
     private final PermisoService permisos;
+    private final AuditoriaService auditoria;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -92,17 +109,29 @@ public class PermisoInterceptor implements HandlerInterceptor {
             return true;
         }
         Modulo modulo = RUTAS.get(prefijo);
-        String rol = rolActual();
+        Authentication auth = autenticacion();
+        String rol = rolDe(auth);
         if (rol == null) {
             // Sin sesión no decide esta capa: de eso se ocupa Spring Security.
             return true;
         }
         AccionPermiso accion = accionDe(uri, prefijo, request.getMethod());
-        if (permisos.puede(rol, modulo, accion)) {
+        if (permisos.puedeUsuario(auth.getName(), rol, modulo, accion)) {
             return true;
         }
+        // Un intento rechazado es el registro que más sirve de una auditoría de
+        // seguridad, y hasta acá no quedaba ninguno.
+        auditoria.registrar("Acceso", null, auditar(accion),
+                "%s %s rechazado: %s no tiene %s en %s".formatted(
+                        request.getMethod(), uri, rol,
+                        accion.etiqueta().toLowerCase(Locale.ROOT), modulo.etiqueta()),
+                AuditoriaService.Cambios.nuevo()
+                        .valor("modulo", modulo.name())
+                        .valor("accion", accion.name())
+                        .valor("ruta", uri),
+                AuditoriaService.Resultado.Rechazado);
         throw new AccessDeniedException(
-                "El rol " + rol + " no tiene permiso de " + accion.etiqueta().toLowerCase()
+                "El rol " + rol + " no tiene permiso de " + accion.etiqueta().toLowerCase(Locale.ROOT)
                         + " en " + modulo.etiqueta());
     }
 
@@ -155,9 +184,23 @@ public class PermisoInterceptor implements HandlerInterceptor {
         return resto.contains("/");
     }
 
-    private String rolActual() {
+    /** La misma acción, con el nombre que usa la auditoría. */
+    private static AuditoriaService.Accion auditar(AccionPermiso accion) {
+        return switch (accion) {
+            case VER -> AuditoriaService.Accion.Ver;
+            case CREAR -> AuditoriaService.Accion.Crear;
+            case EDITAR -> AuditoriaService.Accion.Editar;
+            case ELIMINAR -> AuditoriaService.Accion.Eliminar;
+        };
+    }
+
+    private static Authentication autenticacion() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
+        return auth != null && auth.isAuthenticated() ? auth : null;
+    }
+
+    private static String rolDe(Authentication auth) {
+        if (auth == null) {
             return null;
         }
         return auth.getAuthorities().stream()

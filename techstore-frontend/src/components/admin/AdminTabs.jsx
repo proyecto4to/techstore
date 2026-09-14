@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { usePermisos } from '../../hooks/usePermisos'
 
 /**
  * Navegación del panel, agrupada por tipo de trabajo.
@@ -14,40 +15,47 @@ import { useAuthStore } from '../../store/authStore'
  * No se le quitó ningún destino al cajero: el backend lo habilita en compras,
  * reportes, caja y facturación, así que ocultárselos le sacaría capacidad real.
  */
+/**
+ * Cada destino declara sobre qué módulo trabaja. Con eso, quitarle un permiso
+ * a un rol desde Seguridad le saca también la entrada del menú, sin tocar este
+ * archivo. El `soloAdmin` / `soloCajero` sigue estando y se aplica primero: es
+ * el piso que ya tenía el panel.
+ */
 const grupos = [
   {
     nombre: 'Mostrador',
     tabs: [
-      { to: '/admin', label: 'Pedidos', end: true },
-      { to: '/admin/venta', label: 'Venta directa' },
-      { to: '/admin/facturas', label: 'Facturas' },
-      { to: '/admin/caja', label: 'Caja' },
-      { to: '/admin/solicitudes', label: 'Solicitudes', soloCajero: true },
+      { to: '/admin', label: 'Pedidos', end: true, modulo: 'PEDIDOS' },
+      { to: '/admin/venta', label: 'Venta directa', modulo: 'FACTURAS' },
+      { to: '/admin/facturas', label: 'Facturas', modulo: 'FACTURAS' },
+      { to: '/admin/caja', label: 'Caja', modulo: 'CAJA' },
+      { to: '/admin/solicitudes', label: 'Solicitudes', soloCajero: true, modulo: 'REPARTOS' },
     ],
   },
   {
     nombre: 'Catálogo',
     tabs: [
-      { to: '/admin/productos', label: 'Productos', soloAdmin: true },
-      { to: '/admin/compras', label: 'Compras' },
-      { to: '/admin/vehiculos', label: 'Vehículos', soloAdmin: true },
+      { to: '/admin/productos', label: 'Productos', soloAdmin: true, modulo: 'PRODUCTOS' },
+      { to: '/admin/compras', label: 'Compras', modulo: 'COMPRAS' },
+      { to: '/admin/vehiculos', label: 'Vehículos', soloAdmin: true, modulo: 'VEHICULOS' },
     ],
   },
   {
     nombre: 'Contacto',
     tabs: [
-      { to: '/admin/mensajes', label: 'Mensajes' },
-      { to: '/admin/correos', label: 'Correos' },
+      { to: '/admin/mensajes', label: 'Mensajes', modulo: 'CONVERSACIONES' },
+      { to: '/admin/correos', label: 'Correos', modulo: 'CONFIGURACION' },
     ],
   },
   {
     nombre: 'Administración',
     tabs: [
-      { to: '/admin/reportes', label: 'Reportes' },
-      { to: '/admin/contabilidad', label: 'Contabilidad', soloAdmin: true },
-      { to: '/admin/usuarios', label: 'Usuarios', soloAdmin: true },
-      { to: '/admin/empresa', label: 'Empresa', soloAdmin: true },
-      { to: '/admin/auditoria', label: 'Auditoría', soloAdmin: true },
+      { to: '/admin/reportes', label: 'Reportes', modulo: 'REPORTES' },
+      { to: '/admin/contabilidad', label: 'Contabilidad', soloAdmin: true, modulo: 'CONTABILIDAD' },
+      { to: '/admin/usuarios', label: 'Usuarios', soloAdmin: true, modulo: 'USUARIOS' },
+      { to: '/admin/empresa', label: 'Empresa', soloAdmin: true, modulo: 'EMPRESA' },
+      { to: '/admin/auditoria', label: 'Auditoría', soloAdmin: true, modulo: 'AUDITORIA' },
+      { to: '/admin/seguridad', label: 'Seguridad', soloAdmin: true, modulo: 'SEGURIDAD' },
     ],
   },
 ]
@@ -61,12 +69,19 @@ const claseTab = ({ isActive }) =>
 
 function AdminTabs() {
   const { usuario } = useAuthStore()
-  const puede = (tab) =>
+  const { puede } = usePermisos()
+
+  const porRol = (tab) =>
     (!tab.soloAdmin || usuario?.rol === 'Admin') &&
     (!tab.soloCajero || usuario?.rol === 'Cajero')
 
+  // Mientras los permisos no llegaron, `puede` responde que no y la entrada no
+  // se dibuja. Es preferible a mostrarla y sacarla medio segundo después, o a
+  // ofrecer una pantalla que el backend va a rechazar.
+  const visible = (tab) => porRol(tab) && (!tab.modulo || puede(tab.modulo, 'VER'))
+
   const visibles = grupos
-    .map((grupo) => ({ ...grupo, tabs: grupo.tabs.filter(puede) }))
+    .map((grupo) => ({ ...grupo, tabs: grupo.tabs.filter(visible) }))
     .filter((grupo) => grupo.tabs.length > 0)
 
   return (

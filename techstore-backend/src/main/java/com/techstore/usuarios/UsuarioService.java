@@ -9,6 +9,8 @@ import com.techstore.empresa.PuntoExpedicionService;
 import com.techstore.notificaciones.CorreoService;
 import com.techstore.notificaciones.EmailTemplateService;
 import com.techstore.notificaciones.TipoCorreo;
+import com.techstore.seguridad.AdministradoresGuard;
+import com.techstore.seguridad.RolesDelSistema;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,10 +28,60 @@ public class UsuarioService {
     private final EmailTemplateService emailTemplateService;
     private final AuditoriaService auditoriaService;
     private final PuntoExpedicionService puntoExpedicionService;
+    private final AdministradoresGuard administradores;
 
     @Transactional(readOnly = true)
     public PageResponse<UsuarioAdminResponse> listar(Pageable pageable) {
         return PageResponse.from(usuarioRepository.findAll(pageable).map(UsuarioAdminResponse::from));
+    }
+
+    /** La misma lista, con los filtros de la pantalla de administración aplicados en la base. */
+    @Transactional(readOnly = true)
+    public PageResponse<UsuarioAdminResponse> buscar(String texto, String rol, Boolean activo,
+                                                     Pageable pageable) {
+        return PageResponse.from(usuarioRepository
+                .findAll(UsuarioSpecs.conFiltros(texto, rol, activo), pageable)
+                .map(UsuarioAdminResponse::from));
+    }
+
+    /**
+     * Le cambia el rol a una persona.
+     *
+     * <p>Es la operación más filosa de la administración de usuarios: cambia de
+     * golpe todo lo que puede hacer. Por eso queda auditada con el rol anterior
+     * y el nuevo, y por eso no se permite si deja al sistema sin
+     * administradores.
+     */
+    @Transactional
+    public UsuarioAdminResponse asignarRol(Long id, String rolNombre, String emailSolicitante) {
+        Usuario usuario = usuarioRepository.findWithRolById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("usuarios.no.encontrado", id));
+        Rol nuevo = rolRepository.findByNombreIgnoreCase(rolNombre == null ? "" : rolNombre.trim())
+                .orElseThrow(() -> new BusinessException("usuarios.rol.inexistente", rolNombre));
+        if (!Boolean.TRUE.equals(nuevo.getActivo())) {
+            throw new BusinessException("seguridad.rol.inactivo", nuevo.getNombre());
+        }
+
+        String rolAnterior = usuario.getRol().getNombre();
+        if (rolAnterior.equalsIgnoreCase(nuevo.getNombre())) {
+            return UsuarioAdminResponse.from(usuario);
+        }
+        // Bajarse a uno mismo de administrador, o bajar al último que queda,
+        // deja el sistema sin nadie que pueda repartir permisos.
+        if (RolesDelSistema.esAdministrador(rolAnterior)) {
+            if (usuario.getEmail().equalsIgnoreCase(emailSolicitante)) {
+                throw new BusinessException("usuarios.no.autodegradar");
+            }
+            administradores.verificarQueNoEsElUltimo(id, "cambiarle el rol");
+        }
+
+        usuario.setRol(nuevo);
+        UsuarioAdminResponse respuesta = UsuarioAdminResponse.from(usuarioRepository.save(usuario));
+
+        auditoriaService.registrar("Usuario", id, AuditoriaService.Accion.Editar,
+                "%s pasa de %s a %s".formatted(usuario.getEmail(), rolAnterior, nuevo.getNombre()),
+                AuditoriaService.Cambios.nuevo().de("rol", rolAnterior, nuevo.getNombre()));
+        return respuesta;
     }
 
     @Transactional
@@ -39,6 +91,9 @@ public class UsuarioService {
         }
         Rol rol = rolRepository.findByNombre(request.rol())
                 .orElseThrow(() -> new BusinessException("usuarios.rol.inexistente", request.rol()));
+        if (!Boolean.TRUE.equals(rol.getActivo())) {
+            throw new BusinessException("seguridad.rol.inactivo", rol.getNombre());
+        }
 
         Usuario usuario = new Usuario();
         usuario.setEmail(request.email());
@@ -62,6 +117,11 @@ public class UsuarioService {
                 .orElseThrow(() -> new ResourceNotFoundException("usuarios.no.encontrado", id));
         if (!activo && usuario.getEmail().equals(emailSolicitante)) {
             throw new BusinessException("usuarios.no.autodesactivar");
+        }
+        // Desactivar al último administrador deja una instalación que nadie
+        // puede volver a abrir, y de eso no se sale por pantalla.
+        if (!activo) {
+            administradores.verificarQueNoEsElUltimo(id, "desactivar la cuenta");
         }
         boolean activoAnterior = Boolean.TRUE.equals(usuario.getActivo());
         usuario.setActivo(activo);
