@@ -20,6 +20,7 @@ class _ConnectivityBannerState extends ConsumerState<ConnectivityBanner>
     with WidgetsBindingObserver {
   StreamSubscription<bool>? _subscription;
   bool _online = true;
+  bool _hayDatosGuardados = false;
   int _probeGeneration = 0;
 
   @override
@@ -43,8 +44,17 @@ class _ConnectivityBannerState extends ConsumerState<ConnectivityBanner>
   Future<void> _refreshReachability() async {
     final generation = ++_probeGeneration;
     final online = await ref.read(connectivityProvider).backendReachable();
-    if (!mounted || generation != _probeGeneration || online == _online) return;
-    setState(() => _online = online);
+    // Sin conexión hay que decir si se está mostrando algo guardado o no:
+    // en una instalación recién hecha no hay nada, y prometerlo confunde.
+    final guardados = online
+        ? _hayDatosGuardados
+        : await ref.read(cacheStoreProvider).hasAnyData();
+    if (!mounted || generation != _probeGeneration) return;
+    if (online == _online && guardados == _hayDatosGuardados) return;
+    setState(() {
+      _online = online;
+      _hayDatosGuardados = guardados;
+    });
   }
 
   @override
@@ -75,7 +85,9 @@ class _ConnectivityBannerState extends ConsumerState<ConnectivityBanner>
                 ? Theme.of(context).colorScheme.tertiaryContainer
                 : Theme.of(context).colorScheme.errorContainer;
             final message = !_online
-                ? 'Sin conexión · se muestran datos guardados'
+                ? (_hayDatosGuardados
+                      ? 'Sin conexión · se muestran datos guardados'
+                      : 'Sin conexión con el servidor')
                 : '$count operación${count == 1 ? '' : 'es'} pendiente${count == 1 ? '' : 's'} de sincronizar';
             return Material(
               color: color,

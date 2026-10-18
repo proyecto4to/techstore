@@ -67,6 +67,18 @@ class AppDatabase extends _$AppDatabase {
           ))
           .getSingleOrNull();
 
+  /// Si quedó alguna respuesta guardada, aunque haya vencido su TTL.
+  ///
+  /// Sirve para no prometer «datos guardados» en una instalación recién hecha,
+  /// donde no hay ninguno. Cuenta también las vencidas a propósito: esas son
+  /// las que se muestran como respaldo justamente cuando no hay conexión.
+  Future<bool> hasCachedData() async {
+    final consulta = selectOnly(cacheEntries)
+      ..addColumns([cacheEntries.cacheKey.count()]);
+    final fila = await consulta.getSingleOrNull();
+    return (fila?.read(cacheEntries.cacheKey.count()) ?? 0) > 0;
+  }
+
   Future<int> deleteScope(String scope) =>
       (delete(cacheEntries)..where((entry) => entry.scope.equals(scope))).go();
 

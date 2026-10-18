@@ -2,11 +2,17 @@ package com.techstore.catalogo;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.techstore.comun.Dinero;
 import com.techstore.comun.Moneda;
+import com.techstore.promociones.AlcancePromocion;
+import com.techstore.promociones.CalculadorDePrecios;
+import com.techstore.promociones.Promocion;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -15,7 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ProductoPublicResponseTest {
 
     private final ProductoMapper mapper = new ProductoMapperImpl();
-    private final ObjectMapper json = new ObjectMapper();
+    // Con el módulo de fechas, como el ObjectMapper que arma Spring Boot: sin
+    // él, serializar la fecha de fin de una promoción falla acá y en ningún
+    // otro lado, que es una diferencia del test y no del contrato.
+    private final ObjectMapper json = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @Test
     void elContratoPublicoNoSerializaDatosInternos() {
@@ -56,6 +65,51 @@ class ProductoPublicResponseTest {
         producto.setStockComprometido(0);
 
         assertEquals(Producto.MAXIMO_POR_PEDIDO, mapper.toPublicResponse(producto).maxPorPedido());
+    }
+
+    @Test
+    void elPrecioPublicadoEsElQueSeVaACobrar() {
+        // La regla que protege a las apps viejas: el descuento entra en
+        // `precio`, no solo en `promocion`. Una versión que no conoce las
+        // promociones muestra este número, y muestra el correcto.
+        Producto producto = new Producto();
+        producto.setId(7L);
+        producto.setPrecio(Dinero.de(100_000, Moneda.PYG));
+        producto.setStockReal(5);
+
+        Promocion promocion = new Promocion();
+        promocion.setId(3L);
+        promocion.setNombre("Liquidación");
+        promocion.setPorcentaje(new BigDecimal("20"));
+        promocion.setAlcance(AlcancePromocion.TODOS);
+        promocion.setActiva(true);
+        promocion.setDesde(LocalDateTime.now().minusHours(1));
+        promocion.setHasta(LocalDateTime.now().plusHours(1));
+
+        var vigentes = new CalculadorDePrecios.PromocionesVigentes(
+                List.of(promocion), LocalDateTime.now());
+        JsonNode respuesta = json.valueToTree(
+                mapper.toPublicResponse(producto).con(vigentes.precioDe(producto)));
+
+        assertEquals(80_000, respuesta.path("precio").asLong());
+        assertEquals(100_000, respuesta.path("precioLista").asLong());
+        assertEquals("Liquidación", respuesta.path("promocion").path("nombre").asText());
+    }
+
+    @Test
+    void sinPromocionElContratoNoInventaUnPrecioAnterior() {
+        Producto producto = new Producto();
+        producto.setPrecio(Dinero.de(100_000, Moneda.PYG));
+        producto.setStockReal(5);
+
+        var vigentes = new CalculadorDePrecios.PromocionesVigentes(
+                List.of(), LocalDateTime.now());
+        JsonNode respuesta = json.valueToTree(
+                mapper.toPublicResponse(producto).con(vigentes.precioDe(producto)));
+
+        assertEquals(100_000, respuesta.path("precio").asLong());
+        assertTrue(respuesta.path("precioLista").isNull());
+        assertTrue(respuesta.path("promocion").isNull());
     }
 
     @Test

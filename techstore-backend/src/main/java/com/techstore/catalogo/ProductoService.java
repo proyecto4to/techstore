@@ -5,6 +5,7 @@ import com.techstore.comun.BusinessException;
 import com.techstore.comun.Dinero;
 import com.techstore.comun.PageResponse;
 import com.techstore.comun.ResourceNotFoundException;
+import com.techstore.promociones.CalculadorDePrecios;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
@@ -37,6 +38,7 @@ public class ProductoService {
     private final ModeloRepository modeloRepository;
     private final ProductoMapper productoMapper;
     private final AuditoriaService auditoriaService;
+    private final CalculadorDePrecios calculadorDePrecios;
 
     @Value("${app.uploads.dir}")
     private String uploadsDir;
@@ -44,9 +46,14 @@ public class ProductoService {
     @Transactional(readOnly = true)
     public PageResponse<ProductoPublicResponse> listarPublico(
             String search, Long marcaId, Boolean disponible, Pageable pageable) {
+        // Las promociones se leen una vez por página, no una por producto, y
+        // con un único momento: si una vence mientras se arma la respuesta, la
+        // página no queda con media lista en oferta y media no.
+        var vigentes = calculadorDePrecios.vigentes();
         return PageResponse.from(
                 productoRepository.findAll(ProductoSpecs.catalogoPublico(search, marcaId, disponible), pageable)
-                        .map(productoMapper::toPublicResponse));
+                        .map(producto -> productoMapper.toPublicResponse(producto)
+                                .con(vigentes.precioDe(producto))));
     }
 
     @Transactional(readOnly = true)
@@ -71,7 +78,9 @@ public class ProductoService {
 
     @Transactional(readOnly = true)
     public ProductoPublicResponse obtenerPublico(Long id) {
-        return productoMapper.toPublicResponse(buscarProductoPublico(id));
+        Producto producto = buscarProductoPublico(id);
+        return productoMapper.toPublicResponse(producto)
+                .con(calculadorDePrecios.precioDe(producto));
     }
 
     @Transactional(readOnly = true)

@@ -1,5 +1,8 @@
 package com.techstore.catalogo;
 
+import com.techstore.promociones.PrecioVigente;
+import com.techstore.promociones.PromocionAplicadaResponse;
+
 import java.math.BigDecimal;
 
 /**
@@ -17,6 +20,16 @@ public record ProductoPublicResponse(
         String nombre,
         String descripcion,
         String moneda,
+        /**
+         * Lo que se le va a cobrar a quien compre: si hay una promoción
+         * vigente, ya viene descontado.
+         *
+         * <p>Que el descuento entre acá y no solo en un campo nuevo es
+         * deliberado. Una app vieja, que no sabe que existen las promociones,
+         * muestra este número y muestra el correcto; si la rebaja viviera
+         * únicamente en {@code promocion}, esa app publicaría un precio más
+         * alto que el que después cobra el checkout.
+         */
         BigDecimal precio,
         Integer iva,
         boolean disponible,
@@ -24,5 +37,22 @@ public record ProductoPublicResponse(
         Integer maxPorPedido,
         ProductoResponse.MarcaRef marca,
         ProductoResponse.ModeloRef modelo,
-        String imagenUrl) {
+        String imagenUrl,
+        /** El precio de lista, solo cuando hay promoción: es el «antes». */
+        BigDecimal precioLista,
+        /** Qué promoción explica la rebaja; nulo si no hay ninguna. */
+        PromocionAplicadaResponse promocion) {
+
+    /** El mismo producto con la promoción vigente ya aplicada. */
+    public ProductoPublicResponse con(PrecioVigente precioVigente) {
+        if (!precioVigente.tienePromocion()) {
+            return this;
+        }
+        return new ProductoPublicResponse(
+                id, nombre, descripcion, moneda,
+                precioVigente.precio().monto(),
+                iva, disponible, maxPorPedido, marca, modelo, imagenUrl,
+                precioVigente.precioLista().monto(),
+                precioVigente.promocion());
+    }
 }

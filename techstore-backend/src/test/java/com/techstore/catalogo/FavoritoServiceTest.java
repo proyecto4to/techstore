@@ -2,6 +2,8 @@ package com.techstore.catalogo;
 
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
+import com.techstore.promociones.PromocionesDePrueba;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,7 +33,8 @@ class FavoritoServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new FavoritoService(favoritoRepository, usuarioRepository, productoService, mapper);
+        service = new FavoritoService(
+                favoritoRepository, usuarioRepository, productoService, mapper, PromocionesDePrueba.sinNinguna());
     }
 
     @Test

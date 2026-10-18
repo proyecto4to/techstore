@@ -61,7 +61,7 @@ class MigracionesIT {
             }
         }
         assertTrue(fallidas.isEmpty(), "Migraciones fallidas: " + fallidas);
-        assertEquals(56, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
+        assertEquals(57, total, "Cambió la cantidad de migraciones; actualizá este número a propósito");
     }
 
     @Test
@@ -79,7 +79,7 @@ class MigracionesIT {
                 "vehiculos", "usos_vehiculo", "eventos_vehiculo",
                 "reparto_asignaciones", "reparto_historial", "cobros_repartidor",
                 "movimientos_caja_repartidor", "cierres_caja_repartidor",
-                "transferencias_repartidor_cajero");
+                "transferencias_repartidor_cajero", "promociones");
 
         List<String> presentes = new ArrayList<>();
         try (Connection con = dataSource.getConnection();
@@ -299,7 +299,9 @@ class MigracionesIT {
         assertEquals(1, contar("SELECT count(*) FROM pg_class WHERE relname = 'domain_event_outbox' "
                 + "AND relrowsecurity AND relforcerowsecurity"));
         assertEquals(2, contar("SELECT count(*) FROM pg_policies WHERE tablename = 'domain_event_outbox'"));
-        assertEquals(21, contar("SELECT count(*) FROM pg_trigger WHERE tgname LIKE 'trg_sync_%' "
+        // 21 de V43 más el de `promociones` (V57), que hace que encender una
+        // promoción refresque las pantallas abiertas.
+        assertEquals(22, contar("SELECT count(*) FROM pg_trigger WHERE tgname LIKE 'trg_sync_%' "
                 + "AND NOT tgisinternal"));
     }
 

@@ -48,7 +48,8 @@ Conservar en un gestor de secretos:
 .\scripts\build-mobile-release.ps1 `
   -ApiBaseUrl https://api.techstore.tld `
   -VersionName 1.0.0 `
-  -VersionCode 1
+  -VersionCode 1 `
+  -Novedades 'Qué cambió, en una línea', 'Otra línea'
 ```
 
 El script rechaza HTTP, localhost, emulador, placeholders y ausencia de firma. Produce en `artifacts/mobile/`:
@@ -57,11 +58,22 @@ El script rechaza HTTP, localhost, emulador, placeholders y ausencia de firma. P
 - AAB para Google Play;
 - símbolos de ofuscación;
 - SHA-256 y `release-metadata.json`;
+- `changelog.json` con lo pasado en `-Novedades`;
 - resultado del escaneo de seguridad.
+
+Tres cosas que conviene saber antes de compilar:
+
+- **`-Novedades` es lo que ve la gente.** Escribe `changelog.json` junto al APK y de ahí sale la lista de la pantalla de actualización. Si se omite, el changelog anterior se borra: mejor una lista vacía que contarle a alguien los cambios de otra versión.
+- **El APK sale solo para `android-arm` y `android-arm64`**, que es lo que tienen los teléfonos; llevar `x86_64` sumaba 22 MB que nadie ejecuta. El AAB conserva todas las arquitecturas, porque Play arma la descarga por equipo. La contra es que **ese APK no corre en el emulador**: para el emulador está el flavor `development`.
+- **`gitTreeClean` en la metadata.** Si dice `false`, el APK salió de un árbol con cambios sin commitear y no se puede volver a armar desde el commit que figura al lado.
+
+Guardar el APK en `artifacts/mobile/release` **ya lo publica**: el backend lee ese directorio y se lo ofrece como actualización a todo el que tenga una versión anterior.
 
 ### Google Play y actualización
 
-Producción usa Google Play App Bundle + Play App Signing. La app consulta `GET /api/v1/app/version`, ejecuta update flexible para versiones recomendadas e inmediato para incompatibles, y abre la ficha HTTPS de Play como fallback. No solicita `REQUEST_INSTALL_PACKAGES` ni instala APK lateralmente.
+Producción usa Google Play App Bundle + Play App Signing. La app consulta `GET /api/v1/app/version`, ejecuta update flexible para versiones recomendadas e inmediato para incompatibles, y abre la ficha HTTPS de Play como fallback.
+
+Mientras la distribución sea por APK propio, la app **sí** declara `REQUEST_INSTALL_PACKAGES` e instala la actualización que descarga de `/api/v1/app/download`; Android igual pide confirmación y el permiso se concede a mano. Google Play restringe ese permiso a las apps cuyo propósito central es instalar paquetes, así que antes de publicar en Play hay que sacarlo del manifiesto junto con el actualizador propio.
 
 Antes de elevar `MOBILE_MIN_VERSION_CODE`:
 

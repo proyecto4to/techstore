@@ -43,7 +43,16 @@ public record PedidoResponse(
             Long productoId,
             String productoNombre,
             Integer cantidad,
+            /** Precio de lista de una unidad, antes de cualquier rebaja. */
             BigDecimal precioUnitario,
+            /**
+             * Lo rebajado por unidad, sea por una promoción o por el descuento
+             * que carga el mostrador. Cero cuando no hubo ninguna.
+             *
+             * <p>Va aparte del subtotal para que un pedido viejo se explique
+             * solo: la promoción que lo justificaba puede estar apagada hoy.
+             */
+            BigDecimal descuento,
             BigDecimal subtotal,
             Integer ivaAplicado) {
     }

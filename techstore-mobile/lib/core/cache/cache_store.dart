@@ -33,6 +33,9 @@ final class CacheStore {
     expiresAt: DateTime.now().add(ttl),
   );
 
+  /// Si hay algo guardado que mostrar cuando no haya conexión.
+  Future<bool> hasAnyData() => _database.hasCachedData();
+
   Future<int> clearScope(String scope) => _database.deleteScope(scope);
 
   Future<int> purgeExpired() => _database.purgeExpired();

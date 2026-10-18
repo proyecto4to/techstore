@@ -6,6 +6,7 @@ import {
   maximoComprable,
   muestraUnidadesRestantes,
   productoDisponible,
+  tienePromocion,
   selectCantidadDe,
   useCartStore,
 } from '../../store/cartStore'
@@ -26,6 +27,7 @@ function ProductCard({ producto }) {
   // habilitado y cada clic recorta en silencio.
   const margen = Math.max(0, maximo - enCarrito)
   const escasez = muestraUnidadesRestantes(producto)
+  const hayPromocion = tienePromocion(producto)
 
   const handleAgregar = (e) => {
     e.stopPropagation()
@@ -86,6 +88,16 @@ function ProductCard({ producto }) {
           <div>
             <p className="text-xs text-neutral-muted">Precio</p>
             <p className="text-2xl font-bold text-primary-300">{formatPrecio(producto.precio)}</p>
+            {/* `precio` ya viene con la promoción aplicada; el de lista solo
+                se muestra tachado al lado, nunca al revés. */}
+            {hayPromocion && (
+              <p className="text-xs text-neutral-muted">
+                <span className="line-through">{formatPrecio(producto.precioLista)}</span>{' '}
+                <span className="font-semibold text-emerald-400">
+                  −{Math.round(producto.promocion.porcentaje)}%
+                </span>
+              </p>
+            )}
           </div>
           <span
             className={`rounded-full px-3 py-1 text-xs font-semibold ${

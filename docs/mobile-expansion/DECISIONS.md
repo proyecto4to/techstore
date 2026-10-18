@@ -94,3 +94,13 @@ Estado: ACEPTADA
 - Motivo: mantener dos clientes del mismo backend duplicaba el esfuerzo y ninguno quedaba completo. Flutter llego a distribucion privada verificada en hardware real; Expo quedo en su fase 15.
 - Consecuencia: se elimino `ExpoPushProvider` y su configuracion (`push.expo-url`, `push.access-token`), porque nada podia seleccionarlo. `docs/api/mobile-auth.openapi.yaml` queda como contrato historico, no vigente.
 - Pendiente: decidir que hacer con el repositorio externo; este monorepo ya no lo referencia como Mobile vigente.
+
+## ADR-012 — El precio publicado ya trae la promoción aplicada
+
+Estado: ACEPTADA
+
+- Decision: en el catálogo, `precio` es lo que se le va a cobrar a quien compre, con la promoción vigente ya descontada. El precio de lista viaja aparte en `precioLista`, junto con `promocion`, y solo sirve para mostrar el «antes» tachado.
+- Motivo: la alternativa —dejar `precio` como precio de lista y poner la rebaja solo en el campo nuevo— hace que cualquier cliente que no conozca las promociones publique un precio más alto que el que después cobra el checkout. Y siempre hay un cliente viejo: los APK instalados no se actualizan todos el mismo día.
+- Consecuencia: la app 1.0.21 y las anteriores muestran el precio con descuento sin enterarse de que existen las promociones. El único lugar que calcula precios es `CalculadorDePrecios`, usado por catálogo, favoritos, carrito y checkout.
+- Regla de resolución: si dos promociones alcanzan al mismo producto gana la de mayor porcentaje y **no se suman**, porque sumarlas puede dejar el producto gratis y el resultado dependería del orden de carga.
+- El descuento aplicado se guarda en `pedido_detalle.descuento`, la misma columna del descuento manual del mostrador: la factura ya lo muestra y un pedido viejo conserva su importe aunque la promoción se apague.

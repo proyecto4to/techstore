@@ -27,7 +27,7 @@ public final class DestinosDeEventos {
      * acotarlo más pide una columna nueva en la bitácora.
      */
     public static final Set<String> PARA_QUIEN_COMPRA =
-            Set.of("PRODUCT", "BRAND", "MODEL", "ORDER", "ORDER_ITEM", "SHIPMENT");
+            Set.of("PRODUCT", "BRAND", "MODEL", "ORDER", "ORDER_ITEM", "SHIPMENT", "PROMOTION");
 
     private DestinosDeEventos() {
     }

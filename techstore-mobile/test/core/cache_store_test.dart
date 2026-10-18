@@ -32,6 +32,33 @@ void main() {
     expect(await cache.read(scope: 'tenant:2:user:10', key: 'products'), '[2]');
   });
 
+  test('una instalación nueva no tiene datos guardados que mostrar', () async {
+    // El cartel de «sin conexión» prometía datos guardados incluso con la app
+    // recién instalada, cuando no hay ninguno.
+    expect(await cache.hasAnyData(), isFalse);
+
+    await cache.write(
+      scope: 'public',
+      key: 'catalog',
+      json: '[1]',
+      ttl: const Duration(minutes: 5),
+    );
+
+    expect(await cache.hasAnyData(), isTrue);
+  });
+
+  test('una entrada vencida sigue contando como dato guardado', () async {
+    // Vencida es justamente la que se ofrece de respaldo cuando no hay red.
+    await database.putCache(
+      scope: 'public',
+      key: 'catalog',
+      json: '[1]',
+      expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
+    );
+
+    expect(await cache.hasAnyData(), isTrue);
+  });
+
   test('no devuelve entradas expiradas', () async {
     await database.putCache(
       scope: 'public',

@@ -45,6 +45,9 @@ export function tenantFromToken(token) {
 export const queryKeysForEvent = (event) => {
   const keys = {
     PRODUCT: [['productos'], ['admin-productos'], ['venta-directa-productos']],
+    // Encender una promoción cambia el precio publicado sin tocar la fila del
+    // producto, así que el catálogo hay que volver a pedirlo igual.
+    PROMOTION: [['productos'], ['admin-productos']],
     BRAND: [['marcas'], ['admin-marcas']],
     MODEL: [['modelos'], ['admin-modelos']],
     ORDER: [['pedidos'], ['admin-pedidos'], ['dashboard']],

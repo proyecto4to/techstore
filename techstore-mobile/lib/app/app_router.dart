@@ -7,6 +7,7 @@ import '../features/administration/domain/resource_definition.dart';
 import '../features/administration/presentation/audit_page.dart';
 import '../features/administration/presentation/business_hub_page.dart';
 import '../features/administration/presentation/document_center_page.dart';
+import '../features/administration/presentation/promotions_page.dart';
 import '../features/administration/presentation/resource_page.dart';
 import '../features/administration/presentation/security_page.dart';
 import '../features/auth/application/auth_state.dart';
@@ -44,6 +45,9 @@ import 'home_page.dart';
 /// un error de configuración en una app que no abre.
 const _modulosPorRuta = <String, String>{
   '/admin/seguridad': Modulos.seguridad,
+  // Una promoción es el precio de un producto por unos días: la gobierna el
+  // mismo módulo que los productos, igual que en el backend.
+  '/admin/promociones': Modulos.productos,
   '/sales/new': Modulos.facturas,
   '/cash/actions': Modulos.caja,
   '/purchases/new': Modulos.compras,
@@ -228,6 +232,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin/seguridad',
         builder: (context, state) => const SecurityPage(),
+      ),
+      GoRoute(
+        path: '/admin/promociones',
+        builder: (context, state) => const PromotionsPage(),
       ),
       GoRoute(path: '/chat', builder: (context, state) => const ChatPage()),
       GoRoute(

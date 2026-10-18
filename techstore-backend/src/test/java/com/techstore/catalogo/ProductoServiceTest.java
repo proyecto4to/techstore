@@ -3,6 +3,8 @@ package com.techstore.catalogo;
 import com.techstore.auditoria.AuditoriaService;
 import com.techstore.comun.BusinessException;
 import com.techstore.comun.ResourceNotFoundException;
+import com.techstore.promociones.PromocionesDePrueba;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -48,7 +50,8 @@ class ProductoServiceTest {
     @BeforeEach
     void setUp() {
         productoService = new ProductoService(
-                productoRepository, marcaRepository, modeloRepository, mapper, auditoriaService);
+                productoRepository, marcaRepository, modeloRepository, mapper, auditoriaService,
+                PromocionesDePrueba.sinNinguna());
         ReflectionTestUtils.setField(productoService, "uploadsDir", uploadsDir.toString());
     }
 

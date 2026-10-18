@@ -45,6 +45,12 @@ class BusinessHubPage extends ConsumerWidget {
       modulo: Modulos.seguridad,
     ),
     _Baldosa(
+      icono: Icons.local_offer_outlined,
+      titulo: 'Promociones',
+      ruta: '/admin/promociones',
+      modulo: Modulos.productos,
+    ),
+    _Baldosa(
       icono: Icons.archive_outlined,
       titulo: 'Documentos y exportaciones',
       ruta: '/documents',

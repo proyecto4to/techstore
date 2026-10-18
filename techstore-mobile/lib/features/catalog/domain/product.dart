@@ -9,11 +9,16 @@ final class Product {
     this.description,
     this.imageUrl,
     this.brand,
+    this.listPrice,
+    this.promotionName,
+    this.promotionPercentage,
+    this.promotionEndsAt,
   });
 
   factory Product.fromJson(Map<String, Object?> json) {
     final available = json['disponible'] as bool? ?? false;
     final rawMax = (json['maxPorPedido'] as num?)?.toInt();
+    final promocion = json['promocion'] as Map?;
     return Product(
       id: (json['id'] as num).toInt(),
       name: json['nombre'] as String? ?? '',
@@ -28,6 +33,10 @@ final class Product {
       maxPerOrder: rawMax ?? (available ? maximoPorPedido : 0),
       imageUrl: json['imagenUrl'] as String?,
       brand: (json['marca'] as Map?)?['nombre'] as String?,
+      listPrice: (json['precioLista'] as num?)?.toDouble(),
+      promotionName: promocion?['nombre'] as String?,
+      promotionPercentage: (promocion?['porcentaje'] as num?)?.toDouble(),
+      promotionEndsAt: DateTime.tryParse(promocion?['hasta']?.toString() ?? ''),
     );
   }
 
@@ -38,6 +47,9 @@ final class Product {
   final int id;
   final String name;
   final String? description;
+
+  /// Lo que se va a cobrar por una unidad: el servidor ya le aplico la
+  /// promocion vigente, si habia alguna.
   final double price;
   final String currency;
   final bool available;
@@ -48,6 +60,19 @@ final class Product {
 
   final String? imageUrl;
   final String? brand;
+
+  /// El precio sin promocion, para mostrarlo tachado. Nulo si no hay ninguna.
+  final double? listPrice;
+  final String? promotionName;
+  final double? promotionPercentage;
+  final DateTime? promotionEndsAt;
+
+  /// Si hay una rebaja que mostrar.
+  ///
+  /// Exige que el precio de lista sea mayor: una promocion que por redondeo no
+  /// cambia el precio no tiene por que dibujar un «antes» identico al «ahora».
+  bool get hasPromotion =>
+      listPrice != null && promotionPercentage != null && listPrice! > price;
 
   /// Si el numero que publica el servidor es lo que realmente queda en gondola
   /// y no el tope fijo. Solo entonces tiene sentido decirle al cliente
@@ -65,6 +90,10 @@ final class Product {
     maxPerOrder: maxPerOrder ?? this.maxPerOrder,
     imageUrl: imageUrl,
     brand: brand,
+    listPrice: listPrice,
+    promotionName: promotionName,
+    promotionPercentage: promotionPercentage,
+    promotionEndsAt: promotionEndsAt,
   );
 
   Map<String, Object?> toJson() => {
@@ -77,5 +106,12 @@ final class Product {
     'maxPorPedido': maxPerOrder,
     'imagenUrl': imageUrl,
     'marca': brand == null ? null : {'nombre': brand},
+    'precioLista': listPrice,
+    if (promotionName != null)
+      'promocion': {
+        'nombre': promotionName,
+        'porcentaje': promotionPercentage,
+        'hasta': promotionEndsAt?.toIso8601String(),
+      },
   };
 }

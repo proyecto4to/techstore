@@ -4,6 +4,7 @@ import com.techstore.catalogo.Producto;
 import com.techstore.catalogo.ProductoMapper;
 import com.techstore.catalogo.ProductoRepository;
 import com.techstore.comun.Dinero;
+import com.techstore.promociones.CalculadorDePrecios;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ public class CarritoService {
 
     private final ProductoRepository productoRepository;
     private final ProductoMapper productoMapper;
+    private final CalculadorDePrecios calculadorDePrecios;
 
     /**
      * Recalcula el carrito con el catálogo del servidor. No reserva stock: la
@@ -28,6 +30,7 @@ public class CarritoService {
      */
     @Transactional(readOnly = true)
     public ValidacionCarritoResponse validar(ValidarCarritoRequest request) {
+        var vigentes = calculadorDePrecios.vigentes();
         Map<Long, Integer> cantidades = new LinkedHashMap<>();
         for (ValidarCarritoRequest.Item item : request.items()) {
             cantidades.merge(item.productoId(), item.cantidad(), Math::addExact);
@@ -37,7 +40,8 @@ public class CarritoService {
                 .collect(LinkedHashMap::new, (map, producto) -> map.put(producto.getId(), producto), Map::putAll);
 
         List<ValidacionCarritoResponse.Linea> lineas = cantidades.entrySet().stream()
-                .map(entrada -> validarLinea(entrada.getKey(), entrada.getValue(), productos.get(entrada.getKey())))
+                .map(entrada -> validarLinea(
+                        entrada.getKey(), entrada.getValue(), productos.get(entrada.getKey()), vigentes))
                 .toList();
         boolean valido = lineas.stream().allMatch(linea -> linea.estado() == EstadoLineaCarrito.DISPONIBLE);
 
@@ -50,7 +54,11 @@ public class CarritoService {
         return new ValidacionCarritoResponse(valido, lineas, totales);
     }
 
-    private ValidacionCarritoResponse.Linea validarLinea(Long productoId, int cantidad, Producto producto) {
+    private ValidacionCarritoResponse.Linea validarLinea(
+            Long productoId,
+            int cantidad,
+            Producto producto,
+            CalculadorDePrecios.PromocionesVigentes vigentes) {
         if (cantidad > CANTIDAD_MAXIMA) {
             return new ValidacionCarritoResponse.Linea(
                     productoId, cantidad, EstadoLineaCarrito.CANTIDAD_EXCESIVA, null, null);
@@ -64,7 +72,10 @@ public class CarritoService {
                     productoId, cantidad, EstadoLineaCarrito.NO_DISPONIBLE, null, null);
         }
 
-        var publico = productoMapper.toPublicResponse(producto);
+        // El precio del carrito sale del mismo cálculo que el del catálogo y
+        // que el del checkout: son tres pantallas de un solo número.
+        var precio = vigentes.precioDe(producto);
+        var publico = productoMapper.toPublicResponse(producto).con(precio);
         if (producto.getStockDisponible() <= 0) {
             return new ValidacionCarritoResponse.Linea(
                     productoId, cantidad, EstadoLineaCarrito.NO_DISPONIBLE, publico, null);
@@ -74,7 +85,7 @@ public class CarritoService {
                     productoId, cantidad, EstadoLineaCarrito.CANTIDAD_INSUFICIENTE, publico, null);
         }
 
-        Dinero subtotal = producto.getPrecio().por(cantidad);
+        Dinero subtotal = precio.precio().por(cantidad);
         return new ValidacionCarritoResponse.Linea(
                 productoId, cantidad, EstadoLineaCarrito.DISPONIBLE, publico, subtotal.monto());
     }

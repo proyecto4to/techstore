@@ -181,11 +181,28 @@ class _CartLineTile extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        '${formatMoney(product.price, product.currency)} c/u',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      // En el carrito el precio unitario va chico y al lado el
+                      // de lista tachado: es donde se confirma que la rebaja
+                      // que se vio en el catálogo sigue estando.
+                      Wrap(
+                        spacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            '${formatMoney(product.price, product.currency)} c/u',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          if (product.hasPromotion)
+                            Text(
+                              formatMoney(product.listPrice!, product.currency),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                decoration: TextDecoration.lineThrough,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ),

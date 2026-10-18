@@ -25,7 +25,8 @@ class FavoritesPage extends ConsumerWidget {
         child: favorites.when(
           loading: () => const AppLoading(label: 'Cargando favoritos'),
           error: (error, _) => AppErrorState(
-            message: 'No pudimos cargar tus favoritos. '
+            message:
+                'No pudimos cargar tus favoritos. '
                 'Revisá tu conexión e intentá de nuevo.',
             onRetry: () => ref.invalidate(favoritesProvider),
           ),
@@ -65,9 +66,15 @@ class _FavoriteTile extends ConsumerWidget {
       child: ListTile(
         title: Text(product.name),
         subtitle: Text(
-          product.maxPerOrder <= 0
-              ? '${formatMoney(product.price, product.currency)} · sin stock'
-              : formatMoney(product.price, product.currency),
+          [
+            formatMoney(product.price, product.currency),
+            // La rebaja se anuncia con el porcentaje y no con el precio
+            // anterior tachado: en un subtítulo de una línea, el tachado se
+            // lee como parte del mismo número.
+            if (product.hasPromotion)
+              '−${product.promotionPercentage!.round()}%',
+            if (product.maxPerOrder <= 0) 'sin stock',
+          ].join(' · '),
           style: product.maxPerOrder <= 0
               ? theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.error,

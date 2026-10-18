@@ -53,6 +53,10 @@ public class PermisoInterceptor implements HandlerInterceptor {
         mapa.put("/api/v1/productos", Modulo.PRODUCTOS);
         mapa.put("/api/v1/marcas", Modulo.PRODUCTOS);
         mapa.put("/api/v1/modelos", Modulo.PRODUCTOS);
+        // Una promoción es el precio de un producto por un rato: quien puede
+        // cambiar precios puede descontarlos, sin un módulo aparte que haya
+        // que configurar desde cero.
+        mapa.put("/api/v1/promociones", Modulo.PRODUCTOS);
         mapa.put("/api/v1/pedidos", Modulo.PEDIDOS);
         mapa.put("/api/v1/carrito", Modulo.PEDIDOS);
         mapa.put("/api/v1/compras", Modulo.COMPRAS);

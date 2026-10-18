@@ -6,10 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/di/providers.dart';
-import '../../../core/format/money.dart';
 import '../../../core/native/haptics_service.dart';
 import '../../../core/widgets/add_to_cart_button.dart';
 import '../../../core/widgets/async_states.dart';
+import '../../../core/widgets/precio_con_promocion.dart';
 import '../../../core/widgets/quantity_stepper.dart';
 import '../../../core/widgets/voice_dictation_button.dart';
 import '../../auth/application/session_controller.dart';
@@ -383,10 +383,22 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                   ),
                 ),
               const SizedBox(height: 12),
-              Text(
-                formatMoney(item.price, item.currency),
-                style: theme.textTheme.headlineSmall,
+              PrecioConPromocion(
+                precio: item.price,
+                moneda: item.currency,
+                precioLista: item.listPrice,
+                porcentaje: item.promotionPercentage,
+                hasta: item.promotionEndsAt,
+                estilo: theme.textTheme.headlineSmall,
+                mostrarVencimiento: true,
               ),
+              if (item.hasPromotion && item.promotionName != null)
+                Text(
+                  item.promotionName!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
               const SizedBox(height: 8),
               _Availability(product: item, inCart: inCart),
               const SizedBox(height: 16),
@@ -540,9 +552,12 @@ class _ProductCard extends ConsumerWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 2),
-              Text(
-                formatMoney(product.price, product.currency),
-                style: theme.textTheme.titleMedium,
+              PrecioConPromocion(
+                precio: product.price,
+                moneda: product.currency,
+                precioLista: product.listPrice,
+                porcentaje: product.promotionPercentage,
+                estilo: theme.textTheme.titleMedium,
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

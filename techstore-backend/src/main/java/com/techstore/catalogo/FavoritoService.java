@@ -1,6 +1,7 @@
 package com.techstore.catalogo;
 
 import com.techstore.comun.ResourceNotFoundException;
+import com.techstore.promociones.CalculadorDePrecios;
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ public class FavoritoService {
     private final UsuarioRepository usuarioRepository;
     private final ProductoService productoService;
     private final ProductoMapper productoMapper;
+    private final CalculadorDePrecios calculadorDePrecios;
 
     @Transactional(readOnly = true)
     public List<FavoritoResponse> listar(String email) {
@@ -52,8 +54,11 @@ public class FavoritoService {
     }
 
     private FavoritoResponse respuesta(Favorito favorito) {
+        // Los favoritos son la lista donde más se mira el precio: si acá
+        // saliera el de lista, la promoción recién aparecería en el carrito.
         return new FavoritoResponse(
-                productoMapper.toPublicResponse(favorito.getProducto()),
+                productoMapper.toPublicResponse(favorito.getProducto())
+                        .con(calculadorDePrecios.precioDe(favorito.getProducto())),
                 favorito.getCreadoEn());
     }
 }

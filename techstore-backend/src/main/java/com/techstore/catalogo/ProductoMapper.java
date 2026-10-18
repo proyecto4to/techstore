@@ -14,8 +14,13 @@ public interface ProductoMapper extends DineroMapper {
     @Mapping(target = "margen", expression = "java(aMonto(producto.getMargen()))")
     ProductoResponse toResponse(Producto producto);
 
+    // La promoción no sale de la entidad: la resuelve CalculadorDePrecios y se
+    // adosa después con ProductoPublicResponse.con(...). Acá salen en nulo,
+    // que es el producto a precio de lista.
     @Mapping(target = "disponible", expression = "java(producto.getStockDisponible() > 0)")
     @Mapping(target = "maxPorPedido", expression = "java(producto.getMaxPorPedido())")
+    @Mapping(target = "precioLista", ignore = true)
+    @Mapping(target = "promocion", ignore = true)
     ProductoPublicResponse toPublicResponse(Producto producto);
 
     @Mapping(target = "stockDisponible", expression = "java(producto.getStockDisponible())")

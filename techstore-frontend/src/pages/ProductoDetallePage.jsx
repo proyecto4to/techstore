@@ -8,6 +8,7 @@ import {
   muestraUnidadesRestantes,
   productoDisponible,
   selectCantidadDe,
+  tienePromocion,
   useCartStore,
 } from '../store/cartStore'
 import { formatPrecio } from '../utils/format'
@@ -60,6 +61,7 @@ function ProductoDetallePage() {
   // Lo que ya está en el carrito descuenta: sin esto se podría elegir 5,
   // tener 7 adentro y terminar pidiendo 12 de un producto que tiene 10.
   const margen = Math.max(0, maximo - enCarrito)
+  const hayPromocion = tienePromocion(producto)
   const escasez = muestraUnidadesRestantes(producto)
   const src = !imgError && producto.imagenUrl ? producto.imagenUrl : IMAGEN_DEFAULT
 
@@ -120,6 +122,16 @@ function ProductoDetallePage() {
           <div className="card mb-6">
             <p className="text-sm text-neutral-muted">Precio (IVA {producto.iva}% incluido)</p>
             <p className="text-4xl font-bold gradient-text">{formatPrecio(producto.precio)}</p>
+            {/* `precio` ya viene con la promoción aplicada; acá se explica de
+                dónde sale la rebaja. */}
+            {hayPromocion && (
+              <p className="mt-1 text-sm text-neutral-muted">
+                <span className="line-through">{formatPrecio(producto.precioLista)}</span>{' '}
+                <span className="font-semibold text-emerald-400">
+                  −{Math.round(producto.promocion.porcentaje)}% por {producto.promocion.nombre}
+                </span>
+              </p>
+            )}
             <p
               className={`mt-3 inline-block rounded-full px-3 py-1 text-sm font-semibold ${
                 disponible ? 'bg-emerald-400/20 text-emerald-400' : 'bg-red-400/20 text-red-400'

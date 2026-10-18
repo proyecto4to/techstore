@@ -149,7 +149,19 @@ final class SessionController extends Notifier<AuthState> {
     try {
       await _apply(await _repository.refresh(token));
       return _accessToken;
-    } on AppFailure {
+    } on AppFailure catch (failure) {
+      // Que el servidor no conteste no quiere decir que la sesión haya
+      // caducado. Antes, abrir la app con el backend apagado borraba el token
+      // guardado y avisaba que la sesión había expirado: la sesión se perdía
+      // por un problema de red. Solo el rechazo del servidor cierra sesión.
+      if (failure is NetworkFailure || failure is ServerFailure) {
+        _refreshTimer?.cancel();
+        _accessToken = null;
+        state = const AuthState.unauthenticated(
+          'No pudimos conectarnos con el servidor. Revisá tu conexión.',
+        );
+        return null;
+      }
       _clearMemory();
       await _repository.clearRefreshToken();
       state = const AuthState.unauthenticated(

@@ -34,132 +34,151 @@ class CourierDashboardPage extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(courierDashboardProvider);
           ref.invalidate(courierCurrentVehicleProvider);
-          await ref.read(courierDashboardProvider.future);
+          try {
+            await ref.read(courierDashboardProvider.future);
+          } on Object {
+            // El fallo ya se ve en la tarjeta de estadísticas; tirar de la
+            // lista sin conexión no tiene por qué romper el gesto.
+          }
         },
-        child: dashboard.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) =>
-              _Retry(onPressed: () => ref.invalidate(courierDashboardProvider)),
-          data: (data) => ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Text(
-                'Hola, ${user.firstName}',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const Text('Todo lo necesario para completar tu ruta de hoy.'),
-              const SizedBox(height: 16),
-              GridView.count(
-                crossAxisCount: 2,
-                childAspectRatio: 1.45,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _Metric(
-                    label: 'Pendientes',
-                    value: '${data['entregasPendientes'] ?? 0}',
-                    icon: Icons.pending_actions_outlined,
+        // Las estadísticas se dibujan aparte del menú: si la consulta falla, el
+        // repartidor pierde los números, no la forma de llegar a sus entregas.
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              'Hola, ${user.firstName}',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const Text('Todo lo necesario para completar tu ruta de hoy.'),
+            const SizedBox(height: 16),
+            ...dashboard.when(
+              loading: () => const [
+                Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: CircularProgressIndicator(),
                   ),
-                  _Metric(
-                    label: 'En curso',
-                    value: '${data['entregasEnCurso'] ?? 0}',
-                    icon: Icons.local_shipping_outlined,
-                  ),
-                  _Metric(
-                    label: 'Realizadas',
-                    value: '${data['entregasRealizadas'] ?? 0}',
-                    icon: Icons.task_alt_outlined,
-                  ),
-                  _Metric(
-                    label: 'Cobros',
-                    value: '${data['cobrosRealizados'] ?? 0}',
-                    icon: Icons.payments_outlined,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.account_balance_wallet_outlined),
-                  title: const Text('Saldo en mi caja'),
-                  subtitle: Text(
-                    '${data['solicitudesPendientes'] ?? 0} solicitud(es) pendiente(s)',
-                  ),
-                  trailing: Text(
-                    _money(data['saldoActual'], data['moneda']?.toString()),
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  onTap: () => context.push('/courier/cash'),
                 ),
-              ),
-              Card(
-                child: vehicle.when(
-                  loading: () => const ListTile(
-                    leading: CircularProgressIndicator(),
-                    title: Text('Consultando vehículo'),
-                  ),
-                  error: (error, _) => ListTile(
-                    leading: const Icon(Icons.no_crash_outlined),
-                    title: const Text('Vehículos'),
-                    subtitle: const Text('No se pudo consultar el uso actual'),
-                    onTap: () => context.push('/courier/vehicles'),
-                  ),
-                  data: (use) => ListTile(
-                    leading: const Icon(Icons.two_wheeler_outlined),
-                    title: Text(
-                      use?['vehiculo']?.toString() ?? 'Sin vehículo activo',
+              ],
+              error: (error, _) => [
+                _JornadaNoDisponible(
+                  onPressed: () => ref.invalidate(courierDashboardProvider),
+                ),
+              ],
+              data: (data) => [
+                GridView.count(
+                  crossAxisCount: 2,
+                  childAspectRatio: 1.45,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _Metric(
+                      label: 'Pendientes',
+                      value: '${data['entregasPendientes'] ?? 0}',
+                      icon: Icons.pending_actions_outlined,
                     ),
+                    _Metric(
+                      label: 'En curso',
+                      value: '${data['entregasEnCurso'] ?? 0}',
+                      icon: Icons.local_shipping_outlined,
+                    ),
+                    _Metric(
+                      label: 'Realizadas',
+                      value: '${data['entregasRealizadas'] ?? 0}',
+                      icon: Icons.task_alt_outlined,
+                    ),
+                    _Metric(
+                      label: 'Cobros',
+                      value: '${data['cobrosRealizados'] ?? 0}',
+                      icon: Icons.payments_outlined,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.account_balance_wallet_outlined),
+                    title: const Text('Saldo en mi caja'),
                     subtitle: Text(
-                      use == null
-                          ? 'Seleccioná uno antes de salir'
-                          : 'Desde ${_date(use['fechaInicio'])}',
+                      '${data['solicitudesPendientes'] ?? 0} solicitud(es) pendiente(s)',
                     ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.push('/courier/vehicles'),
+                    trailing: Text(
+                      _money(data['saldoActual'], data['moneda']?.toString()),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    onTap: () => context.push('/courier/cash'),
                   ),
                 ),
+              ],
+            ),
+            Card(
+              child: vehicle.when(
+                loading: () => const ListTile(
+                  leading: CircularProgressIndicator(),
+                  title: Text('Consultando vehículo'),
+                ),
+                error: (error, _) => ListTile(
+                  leading: const Icon(Icons.no_crash_outlined),
+                  title: const Text('Vehículos'),
+                  subtitle: const Text('No se pudo consultar el uso actual'),
+                  onTap: () => context.push('/courier/vehicles'),
+                ),
+                data: (use) => ListTile(
+                  leading: const Icon(Icons.two_wheeler_outlined),
+                  title: Text(
+                    use?['vehiculo']?.toString() ?? 'Sin vehículo activo',
+                  ),
+                  subtitle: Text(
+                    use == null
+                        ? 'Seleccioná uno antes de salir'
+                        : 'Desde ${_date(use['fechaInicio'])}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/courier/vehicles'),
+                ),
               ),
-              const SizedBox(height: 12),
-              _Action(
-                icon: Icons.list_alt_outlined,
-                title: 'Mis entregas',
-                subtitle: 'Por estado o agrupadas por cliente',
-                onTap: () => context.push('/courier/deliveries'),
-              ),
-              _Action(
-                icon: Icons.route_outlined,
-                title: 'Ruta optimizada',
-                subtitle: 'Orden, distancias y navegación',
-                onTap: () => context.push('/courier/route'),
-              ),
-              _Action(
-                icon: Icons.account_balance_wallet_outlined,
-                title: 'Caja y transferencias',
-                subtitle: 'Movimientos, solicitudes y motivos de rechazo',
-                onTap: () => context.push('/courier/cash'),
-              ),
-              _Action(
-                icon: Icons.directions_car_outlined,
-                title: 'Vehículos',
-                subtitle: 'Inicio, eventos y fin de uso',
-                onTap: () => context.push('/courier/vehicles'),
-              ),
-              _Action(
-                icon: Icons.forum_outlined,
-                title: 'Mensajes',
-                subtitle: 'Escribile a administración',
-                onTap: () => context.push('/chat'),
-              ),
-              _Action(
-                icon: Icons.person_outline,
-                title: 'Mi cuenta',
-                subtitle: 'Seguridad y contraseña',
-                onTap: () => context.push('/account'),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+            _Action(
+              icon: Icons.list_alt_outlined,
+              title: 'Mis entregas',
+              subtitle: 'Por estado o agrupadas por cliente',
+              onTap: () => context.push('/courier/deliveries'),
+            ),
+            _Action(
+              icon: Icons.route_outlined,
+              title: 'Ruta optimizada',
+              subtitle: 'Orden, distancias y navegación',
+              onTap: () => context.push('/courier/route'),
+            ),
+            _Action(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Caja y transferencias',
+              subtitle: 'Movimientos, solicitudes y motivos de rechazo',
+              onTap: () => context.push('/courier/cash'),
+            ),
+            _Action(
+              icon: Icons.directions_car_outlined,
+              title: 'Vehículos',
+              subtitle: 'Inicio, eventos y fin de uso',
+              onTap: () => context.push('/courier/vehicles'),
+            ),
+            _Action(
+              icon: Icons.forum_outlined,
+              title: 'Mensajes',
+              subtitle: 'Escribile a administración',
+              onTap: () => context.push('/chat'),
+            ),
+            _Action(
+              icon: Icons.person_outline,
+              title: 'Mi cuenta',
+              subtitle: 'Seguridad y contraseña',
+              onTap: () => context.push('/account'),
+            ),
+          ],
         ),
       ),
     );
@@ -213,21 +232,47 @@ class _Action extends StatelessWidget {
   );
 }
 
-class _Retry extends StatelessWidget {
-  const _Retry({required this.onPressed});
+/// Aviso de que fallaron los números del día, del tamaño de una tarjeta.
+///
+/// Antes ocupaba la pantalla entera y se llevaba puesto el menú: sin
+/// estadísticas, el repartidor tampoco podía entrar a sus entregas ni a su
+/// ruta. Lo que falla es una consulta, así que lo que se pierde es una tarjeta.
+class _JornadaNoDisponible extends StatelessWidget {
+  const _JornadaNoDisponible({required this.onPressed});
   final VoidCallback onPressed;
+
   @override
-  Widget build(BuildContext context) => ListView(
-    children: [
-      const SizedBox(height: 180),
-      const Center(child: Text('No se pudo cargar la jornada')),
-      Center(
-        child: FilledButton(
-          onPressed: onPressed,
-          child: const Text('Reintentar'),
-        ),
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.query_stats_outlined),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'No pudimos cargar los números de tu jornada',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text('Tus entregas y tu ruta siguen disponibles acá abajo.'),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.tonal(
+              onPressed: onPressed,
+              child: const Text('Reintentar'),
+            ),
+          ),
+        ],
       ),
-    ],
+    ),
   );
 }
 

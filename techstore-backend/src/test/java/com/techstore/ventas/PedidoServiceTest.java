@@ -17,6 +17,9 @@ import com.techstore.usuarios.Rol;
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
 import com.techstore.ventas.CheckoutRequest.ItemCarrito;
+import com.techstore.promociones.AlcancePromocion;
+import com.techstore.promociones.PromocionesDePrueba;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,7 +80,7 @@ class PedidoServiceTest {
     void setUp() {
         pedidoService = new PedidoService(
                 pedidoRepository, productoRepository, usuarioRepository, autonumeradorService, mapper,
-                notificationPublisher, direccionEntregaService, envioService);
+                notificationPublisher, direccionEntregaService, envioService, PromocionesDePrueba.sinNinguna());
 
         lenient().when(envioService.seleccionar(
                         nullable(DireccionEntrega.class), anyMap(), any(Dinero.class),
@@ -141,6 +144,29 @@ class PedidoServiceTest {
         assertEquals(2, response.detalles().size());
         assertEquals(2, cpu.getStockComprometido());
         assertEquals(2, gpu.getStockComprometido());
+    }
+
+    @Test
+    void elCheckoutCobraElPrecioConPromocionYLoAsientaEnLaLinea() {
+        prepararCheckoutFeliz();
+        when(productoRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(cpu));
+        // 20% sobre todo el catálogo: la CPU de 2.500.000 sale a 2.000.000.
+        PedidoService conPromocion = new PedidoService(
+                pedidoRepository, productoRepository, usuarioRepository, autonumeradorService, mapper,
+                notificationPublisher, direccionEntregaService, envioService,
+                PromocionesDePrueba.con(
+                        PromocionesDePrueba.vigente("20% en todo", 20, AlcancePromocion.TODOS, null, null)));
+
+        PedidoResponse response = conPromocion.checkout("cliente@test.py",
+                new CheckoutRequest(List.of(new ItemCarrito(1L, 2)), null));
+
+        assertEquals(new BigDecimal("4000000"), response.total(),
+                "dos unidades con 20% de descuento");
+        var detalle = response.detalles().getFirst();
+        assertEquals(new BigDecimal("2500000"), detalle.precioUnitario(),
+                "el precio de lista queda a la vista para que la factura muestre la rebaja");
+        assertEquals(new BigDecimal("500000"), detalle.descuento());
+        assertEquals(new BigDecimal("4000000"), detalle.subtotal());
     }
 
     @Test

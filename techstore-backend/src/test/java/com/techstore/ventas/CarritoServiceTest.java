@@ -6,6 +6,7 @@ import com.techstore.catalogo.ProductoMapperImpl;
 import com.techstore.catalogo.ProductoRepository;
 import com.techstore.comun.Dinero;
 import com.techstore.comun.Moneda;
+import com.techstore.promociones.PromocionesDePrueba;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,7 +34,7 @@ class CarritoServiceTest {
     @BeforeEach
     void setUp() {
         ProductoMapper mapper = new ProductoMapperImpl();
-        service = new CarritoService(productoRepository, mapper);
+        service = new CarritoService(productoRepository, mapper, PromocionesDePrueba.sinNinguna());
     }
 
     @Test

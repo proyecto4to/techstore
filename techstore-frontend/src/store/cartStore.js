@@ -22,6 +22,19 @@ export const maximoComprable = (producto) => {
   return MAXIMO_POR_PEDIDO
 }
 
+/**
+ * Si hay una rebaja que mostrar.
+ *
+ * `precio` ya llega descontado desde el servidor, así que esto no decide lo
+ * que se cobra: solo si tiene sentido dibujar el «antes» tachado. Exige que el
+ * precio de lista sea mayor, porque una promoción que por redondeo no movió el
+ * precio no tiene nada que tachar.
+ */
+export const tienePromocion = (producto) =>
+  Number.isFinite(producto?.precioLista) &&
+  Number.isFinite(producto?.promocion?.porcentaje) &&
+  producto.precioLista > producto.precio
+
 /** Si el tope refleja escasez real y no el límite fijo por pedido. */
 export const muestraUnidadesRestantes = (producto) => {
   const tope = maximoComprable(producto)

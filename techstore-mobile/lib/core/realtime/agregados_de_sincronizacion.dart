@@ -46,6 +46,7 @@ const agregadosConocidos = <String>{
   'SUPPLIER_OFFER',
   'PURCHASE_DOCUMENT',
   'ISSUING_POINT',
+  'PROMOTION',
   agregadoNotificacion,
   agregadoMensaje,
 };
@@ -63,7 +64,11 @@ const agregadoMensaje = 'MESSAGE';
 ///
 /// `PRODUCT` es el que importa para el stock en vivo: el disparador se activa
 /// con cada `UPDATE` de la fila, y vender descuenta ahí mismo.
-const agregadosDeCatalogo = <String>{'PRODUCT', 'BRAND', 'MODEL'};
+///
+/// `PROMOTION` entra acá porque encender una promoción cambia el precio que se
+/// publica sin tocar la fila del producto: sin esto, quien tuviera el catálogo
+/// abierto seguiría viendo el precio viejo hasta recargarlo a mano.
+const agregadosDeCatalogo = <String>{'PRODUCT', 'BRAND', 'MODEL', 'PROMOTION'};
 
 /// El recorrido de una compra, desde que se arma hasta que se entrega.
 const agregadosDePedido = <String>{

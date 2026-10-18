@@ -8,6 +8,7 @@ import com.techstore.comun.Dinero;
 import com.techstore.comun.Moneda;
 import com.techstore.comun.PageResponse;
 import com.techstore.comun.ResourceNotFoundException;
+import com.techstore.promociones.CalculadorDePrecios;
 import com.techstore.direcciones.DireccionEntrega;
 import com.techstore.direcciones.DireccionEntregaService;
 import com.techstore.envios.CotizacionEnvio;
@@ -44,6 +45,7 @@ public class PedidoService {
     private final NotificationOutboxPublisher notificationPublisher;
     private final DireccionEntregaService direccionEntregaService;
     private final EnvioService envioService;
+    private final CalculadorDePrecios calculadorDePrecios;
 
     /**
      * Crea un pedido de venta en estado Pendiente comprometiendo el stock.
@@ -118,6 +120,10 @@ public class PedidoService {
         // La moneda del pedido es la del catálogo; los detalles heredan la suya de acá.
         pedido.setMoneda(Moneda.porDefecto());
 
+        // Las promociones se congelan acá, al armar el pedido: una que vence
+        // en el medio del checkout no puede dejar media compra con descuento.
+        var vigentes = calculadorDePrecios.vigentes();
+
         Dinero total = Dinero.cero(pedido.getMoneda());
         for (Map.Entry<Long, Integer> entrada : cantidades.entrySet()) {
             Producto producto = productos.get(entrada.getKey());
@@ -140,9 +146,15 @@ public class PedidoService {
             detalle.setIvaAplicado(producto.getIva());
             // Se agrega antes de cargarle importes: la moneda del detalle es la del pedido.
             pedido.agregarDetalle(detalle);
-            // Una compra por la web va sin descuento: el cliente no se rebaja el precio
-            // a sí mismo. El descuento se carga en el mostrador (venta directa).
-            detalle.fijarPrecio(producto.getPrecio(), null);
+            // El cliente no se rebaja el precio a sí mismo: el único descuento
+            // que entra por acá es el de una promoción vigente, calculada por
+            // el servidor con el mismo criterio con el que se mostró el
+            // catálogo. El descuento a mano se carga en el mostrador.
+            //
+            // Se guarda como descuento de la línea y no como un precio más
+            // bajo: así la factura muestra cuánto se rebajó, y el pedido
+            // conserva ese importe aunque después la promoción se apague.
+            detalle.fijarPrecio(producto.getPrecio(), vigentes.precioDe(producto).descuento());
 
             total = total.mas(detalle.getSubtotal());
         }

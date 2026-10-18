@@ -12,6 +12,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'firebase-mobile-defines.ps1')
 $root = Split-Path -Parent $PSScriptRoot
 $mobile = Join-Path $root 'techstore-mobile'
 $keyProperties = Join-Path $mobile 'android\key.properties'
@@ -55,6 +56,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'flutter test falló.' }
     }
 
+    # En el APK privado la falta de Firebase solo avisa: es para probar en un
+    # teléfono conocido y no siempre hace falta el push.
+    $firebase = Get-FirebaseMobileDefines
     flutter build apk `
         --release `
         --flavor private `
@@ -63,7 +67,8 @@ try {
         --build-number $VersionCode `
         "--dart-define=API_BASE_URL=$ApiBaseUrl" `
         --obfuscate `
-        "--split-debug-info=$symbolsDir"
+        "--split-debug-info=$symbolsDir" `
+        @firebase
     if ($LASTEXITCODE -ne 0) { throw 'La compilación APK privada falló.' }
 
     $sourceApk = Join-Path $mobile 'build\app\outputs\flutter-apk\app-private-release.apk'
