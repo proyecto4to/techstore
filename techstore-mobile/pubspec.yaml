@@ -70,6 +70,11 @@ dependencies:
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
   geolocator: ^14.0.2
+  # Fotos de producto guardadas en disco: sin esto el catálogo entero volvía a
+  # bajar por el túnel cada vez que se abría la app.
+  cached_network_image: ^4.0.4
+  flutter_cache_manager: ^3.4.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -131,7 +136,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/login_background.png
     # Las licencias van en la app: la OFL pide distribuirlas con la fuente.
     - assets/fonts/OFL-Inter.txt
     - assets/fonts/OFL-SpaceGrotesk.txt

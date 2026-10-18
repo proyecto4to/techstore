@@ -9,6 +9,7 @@ final class Product {
     this.description,
     this.imageUrl,
     this.brand,
+    this.brandId,
     this.listPrice,
     this.promotionName,
     this.promotionPercentage,
@@ -33,6 +34,7 @@ final class Product {
       maxPerOrder: rawMax ?? (available ? maximoPorPedido : 0),
       imageUrl: json['imagenUrl'] as String?,
       brand: (json['marca'] as Map?)?['nombre'] as String?,
+      brandId: ((json['marca'] as Map?)?['id'] as num?)?.toInt(),
       listPrice: (json['precioLista'] as num?)?.toDouble(),
       promotionName: promocion?['nombre'] as String?,
       promotionPercentage: (promocion?['porcentaje'] as num?)?.toDouble(),
@@ -61,6 +63,9 @@ final class Product {
   final String? imageUrl;
   final String? brand;
 
+  /// La marca por su número: arma la colección y los «más de esta marca».
+  final int? brandId;
+
   /// El precio sin promocion, para mostrarlo tachado. Nulo si no hay ninguna.
   final double? listPrice;
   final String? promotionName;
@@ -80,6 +85,15 @@ final class Product {
   bool get showsRemainingUnits =>
       maxPerOrder > 0 && maxPerOrder < maximoPorPedido;
 
+  /// Desde cuántas unidades para abajo se habla de escasez.
+  static const umbralDeEscasez = 5;
+
+  /// Si queda poco de verdad. Que el número sea real ([showsRemainingUnits])
+  /// no lo vuelve urgente: «quedan 30» es un dato, no una alarma. Solo esto se
+  /// pinta de naranja y entra en «últimas unidades».
+  bool get quedaPoco =>
+      showsRemainingUnits && maxPerOrder <= umbralDeEscasez;
+
   Product copyWith({int? maxPerOrder, bool? available}) => Product(
     id: id,
     name: name,
@@ -90,6 +104,7 @@ final class Product {
     maxPerOrder: maxPerOrder ?? this.maxPerOrder,
     imageUrl: imageUrl,
     brand: brand,
+    brandId: brandId,
     listPrice: listPrice,
     promotionName: promotionName,
     promotionPercentage: promotionPercentage,
@@ -105,7 +120,7 @@ final class Product {
     'disponible': available,
     'maxPorPedido': maxPerOrder,
     'imagenUrl': imageUrl,
-    'marca': brand == null ? null : {'nombre': brand},
+    'marca': brand == null ? null : {'id': brandId, 'nombre': brand},
     'precioLista': listPrice,
     if (promotionName != null)
       'promocion': {

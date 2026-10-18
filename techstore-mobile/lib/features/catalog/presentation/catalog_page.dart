@@ -1,91 +1,56 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/di/providers.dart';
-import '../../../core/native/haptics_service.dart';
-import '../../../core/widgets/add_to_cart_button.dart';
+import '../../../core/animacion/aparicion.dart';
+import '../../../core/diseno/marca_tema.dart';
+import '../../../core/diseno/medidas.dart';
+import '../../../core/diseno/movimiento.dart';
+import '../../../core/diseno/paleta.dart';
+import '../../../core/diseno/tipografia.dart';
 import '../../../core/widgets/async_states.dart';
-import '../../../core/widgets/precio_con_promocion.dart';
-import '../../../core/widgets/quantity_stepper.dart';
+import '../../../core/widgets/marca/rotulo.dart';
 import '../../../core/widgets/voice_dictation_button.dart';
-import '../../auth/application/session_controller.dart';
-import '../../cart/application/cart_controller.dart';
+import '../../cart/presentation/boton_carrito.dart';
 import '../application/catalog_providers.dart';
 import '../domain/product.dart';
+import 'vitrina/estilo_de_coleccion.dart';
+import 'vitrina/motor_de_presentacion.dart';
+import 'vitrina/tarjetas_de_producto.dart';
 
-/// Cuántas unidades de un producto hay en el carrito. Observa solo ese número,
-/// así la pantalla se reconstruye cuando cambia esa línea y no ante cualquier
-/// movimiento del carrito.
-int _quantityInCart(WidgetRef ref, int productId) => ref.watch(
-  cartProvider.select((items) {
-    for (final line in items) {
-      if (line.product.id == productId) return line.quantity;
-    }
-    return 0;
-  }),
-);
-
-/// Agrega al carrito y le cuenta al cliente qué pasó.
-///
-/// Está suelto para que el catálogo, el detalle y los favoritos den exactamente
-/// la misma respuesta ante el mismo caso.
-Future<bool> addProductToCart(
-  BuildContext context,
-  WidgetRef ref,
-  Product product, {
-  int quantity = 1,
-}) async {
-  final result = ref
-      .read(cartProvider.notifier)
-      .add(product, quantity: quantity);
-
-  unawaited(
-    ref
-        .read(hapticsServiceProvider)
-        .play(result.isSuccess ? HapticCue.success : HapticCue.tap),
-  );
-
-  if (context.mounted) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(result.message),
-          duration: Duration(seconds: result.isSuccess ? 2 : 4),
-          action: result.isSuccess
-              ? SnackBarAction(
-                  label: 'Ver carrito',
-                  onPressed: () => context.push('/cart'),
-                )
-              : null,
-        ),
-      );
-  }
-  return result.added > 0;
-}
-
+/// El catálogo como vidriera: sin filtros es una composición editorial; con
+/// una búsqueda o una colección elegida pasa a una grilla pareja, que es lo
+/// que sirve para comparar.
 class CatalogPage extends ConsumerStatefulWidget {
-  const CatalogPage({super.key});
+  const CatalogPage({this.marcaInicial, super.key});
+
+  /// La colección con la que se abre (desde la vidriera del inicio).
+  final int? marcaInicial;
 
   @override
   ConsumerState<CatalogPage> createState() => _CatalogPageState();
 }
 
 class _CatalogPageState extends ConsumerState<CatalogPage> {
-  final _searchController = TextEditingController();
-  String _search = '';
-  int? _brandId;
-  ScaffoldMessengerState? _messenger;
+  final _buscador = TextEditingController();
+  String _busqueda = '';
+  int? _marca;
+  OrdenDeCatalogo _orden = OrdenDeCatalogo.novedades;
+  ScaffoldMessengerState? _mensajero;
+
+  @override
+  void initState() {
+    super.initState();
+    _marca = widget.marcaInicial;
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Se guarda acá porque en dispose() ya no se puede buscar por el árbol.
-    _messenger = ScaffoldMessenger.of(context);
+    _mensajero = ScaffoldMessenger.of(context);
   }
 
   @override
@@ -94,556 +59,588 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
     // que vive por encima del Navigator: al salir del catálogo seguía pegado
     // abajo en las pantallas siguientes, tapando lo que hubiera ahí. Muere con
     // la pantalla que lo mostró.
-    _messenger?.hideCurrentSnackBar();
-    _searchController.dispose();
+    _mensajero?.hideCurrentSnackBar();
+    _buscador.dispose();
     super.dispose();
   }
 
-  void _applySearch(String value) {
-    if (value == _search) return;
-    setState(() => _search = value);
+  ConsultaOrdenada get _consulta =>
+      (search: _busqueda, brandId: _marca, orden: _orden);
+
+  bool get _filtrado => _busqueda.isNotEmpty || _marca != null;
+
+  void _buscar(String valor) {
+    final limpio = valor.trim();
+    if (limpio == _busqueda) return;
+    setState(() => _busqueda = limpio);
   }
 
-  void _clearFilters() {
-    _searchController.clear();
+  void _limpiar() {
+    _buscador.clear();
     setState(() {
-      _search = '';
-      _brandId = null;
+      _busqueda = '';
+      _marca = null;
     });
   }
 
-  bool get _hasFilters => _search.isNotEmpty || _brandId != null;
-
   @override
   Widget build(BuildContext context) {
-    final query = (search: _search, brandId: _brandId);
-    final catalog = ref.watch(catalogProvider(query));
-    final brands = ref.watch(brandsProvider).value ?? const [];
-    final cartCount = ref.watch(
-      cartProvider.select(
-        (items) => items.fold(0, (sum, item) => sum + item.quantity),
-      ),
-    );
+    final catalogo = ref.watch(catalogoOrdenadoProvider(_consulta));
+    final marcas = ref.watch(brandsProvider).value ?? const [];
+    final cargador = ref.read(catalogoOrdenadoProvider(_consulta).notifier);
+    final nombreMarca = _nombreDeMarca(marcas, _marca);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Catálogo'),
-        actions: [_CartButton(count: cartCount)],
+        actions: const [BotonCarrito(), SizedBox(width: 6)],
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.refresh(catalogProvider(query).future),
+        onRefresh: () => ref.refresh(catalogoOrdenadoProvider(_consulta).future),
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(
+                  Medidas.margen,
+                  4,
+                  Medidas.margen,
+                  14,
+                ),
                 child: SearchBar(
-                  controller: _searchController,
+                  controller: _buscador,
                   hintText: 'Buscar productos',
-                  leading: const Icon(Icons.search),
-                  onSubmitted: _applySearch,
+                  leading: const Icon(Icons.search_rounded),
+                  onSubmitted: _buscar,
+                  textInputAction: TextInputAction.search,
                   trailing: [
-                    if (_search.isNotEmpty)
+                    if (_busqueda.isNotEmpty)
                       IconButton(
                         tooltip: 'Limpiar búsqueda',
                         onPressed: () {
-                          _searchController.clear();
-                          _applySearch('');
+                          _buscador.clear();
+                          _buscar('');
                         },
-                        icon: const Icon(Icons.clear),
+                        icon: const Icon(Icons.close_rounded),
                       ),
                     VoiceDictationButton(
-                      controller: _searchController,
+                      controller: _buscador,
                       tooltip: 'Buscar por voz',
-                      onFinalResult: _applySearch,
+                      onFinalResult: _buscar,
                     ),
                   ],
                 ),
               ),
             ),
-            if (brands.isNotEmpty)
+            if (marcas.isNotEmpty)
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<int?>(
-                          initialValue: _brandId,
-                          decoration: const InputDecoration(labelText: 'Marca'),
-                          items: [
-                            const DropdownMenuItem(child: Text('Todas')),
-                            for (final brand in brands)
-                              DropdownMenuItem(
-                                value: (brand['id'] as num).toInt(),
-                                child: Text(
-                                  brand['nombre']?.toString() ?? 'Marca',
-                                ),
-                              ),
-                          ],
-                          onChanged: (value) =>
-                              setState(() => _brandId = value),
-                        ),
+                child: _CarrilDeColecciones(
+                  marcas: marcas,
+                  elegida: _marca,
+                  onElegir: (id) => setState(() => _marca = id),
+                ),
+              ),
+            SliverToBoxAdapter(
+              child: AnimatedSwitcher(
+                duration: Movimiento.o(context, Movimiento.medio),
+                switchInCurve: Movimiento.llegada,
+                transitionBuilder: (hijo, animacion) => FadeTransition(
+                  opacity: animacion,
+                  child: SizeTransition(sizeFactor: animacion, child: hijo),
+                ),
+                child: nombreMarca == null
+                    ? const SizedBox(key: ValueKey('sin-coleccion'))
+                    : _EncabezadoDeColeccion(
+                        key: ValueKey(nombreMarca),
+                        nombre: nombreMarca,
                       ),
-                      if (_hasFilters) ...[
-                        const SizedBox(width: 8),
-                        TextButton(
-                          onPressed: _clearFilters,
-                          child: const Text('Limpiar'),
-                        ),
-                      ],
-                    ],
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: _BarraDeOrden(
+                orden: _orden,
+                cantidad: catalogo.value != null && !cargador.hayMas
+                    ? catalogo.value!.length
+                    : null,
+                filtrado: _filtrado,
+                onOrden: (orden) => setState(() => _orden = orden),
+                onLimpiar: _limpiar,
+              ),
+            ),
+            ...catalogo.when(
+              skipLoadingOnRefresh: true,
+              loading: () => const [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: AppLoading(label: 'Cargando catálogo'),
+                ),
+              ],
+              error: (error, _) => [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: AppErrorState(
+                    message:
+                        'No pudimos cargar el catálogo. '
+                        'Revisá tu conexión e intentá de nuevo.',
+                    onRetry: () =>
+                        ref.invalidate(catalogoOrdenadoProvider(_consulta)),
                   ),
                 ),
-              ),
-            catalog.when(
-              loading: () => const SliverFillRemaining(
-                child: AppLoading(label: 'Cargando catálogo'),
-              ),
-              error: (error, _) => SliverFillRemaining(
-                child: AppErrorState(
-                  message:
-                      'No pudimos cargar el catálogo. '
-                      'Revisá tu conexión e intentá de nuevo.',
-                  onRetry: () => ref.invalidate(catalogProvider(query)),
-                ),
-              ),
-              data: (products) => products.isEmpty
-                  ? SliverFillRemaining(
-                      child: _NoResults(
-                        filtered: _hasFilters,
-                        onClear: _clearFilters,
+              ],
+              data: (productos) => productos.isEmpty
+                  ? [
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: AppEmptyState(
+                          icon: _filtrado
+                              ? Icons.search_off_rounded
+                              : Icons.inventory_2_outlined,
+                          title: _filtrado ? 'Nada por acá' : null,
+                          message: _filtrado
+                              ? 'No encontramos productos con esos filtros.'
+                              : 'Todavía no hay productos publicados.',
+                          accion: _filtrado ? 'Limpiar filtros' : null,
+                          onAccion: _filtrado ? _limpiar : null,
+                        ),
                       ),
-                    )
-                  : SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      sliver: SliverGrid.builder(
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 360,
-                              childAspectRatio: .68,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
+                    ]
+                  : [
+                      _filtrado
+                          ? _Grilla(productos: productos, onFinal: cargador.cargarMas)
+                          : _Editorial(
+                              productos: productos,
+                              orden: _orden,
+                              onFinal: cargador.cargarMas,
                             ),
-                        itemCount: products.length,
-                        itemBuilder: (context, index) {
-                          // Al asomar las últimas fichas se pide el bloque
-                          // siguiente, así la grilla no corta en treinta ni
-                          // baja el catálogo entero de una.
-                          if (index >= products.length - 4) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              ref
-                                  .read(catalogProvider(query).notifier)
-                                  .cargarMas();
-                            });
-                          }
-                          return _ProductCard(
-                            product: products[index],
-                            onOpen: () =>
-                                context.push('/products/${products[index].id}'),
-                          );
-                        },
-                      ),
-                    ),
+                      const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                    ],
             ),
           ],
         ),
       ),
     );
   }
+
+  static String? _nombreDeMarca(List<Map<String, Object?>> marcas, int? id) {
+    if (id == null) return null;
+    for (final m in marcas) {
+      if ((m['id'] as num?)?.toInt() == id) return m['nombre']?.toString();
+    }
+    return null;
+  }
 }
 
-/// Icono del carrito con el contador animado: el número se agranda al cambiar,
-/// que es la segunda mitad de la respuesta al agregar algo.
-class _CartButton extends StatelessWidget {
-  const _CartButton({required this.count});
+/// Las colecciones (las marcas) en un carril horizontal. La elegida toma el
+/// acento de su colección.
+class _CarrilDeColecciones extends StatefulWidget {
+  const _CarrilDeColecciones({
+    required this.marcas,
+    required this.elegida,
+    required this.onElegir,
+  });
 
-  final int count;
+  final List<Map<String, Object?>> marcas;
+  final int? elegida;
+  final ValueChanged<int?> onElegir;
 
   @override
-  Widget build(BuildContext context) => Badge(
-    isLabelVisible: count > 0,
-    label: AnimatedSwitcher(
-      duration: const Duration(milliseconds: 220),
-      transitionBuilder: (child, animation) =>
-          ScaleTransition(scale: animation, child: child),
-      child: Text('$count', key: ValueKey(count)),
-    ),
-    child: IconButton(
-      tooltip: count == 0
-          ? 'Carrito vacío'
-          : 'Carrito, $count ${count == 1 ? 'unidad' : 'unidades'}',
-      onPressed: () => context.push('/cart'),
-      icon: const Icon(Icons.shopping_cart_outlined),
+  State<_CarrilDeColecciones> createState() => _CarrilDeColeccionesState();
+}
+
+class _CarrilDeColeccionesState extends State<_CarrilDeColecciones> {
+  final _elegidaClave = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    // Al llegar desde la vidriera con una colección ya elegida, su pastilla
+    // puede estar fuera de la vista: el carril se corre hasta mostrarla.
+    if (widget.elegida != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final contexto = _elegidaClave.currentContext;
+        if (contexto == null || !mounted) return;
+        Scrollable.ensureVisible(
+          contexto,
+          alignment: 0.5,
+          duration: Movimiento.o(context, Movimiento.medio),
+          curve: Movimiento.estandar,
+        );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 44,
+    child: ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: Medidas.margen),
+      itemCount: widget.marcas.length + 1,
+      // Las pastillas son pocas y livianas: se arman todas, así la elegida
+      // existe aunque esté lejos y el carril puede correrse hasta ella.
+      scrollCacheExtent: const ScrollCacheExtent.pixels(4000),
+      separatorBuilder: (_, _) => const SizedBox(width: 8),
+      itemBuilder: (context, indice) {
+        if (indice == 0) {
+          return _Pastilla(
+            texto: 'Todo',
+            elegida: widget.elegida == null,
+            acento: Paleta.azulPrincipal,
+            onTap: () => widget.onElegir(null),
+          );
+        }
+        final marca = widget.marcas[indice - 1];
+        final id = (marca['id'] as num?)?.toInt();
+        final nombre = marca['nombre']?.toString() ?? 'Marca';
+        final elegida = widget.elegida == id;
+        return KeyedSubtree(
+          key: elegida ? _elegidaClave : null,
+          child: _Pastilla(
+            texto: nombre,
+            elegida: elegida,
+            acento: EstiloDeColeccion.paraMarca(nombre).acento,
+            onTap: () => widget.onElegir(elegida ? null : id),
+          ),
+        );
+      },
     ),
   );
 }
 
-class _NoResults extends StatelessWidget {
-  const _NoResults({required this.filtered, required this.onClear});
+class _Pastilla extends StatelessWidget {
+  const _Pastilla({
+    required this.texto,
+    required this.elegida,
+    required this.acento,
+    required this.onTap,
+  });
 
-  final bool filtered;
-  final VoidCallback onClear;
+  final String texto;
+  final bool elegida;
+  final Color acento;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: elegida,
+    button: true,
+    label: texto == 'Todo' ? 'Todas las colecciones' : 'Colección $texto',
+    excludeSemantics: true,
+    child: Presionable(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: Movimiento.o(context, Movimiento.corto),
+        curve: Movimiento.estandar,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: elegida ? acento.withValues(alpha: 0.16) : Paleta.negroAzulado,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: elegida ? acento : Paleta.borde,
+            width: elegida ? 1.4 : 1,
+          ),
+          boxShadow: elegida
+              ? [
+                  BoxShadow(
+                    color: acento.withValues(alpha: 0.28),
+                    blurRadius: 16,
+                    spreadRadius: -4,
+                  ),
+                ]
+              : const [],
+        ),
+        child: Text(
+          texto,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: elegida ? Paleta.texto : Paleta.textoSecundario,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Al elegir una colección, su nombre ocupa la pantalla como marca de agua,
+/// sobre la textura de la colección.
+class _EncabezadoDeColeccion extends StatelessWidget {
+  const _EncabezadoDeColeccion({required this.nombre, super.key});
+
+  final String nombre;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ExcludeSemantics(
-              child: Icon(
-                filtered ? Icons.search_off : Icons.inventory_2_outlined,
-                size: 56,
-                color: theme.colorScheme.onSurfaceVariant,
+    final estilo = EstiloDeColeccion.paraMarca(nombre);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Medidas.margen, 16, Medidas.margen, 4),
+      child: SizedBox(
+        height: 112,
+        child: ClipRRect(
+          borderRadius: Medidas.bordeTarjeta,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Paleta.negroPrincipal,
+                  gradient: RadialGradient(
+                    center: const Alignment(0.7, -0.4),
+                    radius: 1.2,
+                    colors: [
+                      estilo.acento.withValues(alpha: 0.32),
+                      Paleta.negroPrincipal.withValues(alpha: 0),
+                    ],
+                  ),
+                  border: Border.all(color: Paleta.borde),
+                  borderRadius: Medidas.bordeTarjeta,
+                ),
+                child: CustomPaint(
+                  painter: PintorDePatron(estilo: estilo, opacidad: 0.09),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              filtered
-                  ? 'No encontramos productos con esos filtros'
-                  : 'Todavía no hay productos publicados',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleSmall,
-            ),
-            if (filtered) ...[
-              const SizedBox(height: 16),
-              FilledButton.tonal(
-                onPressed: onClear,
-                child: const Text('Limpiar filtros'),
+              // Arriba a la derecha y apenas visible: es textura detrás del
+              // título, no un segundo título encimado.
+              Positioned(
+                right: -10,
+                top: -16,
+                child: Text(
+                  nombre.toUpperCase(),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                    fontFamily: Tipografia.titulares,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 78,
+                    height: 1,
+                    letterSpacing: -3,
+                    foreground: Paint()
+                      ..style = PaintingStyle.stroke
+                      ..strokeWidth = 1.2
+                      ..color = estilo.acento.withValues(alpha: 0.2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const Rotulo('colección'),
+                    const SizedBox(height: 4),
+                    Text(
+                      nombre,
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                  ],
+                ),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class ProductDetailPage extends ConsumerStatefulWidget {
-  const ProductDetailPage({required this.productId, super.key});
+/// Cuántos productos hay (si se sabe) y cómo están ordenados.
+class _BarraDeOrden extends StatelessWidget {
+  const _BarraDeOrden({
+    required this.orden,
+    required this.cantidad,
+    required this.filtrado,
+    required this.onOrden,
+    required this.onLimpiar,
+  });
 
-  final int productId;
+  final OrdenDeCatalogo orden;
 
-  @override
-  ConsumerState<ProductDetailPage> createState() => _ProductDetailPageState();
-}
-
-class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
-  int _quantity = 1;
+  /// Nula mientras quedan bloques por traer: contar a medias sería mentir.
+  final int? cantidad;
+  final bool filtrado;
+  final ValueChanged<OrdenDeCatalogo> onOrden;
+  final VoidCallback onLimpiar;
 
   @override
   Widget build(BuildContext context) {
-    final product = ref.watch(productProvider(widget.productId));
-    final authenticated = ref.watch(authSessionProvider).isAuthenticated;
-    final favorites = authenticated ? ref.watch(favoritesProvider).value : null;
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Producto'),
-        actions: [
-          _CartButton(
-            count: ref.watch(
-              cartProvider.select(
-                (items) => items.fold(0, (sum, item) => sum + item.quantity),
+    final marca = MarcaTema.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Medidas.margen, 10, 8, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              cantidad == null
+                  ? ''
+                  : cantidad == 1
+                  ? '1 producto'
+                  : '$cantidad productos',
+              style: marca.rotulo,
+            ),
+          ),
+          if (filtrado)
+            TextButton(onPressed: onLimpiar, child: const Text('Limpiar')),
+          PopupMenuButton<OrdenDeCatalogo>(
+            tooltip: 'Ordenar',
+            initialValue: orden,
+            onSelected: onOrden,
+            itemBuilder: (context) => [
+              for (final opcion in OrdenDeCatalogo.values)
+                CheckedPopupMenuItem(
+                  value: opcion,
+                  checked: opcion == orden,
+                  child: Text(opcion.etiqueta),
+                ),
+            ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.swap_vert_rounded,
+                    size: 18,
+                    color: Paleta.azulLuminoso,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    orden.etiqueta,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Paleta.azulLuminoso,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ],
       ),
-      body: product.when(
-        loading: () => const AppLoading(label: 'Cargando producto'),
-        error: (error, _) => AppErrorState(
-          message: 'No pudimos cargar este producto. Intentá de nuevo.',
-          onRetry: () => ref.invalidate(productProvider(widget.productId)),
-        ),
-        data: (item) {
-          // Lo que ya está en el carrito descuenta de lo que se puede agregar:
-          // sin esto el cliente podría elegir 5, tener 7 y terminar pidiendo
-          // 12 de un producto que solo tiene 10.
-          final inCart = _quantityInCart(ref, item.id);
-          final room = math.max(0, item.maxPerOrder - inCart);
-          final quantity = _quantity.clamp(1, room > 0 ? room : 1).toInt();
+    );
+  }
+}
 
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              _ProductImage(product: item, height: 280),
-              const SizedBox(height: 20),
-              Text(item.name, style: theme.textTheme.headlineSmall),
-              if (item.brand != null)
-                Text(
-                  item.brand!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              const SizedBox(height: 12),
-              PrecioConPromocion(
-                precio: item.price,
-                moneda: item.currency,
-                precioLista: item.listPrice,
-                porcentaje: item.promotionPercentage,
-                hasta: item.promotionEndsAt,
-                estilo: theme.textTheme.headlineSmall,
-                mostrarVencimiento: true,
-              ),
-              if (item.hasPromotion && item.promotionName != null)
-                Text(
-                  item.promotionName!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              const SizedBox(height: 8),
-              _Availability(product: item, inCart: inCart),
-              const SizedBox(height: 16),
-              if (item.description != null && item.description!.isNotEmpty)
-                Text(item.description!, style: theme.textTheme.bodyMedium),
-              const SizedBox(height: 24),
-              if (room > 0) ...[
-                Text('Cantidad', style: theme.textTheme.titleSmall),
-                const SizedBox(height: 8),
-                QuantityStepper(
-                  value: quantity,
-                  max: room,
-                  limitMeansScarcity: item.showsRemainingUnits,
-                  onChanged: (value) => setState(() => _quantity = value),
-                ),
-                const SizedBox(height: 20),
-              ],
-              AddToCartButton(
-                disabledLabel: item.maxPerOrder <= 0
-                    ? 'Sin stock disponible'
-                    : 'Ya tenés todo el stock en el carrito',
-                onPressed: room <= 0
-                    ? null
-                    : () async {
-                        final added = await addProductToCart(
-                          context,
-                          ref,
-                          item,
-                          quantity: quantity,
-                        );
-                        if (added && mounted) setState(() => _quantity = 1);
-                        return added;
-                      },
-              ),
-              if (authenticated) ...[
-                const SizedBox(height: 10),
-                _FavoriteButton(product: item, favorites: favorites),
-              ],
-            ],
+/// La composición editorial: escaparate, pares y tarjetas anchas.
+class _Editorial extends StatelessWidget {
+  const _Editorial({
+    required this.productos,
+    required this.orden,
+    required this.onFinal,
+  });
+
+  final List<Product> productos;
+  final OrdenDeCatalogo orden;
+  final VoidCallback onFinal;
+
+  @override
+  Widget build(BuildContext context) {
+    final bloques = componerVidriera(productos, orden: orden);
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: Medidas.margen),
+      sliver: SliverList.separated(
+        itemCount: bloques.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 14),
+        itemBuilder: (context, indice) {
+          // Al asomar los últimos bloques se pide el siguiente, así la
+          // vidriera no corta en treinta ni baja el catálogo entero de una.
+          if (indice >= bloques.length - 2) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => onFinal());
+          }
+          final bloque = bloques[indice];
+          return Aparicion(
+            clave: 'catalogo-${bloque.clave}',
+            orden: indice.clamp(0, 4),
+            child: _bloque(context, bloque),
           );
         },
       ),
     );
   }
-}
 
-/// Disponibilidad en palabras. Solo se dice cuánto queda cuando el número
-/// significa escasez real; con stock alto alcanza con decir que hay.
-class _Availability extends StatelessWidget {
-  const _Availability({required this.product, required this.inCart});
-
-  final Product product;
-  final int inCart;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final (IconData icon, String text, Color color) = switch (product) {
-      final p when p.maxPerOrder <= 0 => (
-        Icons.remove_shopping_cart_outlined,
-        'Sin stock por ahora',
-        theme.colorScheme.error,
-      ),
-      final p when p.showsRemainingUnits => (
-        Icons.inventory_2_outlined,
-        p.maxPerOrder == 1
-            ? 'Queda 1 unidad'
-            : 'Quedan ${p.maxPerOrder} unidades',
-        theme.colorScheme.tertiary,
-      ),
-      _ => (
-        Icons.check_circle_outline,
-        'Disponible',
-        theme.colorScheme.primary,
-      ),
-    };
-
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            inCart > 0 ? '$text · $inCart en tu carrito' : text,
-            style: theme.textTheme.bodyMedium?.copyWith(color: color),
+  Widget _bloque(BuildContext context, BloqueDeCatalogo bloque) =>
+      switch (bloque) {
+        BloqueDestacado(:final producto, :final rotulo) => AspectRatio(
+          aspectRatio: 0.92,
+          child: TarjetaDestacada(
+            producto: producto,
+            contexto: 'catalogo',
+            rotulo: rotulo,
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _FavoriteButton extends ConsumerWidget {
-  const _FavoriteButton({required this.product, required this.favorites});
-
-  final Product product;
-  final List<Product>? favorites;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isFavorite =
-        favorites?.any((value) => value.id == product.id) ?? false;
-    return OutlinedButton.icon(
-      onPressed: () async {
-        final repository = ref.read(favoritesRepositoryProvider);
-        if (isFavorite) {
-          await repository.remove(product.id);
-        } else {
-          await repository.add(product.id);
-        }
-        await ref
-            .read(hapticsServiceProvider)
-            .play(isFavorite ? HapticCue.tap : HapticCue.selection);
-        ref.invalidate(favoritesProvider);
-      },
-      icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_outline),
-      label: Text(isFavorite ? 'Quitar de favoritos' : 'Guardar en favoritos'),
-    );
-  }
-}
-
-class _ProductCard extends ConsumerWidget {
-  const _ProductCard({required this.product, required this.onOpen});
-
-  final Product product;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final room = math.max(
-      0,
-      product.maxPerOrder - _quantityInCart(ref, product.id),
-    );
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onOpen,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _ProductImage(product: product)),
-              const SizedBox(height: 8),
-              Text(
-                product.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 2),
-              PrecioConPromocion(
-                precio: product.price,
-                moneda: product.currency,
-                precioLista: product.listPrice,
-                porcentaje: product.promotionPercentage,
-                estilo: theme.textTheme.titleMedium,
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        BloqueAncho(:final producto, :final fotoALaDerecha) => SizedBox(
+          height: TarjetaAncha.alto(context),
+          child: TarjetaAncha(
+            producto: producto,
+            contexto: 'catalogo',
+            fotoALaDerecha: fotoALaDerecha,
+          ),
+        ),
+        BloquePar(:final primero, :final segundo) => LayoutBuilder(
+          builder: (context, limites) {
+            final ancho = (limites.maxWidth - 12) / 2;
+            final alto = ancho + altoDeInfoDeTarjeta(context);
+            return SizedBox(
+              height: alto,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Flexible(
-                    child: Text(
-                      product.maxPerOrder <= 0
-                          ? 'Sin stock'
-                          : product.showsRemainingUnits
-                          ? 'Quedan ${product.maxPerOrder}'
-                          : 'Disponible',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: product.maxPerOrder <= 0
-                            ? theme.colorScheme.error
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
+                  Expanded(
+                    child: TarjetaDeProducto(
+                      producto: primero,
+                      contexto: 'catalogo',
                     ),
                   ),
-                  AddToCartButton(
-                    compact: true,
-                    disabledLabel: product.maxPerOrder <= 0
-                        ? 'Sin stock disponible'
-                        : 'Ya tenés todo el stock en el carrito',
-                    onPressed: room <= 0
-                        ? null
-                        : () => addProductToCart(context, ref, product),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: segundo == null
+                        ? const SizedBox.shrink()
+                        : TarjetaDeProducto(
+                            producto: segundo,
+                            contexto: 'catalogo',
+                          ),
                   ),
                 ],
               ),
-            ],
-          ),
+            );
+          },
         ),
-      ),
-    );
-  }
+      };
 }
 
-class _ProductImage extends ConsumerWidget {
-  const _ProductImage({required this.product, this.height});
-  final Product product;
-  final double? height;
+/// Grilla pareja para resultados de búsqueda y colecciones.
+class _Grilla extends StatelessWidget {
+  const _Grilla({required this.productos, required this.onFinal});
+
+  final List<Product> productos;
+  final VoidCallback onFinal;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final raw = product.imageUrl;
-    final base = ref.watch(environmentProvider).apiBaseUrl;
-    final url = raw == null || raw.isEmpty
-        ? null
-        : Uri.parse(base).resolve(raw).toString();
-    return Semantics(
-      image: true,
-      label: 'Imagen de ${product.name}',
-      child: SizedBox(
-        height: height,
-        width: double.infinity,
-        child: url == null
-            ? const ColoredBox(
-                color: Color(0xFFECEFF1),
-                child: Icon(Icons.inventory_2_outlined, size: 56),
-              )
-            : LayoutBuilder(
-                builder: (context, constraints) {
-                  final logicalWidth = constraints.maxWidth.isFinite
-                      ? constraints.maxWidth
-                      : 720.0;
-                  final cacheWidth =
-                      (logicalWidth * MediaQuery.devicePixelRatioOf(context))
-                          .round()
-                          .clamp(1, 2048);
-                  return Image.network(
-                    url,
-                    fit: BoxFit.contain,
-                    cacheWidth: cacheWidth,
-                    filterQuality: FilterQuality.medium,
-                    loadingBuilder: (context, child, progress) =>
-                        progress == null
-                        ? child
-                        : const AppLoading(label: 'Cargando imagen'),
-                    errorBuilder: (_, _, _) =>
-                        const Icon(Icons.broken_image_outlined),
-                  );
-                },
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SliverPadding(
+    padding: const EdgeInsets.symmetric(horizontal: Medidas.margen),
+    sliver: SliverLayoutBuilder(
+      builder: (context, limites) {
+        final columnas = math.max(2, (limites.crossAxisExtent / 240).floor());
+        final ancho = (limites.crossAxisExtent - 12 * (columnas - 1)) / columnas;
+        return SliverGrid.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columnas,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            mainAxisExtent: ancho + altoDeInfoDeTarjeta(context),
+          ),
+          itemCount: productos.length,
+          itemBuilder: (context, indice) {
+            if (indice >= productos.length - 4) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => onFinal());
+            }
+            final producto = productos[indice];
+            return Aparicion(
+              clave: 'grilla-${producto.id}',
+              orden: indice % 6,
+              child: TarjetaDeProducto(producto: producto, contexto: 'catalogo'),
+            );
+          },
+        );
+      },
+    ),
+  );
 }

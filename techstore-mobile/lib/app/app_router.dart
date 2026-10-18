@@ -20,6 +20,7 @@ import '../features/cart/presentation/cart_page.dart';
 import '../features/cash/presentation/cash_actions_page.dart';
 import '../features/catalog/presentation/catalog_page.dart';
 import '../features/catalog/presentation/favorites_page.dart';
+import '../features/catalog/presentation/ficha_de_producto_page.dart';
 import '../features/chat/presentation/chat_page.dart';
 import '../features/chat/presentation/new_conversation_page.dart';
 import '../features/checkout/presentation/address_page.dart';
@@ -37,6 +38,7 @@ import '../features/security/application/security_providers.dart';
 import '../features/security/domain/app_permissions.dart';
 import 'deep_links.dart';
 import 'home_page.dart';
+import 'pantalla_de_arranque.dart';
 
 /// Qué módulo gobierna cada pantalla de trabajo.
 ///
@@ -142,8 +144,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/splash',
-        builder: (context, state) =>
-            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        builder: (context, state) => const PantallaDeArranque(),
       ),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(
@@ -167,7 +168,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/catalog',
-        builder: (context, state) => const CatalogPage(),
+        // ?marca= abre el catálogo en una colección: lo usa la vidriera.
+        builder: (context, state) => CatalogPage(
+          marcaInicial: int.tryParse(state.uri.queryParameters['marca'] ?? ''),
+        ),
       ),
       GoRoute(
         path: '/favorites',
@@ -177,6 +181,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/products/:id',
         builder: (context, state) => ProductDetailPage(
           productId: int.parse(state.pathParameters['id']!),
+          // El nombre del Hero de la tarjeta que se tocó, para que la foto
+          // salga de ahí. Por un enlace no viene, y la foto aparece.
+          heroTag: state.extra,
         ),
       ),
       GoRoute(path: '/cart', builder: (context, state) => const CartPage()),

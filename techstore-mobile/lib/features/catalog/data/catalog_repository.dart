@@ -18,12 +18,15 @@ final class CatalogRepository {
   final String _scope;
   static const _ttl = Duration(minutes: 15);
 
+  /// Un bloque del catálogo. [sort] va tal cual al servidor (`precio,asc`,
+  /// `id,desc`); sin él, el servidor ordena por nombre.
   Future<List<Product>> list({
     String search = '',
     int? brandId,
     int page = 0,
+    String? sort,
   }) async {
-    final key = 'products:$page:${brandId ?? ''}:${search.trim()}';
+    final key = 'products:$page:${brandId ?? ''}:${search.trim()}:${sort ?? ''}';
     final content = await _cachedList(key, () async {
       final response = await _api.get<Map<String, Object?>>(
         '/api/v1/productos',
@@ -32,6 +35,7 @@ final class CatalogRepository {
           'size': 30,
           if (search.trim().isNotEmpty) 'search': search.trim(),
           'marcaId': ?brandId,
+          'sort': ?sort,
         },
       );
       return response.data?['content'] as List? ?? const [];
@@ -39,6 +43,41 @@ final class CatalogRepository {
     return content
         .map((item) => Product.fromJson(Map<String, Object?>.from(item as Map)))
         .toList(growable: false);
+  }
+
+  /// La primera página con el total del catálogo. La vidriera lo usa para
+  /// saber si vio todos los productos antes de contarlos por marca: con una
+  /// parte, un «3 productos» sería mentira.
+  Future<({List<Product> productos, int total})> pagina({
+    String? sort,
+    int size = 30,
+  }) async {
+    final key = 'pagina:$size:${sort ?? ''}';
+    Map<String, Object?> datos;
+    try {
+      final response = await _api.get<Map<String, Object?>>(
+        '/api/v1/productos',
+        queryParameters: {'page': 0, 'size': size, 'sort': ?sort},
+      );
+      datos = response.data ?? const {};
+      await _cache?.write(
+        scope: _scope,
+        key: key,
+        json: jsonEncode(datos),
+        ttl: _ttl,
+      );
+    } on NetworkFailure {
+      final cached = await _cache?.readStale(scope: _scope, key: key);
+      if (cached == null) rethrow;
+      datos = Map<String, Object?>.from(jsonDecode(cached) as Map);
+    }
+    final productos = (datos['content'] as List? ?? const [])
+        .map((item) => Product.fromJson(Map<String, Object?>.from(item as Map)))
+        .toList(growable: false);
+    return (
+      productos: productos,
+      total: (datos['totalElements'] as num?)?.toInt() ?? productos.length,
+    );
   }
 
   Future<List<Map<String, Object?>>> brands() async {

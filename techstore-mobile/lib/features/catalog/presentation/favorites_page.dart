@@ -4,25 +4,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/format/money.dart';
-import '../../../core/widgets/add_to_cart_button.dart';
+import '../../../core/animacion/aparicion.dart';
+import '../../../core/diseno/medidas.dart';
 import '../../../core/widgets/async_states.dart';
-import '../../cart/application/cart_controller.dart';
+import '../../../core/widgets/marca/rotulo.dart';
+import '../../cart/presentation/boton_carrito.dart';
 import '../application/catalog_providers.dart';
-import '../domain/product.dart';
-import 'catalog_page.dart';
+import 'vitrina/tarjetas_de_producto.dart';
 
+/// Lo guardado con el corazón, con las mismas tarjetas del catálogo: desde
+/// acá se compra igual que desde allá. Quitar uno es tocar su corazón, que
+/// cambia en el acto y vuelve atrás —avisando— si el servidor no lo confirma.
 class FavoritesPage extends ConsumerWidget {
   const FavoritesPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final favorites = ref.watch(favoritesProvider);
+    final favoritos = ref.watch(favoritesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Favoritos')),
+      appBar: AppBar(
+        title: const Text('Favoritos'),
+        actions: const [BotonCarrito(), SizedBox(width: 6)],
+      ),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(favoritesProvider.future),
-        child: favorites.when(
+        child: favoritos.when(
+          skipLoadingOnRefresh: true,
           loading: () => const AppLoading(label: 'Cargando favoritos'),
           error: (error, _) => AppErrorState(
             message:
@@ -30,132 +37,75 @@ class FavoritesPage extends ConsumerWidget {
                 'Revisá tu conexión e intentá de nuevo.',
             onRetry: () => ref.invalidate(favoritesProvider),
           ),
-          data: (items) => items.isEmpty
-              ? _NoFavorites(onBrowse: () => context.go('/catalog'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) =>
-                      _FavoriteTile(product: items[index]),
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FavoriteTile extends ConsumerWidget {
-  const _FavoriteTile({required this.product});
-
-  final Product product;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final inCart = ref.watch(
-      cartProvider.select((items) {
-        for (final line in items) {
-          if (line.product.id == product.id) return line.quantity;
-        }
-        return 0;
-      }),
-    );
-    final room = math.max(0, product.maxPerOrder - inCart);
-
-    return Card(
-      child: ListTile(
-        title: Text(product.name),
-        subtitle: Text(
-          [
-            formatMoney(product.price, product.currency),
-            // La rebaja se anuncia con el porcentaje y no con el precio
-            // anterior tachado: en un subtítulo de una línea, el tachado se
-            // lee como parte del mismo número.
-            if (product.hasPromotion)
-              '−${product.promotionPercentage!.round()}%',
-            if (product.maxPerOrder <= 0) 'sin stock',
-          ].join(' · '),
-          style: product.maxPerOrder <= 0
-              ? theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.error,
+          data: (productos) => productos.isEmpty
+              ? AppEmptyState(
+                  icon: Icons.favorite_border_rounded,
+                  title: 'Todavía no tenés favoritos',
+                  message:
+                      'Guardá productos con el corazón para encontrarlos '
+                      'rápido cuando vuelvas.',
+                  accion: 'Ver productos',
+                  onAccion: () => context.go('/catalog'),
                 )
-              : null,
-        ),
-        onTap: () => context.push('/products/${product.id}'),
-        trailing: Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            AddToCartButton(
-              compact: true,
-              disabledLabel: product.maxPerOrder <= 0
-                  ? 'Sin stock disponible'
-                  : 'Ya tenés todo el stock en el carrito',
-              onPressed: room <= 0
-                  ? null
-                  : () => addProductToCart(context, ref, product),
-            ),
-            IconButton(
-              tooltip: 'Quitar de favoritos',
-              onPressed: () async {
-                await ref.read(favoritesRepositoryProvider).remove(product.id);
-                ref.invalidate(favoritesProvider);
-              },
-              icon: const Icon(Icons.favorite),
-            ),
-          ],
+              : CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          Medidas.margen,
+                          4,
+                          Medidas.margen,
+                          14,
+                        ),
+                        child: Rotulo(
+                          productos.length == 1
+                              ? '1 guardado'
+                              : '${productos.length} guardados',
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        Medidas.margen,
+                        0,
+                        Medidas.margen,
+                        28,
+                      ),
+                      sliver: SliverLayoutBuilder(
+                        builder: (context, limites) {
+                          final columnas = math.max(
+                            2,
+                            (limites.crossAxisExtent / 240).floor(),
+                          );
+                          final ancho =
+                              (limites.crossAxisExtent - 12 * (columnas - 1)) /
+                              columnas;
+                          return SliverGrid.builder(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columnas,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  mainAxisExtent:
+                                      ancho + altoDeInfoDeTarjeta(context),
+                                ),
+                            itemCount: productos.length,
+                            itemBuilder: (context, indice) => Aparicion(
+                              orden: indice % 6,
+                              child: TarjetaDeProducto(
+                                producto: productos[indice],
+                                contexto: 'favoritos',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ),
-    );
-  }
-}
-
-class _NoFavorites extends StatelessWidget {
-  const _NoFavorites({required this.onBrowse});
-
-  final VoidCallback onBrowse;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListView(
-      children: [
-        const SizedBox(height: 120),
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              children: [
-                ExcludeSemantics(
-                  child: Icon(
-                    Icons.favorite_outline,
-                    size: 56,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Todavía no tenés favoritos',
-                  style: theme.textTheme.titleSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Guardá productos con el corazón para encontrarlos rápido.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                FilledButton.icon(
-                  onPressed: onBrowse,
-                  icon: const Icon(Icons.storefront_outlined),
-                  label: const Text('Ver productos'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

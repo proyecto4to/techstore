@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/di/providers.dart';
+import '../../../core/animacion/aparicion.dart';
+import '../../../core/diseno/forma_con_corte.dart';
+import '../../../core/diseno/marca_tema.dart';
+import '../../../core/diseno/medidas.dart';
+import '../../../core/diseno/paleta.dart';
 import '../../../core/format/money.dart';
+import '../../../core/widgets/async_states.dart';
+import '../../../core/widgets/marca/rotulo.dart';
 import '../../../core/widgets/quantity_stepper.dart';
 import '../../auth/application/session_controller.dart';
-import '../../catalog/domain/product.dart';
+import '../../catalog/presentation/vitrina/escenario_de_producto.dart';
+import '../../catalog/presentation/vitrina/tarjetas_de_producto.dart';
 import '../../checkout/application/checkout_providers.dart';
 import '../application/cart_controller.dart';
 
@@ -76,26 +83,52 @@ class _CartPageState extends ConsumerState<CartPage> {
         title: const Text('Tu carrito'),
         bottom: _checking
             ? const PreferredSize(
-                preferredSize: Size.fromHeight(4),
-                child: LinearProgressIndicator(minHeight: 4),
+                preferredSize: Size.fromHeight(3),
+                child: LinearProgressIndicator(minHeight: 3),
               )
             : null,
       ),
       body: items.isEmpty
-          ? _EmptyCart(onBrowse: () => context.go('/catalog'))
+          ? AppEmptyState(
+              icon: Icons.shopping_bag_outlined,
+              title: 'Tu carrito está vacío',
+              message: 'Cuando agregues productos van a aparecer acá.',
+              accion: 'Ver productos',
+              onAccion: () => context.go('/catalog'),
+            )
           : RefreshIndicator(
               onRefresh: _refreshAvailability,
               child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) => _CartLineTile(
-                  line: items[index],
-                  onQuantityChanged: (value) => ref
-                      .read(cartProvider.notifier)
-                      .setQuantity(items[index].product.id, value),
-                  onRemove: () => _confirmRemove(items[index]),
+                padding: const EdgeInsets.fromLTRB(
+                  Medidas.margen,
+                  8,
+                  Medidas.margen,
+                  24,
                 ),
+                itemCount: items.length + 1,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return Rotulo(
+                      unitCount == 1
+                          ? '1 unidad · deslizá para quitar'
+                          : '$unitCount unidades · deslizá para quitar',
+                    );
+                  }
+                  final line = items[index - 1];
+                  return Aparicion(
+                    orden: index.clamp(0, 6),
+                    child: _CartLineTile(
+                      key: ValueKey(line.product.id),
+                      line: line,
+                      onQuantityChanged: (value) => ref
+                          .read(cartProvider.notifier)
+                          .setQuantity(line.product.id, value),
+                      onRemove: () => _confirmRemove(line),
+                      onDismissed: () => _remove(line),
+                    ),
+                  );
+                },
               ),
             ),
       bottomNavigationBar: items.isEmpty
@@ -115,7 +148,7 @@ class _CartPageState extends ConsumerState<CartPage> {
     );
   }
 
-  Future<void> _confirmRemove(CartLine line) async {
+  Future<bool> _askRemove(CartLine line) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -136,10 +169,16 @@ class _CartPageState extends ConsumerState<CartPage> {
         ],
       ),
     );
-    if (confirmed ?? false) {
-      ref.read(cartProvider.notifier).remove(line.product.id);
-      if (mounted) _notify('${line.product.name} salió del carrito');
-    }
+    return confirmed ?? false;
+  }
+
+  void _remove(CartLine line) {
+    ref.read(cartProvider.notifier).remove(line.product.id);
+    if (mounted) _notify('${line.product.name} salió del carrito');
+  }
+
+  Future<void> _confirmRemove(CartLine line) async {
+    if (await _askRemove(line)) _remove(line);
   }
 }
 
@@ -148,18 +187,28 @@ class _CartLineTile extends ConsumerWidget {
     required this.line,
     required this.onQuantityChanged,
     required this.onRemove,
+    required this.onDismissed,
+    super.key,
   });
 
   final CartLine line;
   final ValueChanged<int> onQuantityChanged;
   final VoidCallback onRemove;
+  final VoidCallback onDismissed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final marca = MarcaTema.of(context);
     final product = line.product;
-    return Card(
-      margin: EdgeInsets.zero,
+    final tarjeta = DecoratedBox(
+      decoration: BoxDecoration(
+        color: Paleta.negroAzulado,
+        borderRadius: Medidas.bordeTarjeta,
+        border: Border.all(
+          color: line.exceedsStock ? marca.error : Paleta.borde,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -168,19 +217,33 @@ class _CartLineTile extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Thumbnail(product: product),
+                GestureDetector(
+                  onTap: () => abrirProducto(context, product),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: SizedBox.square(
+                      dimension: 76,
+                      child: EscenarioDeProducto(
+                        producto: product,
+                        encuadre: Encuadre.miniatura,
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (product.brand != null) Rotulo(product.brand!),
+                      const SizedBox(height: 2),
                       Text(
                         product.name,
                         style: theme.textTheme.titleSmall,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       // En el carrito el precio unitario va chico y al lado el
                       // de lista tachado: es donde se confirma que la rebaja
                       // que se vio en el catálogo sigue estando.
@@ -190,16 +253,13 @@ class _CartLineTile extends ConsumerWidget {
                         children: [
                           Text(
                             '${formatMoney(product.price, product.currency)} c/u',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
+                            style: theme.textTheme.bodySmall,
                           ),
                           if (product.hasPromotion)
                             Text(
                               formatMoney(product.listPrice!, product.currency),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 decoration: TextDecoration.lineThrough,
-                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
                         ],
@@ -210,15 +270,15 @@ class _CartLineTile extends ConsumerWidget {
                 IconButton(
                   tooltip: 'Quitar ${product.name} del carrito',
                   onPressed: onRemove,
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const Icon(Icons.delete_outline_rounded),
                 ),
               ],
             ),
             if (line.exceedsStock) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               _StockWarning(available: product.maxPerOrder),
             ],
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             // En pantallas angostas el selector y el subtotal no entran en una
             // fila sin recortarse, así que ahí se apilan.
             LayoutBuilder(
@@ -232,7 +292,7 @@ class _CartLineTile extends ConsumerWidget {
                 );
                 final subtotal = Text(
                   formatMoney(line.subtotal, product.currency),
-                  style: theme.textTheme.titleMedium,
+                  style: marca.precio,
                 );
                 if (constraints.maxWidth < 300) {
                   return Column(
@@ -251,6 +311,33 @@ class _CartLineTile extends ConsumerWidget {
         ),
       ),
     );
+
+    // Deslizar para quitar, con la misma confirmación que el tacho: un gesto
+    // involuntario no puede vaciar una línea sin preguntar.
+    return Dismissible(
+      key: ValueKey('linea-${product.id}'),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) async {
+        final estado = context.findAncestorStateOfType<_CartPageState>();
+        return estado?._askRemove(line) ?? Future.value(false);
+      },
+      onDismissed: (_) => onDismissed(),
+      background: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Paleta.errorHundido,
+          borderRadius: Medidas.bordeTarjeta,
+          border: Border.all(color: marca.error.withValues(alpha: 0.5)),
+        ),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 22),
+            child: Icon(Icons.delete_outline_rounded, color: marca.error),
+          ),
+        ),
+      ),
+      child: tarjeta,
+    );
   }
 }
 
@@ -268,10 +355,10 @@ class _StockWarning extends StatelessWidget {
               'Ajustá la cantidad para poder continuar.';
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: theme.colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(Medidas.radioChico),
       ),
       child: Row(
         children: [
@@ -296,42 +383,6 @@ class _StockWarning extends StatelessWidget {
   }
 }
 
-class _Thumbnail extends ConsumerWidget {
-  const _Thumbnail({required this.product});
-
-  final Product product;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final raw = product.imageUrl;
-    final base = ref.watch(environmentProvider).apiBaseUrl;
-    final url = raw == null || raw.isEmpty
-        ? null
-        : Uri.parse(base).resolve(raw).toString();
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 64,
-        height: 64,
-        child: url == null
-            ? const ColoredBox(
-                color: Color(0xFFECEFF1),
-                child: Icon(Icons.inventory_2_outlined),
-              )
-            : Image.network(
-                url,
-                fit: BoxFit.cover,
-                cacheWidth: 192,
-                errorBuilder: (_, _, _) => const ColoredBox(
-                  color: Color(0xFFECEFF1),
-                  child: Icon(Icons.inventory_2_outlined),
-                ),
-              ),
-      ),
-    );
-  }
-}
-
 class _CartSummary extends StatelessWidget {
   const _CartSummary({
     required this.totals,
@@ -348,96 +399,83 @@ class _CartSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '$unitCount ${unitCount == 1 ? 'unidad' : 'unidades'}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                Text('Total', style: theme.textTheme.bodyMedium),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                formatTotals(totals),
-                style: theme.textTheme.headlineSmall,
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (blocked)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'Ajustá las cantidades marcadas para continuar.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: blocked ? null : onContinue,
-                icon: const Icon(Icons.arrow_forward),
-                label: const Text('Continuar con la compra'),
-              ),
-            ),
-          ],
+    final marca = MarcaTema.of(context);
+    return DecoratedBox(
+      decoration: const ShapeDecoration(
+        color: Paleta.negroPrincipal,
+        shape: FormaConCorte(
+          corte: 16,
+          radio: 0,
+          side: BorderSide(color: Paleta.borde),
         ),
       ),
-    );
-  }
-}
-
-class _EmptyCart extends StatelessWidget {
-  const _EmptyCart({required this.onBrowse});
-
-  final VoidCallback onBrowse;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ExcludeSemantics(
-              child: Icon(
-                Icons.shopping_cart_outlined,
-                size: 64,
-                color: theme.colorScheme.onSurfaceVariant,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Rotulo('total'),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$unitCount ${unitCount == 1 ? 'unidad' : 'unidades'}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      transitionBuilder: (hijo, animacion) => FadeTransition(
+                        opacity: animacion,
+                        child: SlideTransition(
+                          position: Tween(
+                            begin: const Offset(0, 0.3),
+                            end: Offset.zero,
+                          ).animate(animacion),
+                          child: hijo,
+                        ),
+                      ),
+                      child: Text(
+                        formatTotals(totals),
+                        key: ValueKey(formatTotals(totals)),
+                        textAlign: TextAlign.end,
+                        style: marca.precioGrande.copyWith(fontSize: 28),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 16),
-            Text('Tu carrito está vacío', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              'Cuando agregues productos van a aparecer acá.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              const SizedBox(height: 12),
+              if (blocked)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Ajustá las cantidades marcadas para continuar.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: blocked ? null : onContinue,
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                  label: const Text('Continuar con la compra'),
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: onBrowse,
-              icon: const Icon(Icons.storefront_outlined),
-              label: const Text('Ver productos'),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

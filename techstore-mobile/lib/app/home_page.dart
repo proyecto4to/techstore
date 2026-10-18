@@ -2,8 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/animacion/aparicion.dart';
+import '../core/diseno/marca_tema.dart';
+import '../core/diseno/medidas.dart';
+import '../core/diseno/paleta.dart';
+import '../core/widgets/baldosa_de_acceso.dart';
+import '../core/widgets/marca/logotipo.dart';
+import '../core/widgets/marca/rotulo.dart';
 import '../features/auth/application/session_controller.dart';
 import '../features/auth/domain/auth_user.dart';
+import '../features/catalog/presentation/vidriera_page.dart';
 import '../features/courier/presentation/courier_dashboard_page.dart';
 import '../features/notifications/presentation/notifications_page.dart';
 import '../features/security/application/security_providers.dart';
@@ -46,13 +54,15 @@ final class _Section {
   final List<_Module> modules;
 }
 
+/// El inicio, según quién entra: quien compra ve la vidriera; el repartidor,
+/// su jornada; caja y administración, sus herramientas primero.
 class HomePage extends ConsumerWidget {
   const HomePage({required this.environmentLabel, super.key});
 
   /// Nulo en producción: ahí no hay nada que aclararle al usuario.
   final String? environmentLabel;
 
-  /// Qué ve cada rol, y en qué orden.
+  /// Qué ve cada rol que trabaja en el local, y en qué orden.
   ///
   /// Antes todos veían la misma grilla de cliente y quien trabaja en el local
   /// encontraba «Favoritos» y «Direcciones» antes que su propia herramienta,
@@ -60,32 +70,15 @@ class HomePage extends ConsumerWidget {
   /// No se le quita nada a nadie: un cajero también puede comprar, así que sus
   /// módulos de cliente siguen ahí, más abajo.
   List<_Section> _sectionsFor(AppRole role) {
-    // Para quien compra, ese canal se llama «Atención al Cliente» en todas las
-    // pantallas; decirle «Chat» en la baldosa era el único lugar donde no
-    // coincidía. Para el resto sí son conversaciones: hablan entre ellos.
-    final account = [
-      const _Module(
+    const account = [
+      _Module(
         Icons.notifications_outlined,
         'Notificaciones',
         '/notifications',
         cuentaPendientes: true,
       ),
-      _Module(
-        role == AppRole.customer
-            ? Icons.support_agent_outlined
-            : Icons.chat_bubble_outline,
-        role == AppRole.customer ? 'Atención al Cliente' : 'Conversaciones',
-        '/chat',
-      ),
-      const _Module(Icons.person_outline, 'Mi cuenta', '/account'),
-    ];
-    const shopping = [
-      _Module(Icons.storefront_outlined, 'Catálogo', '/catalog'),
-      _Module(Icons.shopping_cart_outlined, 'Carrito', '/cart'),
-      _Module(Icons.receipt_long_outlined, 'Mis pedidos', '/orders'),
-      _Module(Icons.description_outlined, 'Mis facturas', '/invoices'),
-      _Module(Icons.location_on_outlined, 'Direcciones', '/addresses'),
-      _Module(Icons.favorite_outline, 'Favoritos', '/favorites'),
+      _Module(Icons.chat_bubble_outline_rounded, 'Conversaciones', '/chat'),
+      _Module(Icons.person_outline_rounded, 'Mi cuenta', '/account'),
     ];
 
     if (role.isCashier) {
@@ -115,63 +108,66 @@ class HomePage extends ConsumerWidget {
             '/invoices',
             modulo: Modulos.facturas,
           ),
-          _Module(Icons.storefront_outlined, 'Buscar producto', '/catalog'),
-          _Module(Icons.dashboard_outlined, 'Más operaciones', '/operations'),
+          const _Module(
+            Icons.storefront_outlined,
+            'Buscar producto',
+            '/catalog',
+          ),
+          const _Module(
+            Icons.dashboard_outlined,
+            'Más operaciones',
+            '/operations',
+          ),
         ]),
-        _Section('Tu cuenta', account),
-        _Section('Comprar para vos', [
-          _Module(Icons.shopping_cart_outlined, 'Carrito', '/cart'),
+        const _Section('Tu cuenta', account),
+        const _Section('Comprar para vos', [
+          _Module(Icons.shopping_bag_outlined, 'Carrito', '/cart'),
           _Module(Icons.location_on_outlined, 'Direcciones', '/addresses'),
-          _Module(Icons.favorite_outline, 'Favoritos', '/favorites'),
+          _Module(Icons.favorite_border_rounded, 'Favoritos', '/favorites'),
         ]),
       ];
     }
 
-    if (role.canAdminister) {
-      return [
-        _Section('Gestión', [
-          _Module(
-            Icons.admin_panel_settings_outlined,
-            'Administración',
-            '/admin',
-          ),
-          _Module(Icons.dashboard_outlined, 'Operaciones', '/operations'),
-          _Module(
-            Icons.point_of_sale_outlined,
-            'Vender',
-            '/sales/new',
-            modulo: Modulos.facturas,
-          ),
-          _Module(
-            Icons.savings_outlined,
-            'Operar caja',
-            '/cash/actions',
-            modulo: Modulos.caja,
-          ),
-          _Module(Icons.folder_open_outlined, 'Documentos', '/documents'),
-          _Module(
-            Icons.receipt_long_outlined,
-            'Pedidos',
-            '/orders',
-            modulo: Modulos.pedidos,
-          ),
-        ]),
-        _Section('Tu cuenta', account),
-        _Section('Tienda', [
-          _Module(Icons.storefront_outlined, 'Catálogo', '/catalog'),
-          _Module(
-            Icons.description_outlined,
-            'Facturas',
-            '/invoices',
-            modulo: Modulos.facturas,
-          ),
-          _Module(Icons.shopping_cart_outlined, 'Carrito', '/cart'),
-        ]),
-      ];
-    }
-
-    // Cliente: su tienda primero, su cuenta después.
-    return [_Section('Comprar', shopping), _Section('Tu cuenta', account)];
+    return [
+      _Section('Gestión', [
+        const _Module(
+          Icons.admin_panel_settings_outlined,
+          'Administración',
+          '/admin',
+        ),
+        const _Module(Icons.dashboard_outlined, 'Operaciones', '/operations'),
+        _Module(
+          Icons.point_of_sale_outlined,
+          'Vender',
+          '/sales/new',
+          modulo: Modulos.facturas,
+        ),
+        _Module(
+          Icons.savings_outlined,
+          'Operar caja',
+          '/cash/actions',
+          modulo: Modulos.caja,
+        ),
+        const _Module(Icons.folder_open_outlined, 'Documentos', '/documents'),
+        _Module(
+          Icons.receipt_long_outlined,
+          'Pedidos',
+          '/orders',
+          modulo: Modulos.pedidos,
+        ),
+      ]),
+      const _Section('Tu cuenta', account),
+      _Section('Tienda', [
+        const _Module(Icons.storefront_outlined, 'Catálogo', '/catalog'),
+        _Module(
+          Icons.description_outlined,
+          'Facturas',
+          '/invoices',
+          modulo: Modulos.facturas,
+        ),
+        const _Module(Icons.shopping_bag_outlined, 'Carrito', '/cart'),
+      ]),
+    ];
   }
 
   /// Saca las baldosas de trabajo que esta persona no puede usar, y las
@@ -192,6 +188,9 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authSessionProvider).user!;
     if (user.role.isCourier) return const CourierDashboardPage();
+    if (!user.role.isCashier && !user.role.canAdminister) {
+      return VidrieraPage(etiquetaDeEntorno: environmentLabel);
+    }
 
     final theme = Theme.of(context);
     // Mientras la respuesta no llegó se muestra todo: esta pantalla es el
@@ -199,134 +198,87 @@ class HomePage extends ConsumerWidget {
     // hubiera cargado. Lo que restringe de verdad está en el servidor.
     final permisos = ref.watch(permisosProvider).value;
     final sections = _visibles(_sectionsFor(user.role), permisos);
+    var orden = 0;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('TechStore'),
+        titleSpacing: 16,
+        title: const Imagotipo(tamano: 19),
         actions: [
           IconButton(
             tooltip: 'Cerrar sesión',
             onPressed: ref.read(authSessionProvider.notifier).logout,
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_rounded),
           ),
         ],
       ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              'Hola, ${user.firstName}',
-              style: theme.textTheme.headlineSmall,
-            ),
-            Text(
-              environmentLabel == null
-                  ? user.role.label
-                  : '${user.role.label} · $environmentLabel',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            for (final section in sections) ...[
-              const SizedBox(height: 22),
-              Text(
-                section.title,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  letterSpacing: .4,
-                ),
-              ),
-              const SizedBox(height: 10),
-              GridView.builder(
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 240,
-                  mainAxisExtent: 132,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                ),
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: section.modules.length,
-                itemBuilder: (context, index) {
-                  final module = section.modules[index];
-                  void abrir() => context.push(module.route);
-                  if (!module.cuentaPendientes) {
-                    return _ModuleCard(
-                      icon: module.icon,
-                      label: module.label,
-                      onTap: abrir,
-                    );
-                  }
-                  // Un Consumer propio para que el número no reconstruya la
-                  // grilla entera cada vez que llega un aviso.
-                  return Consumer(
-                    builder: (context, ref, _) => _ModuleCard(
-                      icon: module.icon,
-                      label: module.label,
-                      onTap: abrir,
-                      pendientes:
-                          ref.watch(unreadNotificationsProvider).value ?? 0,
-                    ),
-                  );
-                },
-              ),
-            ],
-          ],
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          Medidas.margen,
+          8,
+          Medidas.margen,
+          32,
         ),
-      ),
-    );
-  }
-}
-
-class _ModuleCard extends StatelessWidget {
-  const _ModuleCard({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.pendientes = 0,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  /// Cuántos avisos sin leer anunciar sobre el icono. Cero no muestra nada.
-  final int pendientes;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    clipBehavior: Clip.antiAlias,
-    child: Semantics(
-      button: true,
-      // El número va también en la etiqueta hablada: el globo del icono queda
-      // fuera de la semántica y, sin esto, quien usa lector de pantalla no se
-      // entera de que hay algo pendiente.
-      label: pendientes == 0 ? label : '$label, $pendientes sin leer',
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ExcludeSemantics(
-              child: Badge(
-                isLabelVisible: pendientes > 0,
-                label: Text(pendientes > 99 ? '99+' : '$pendientes'),
-                child: Icon(icon, size: 40),
+        children: [
+          Rotulo(
+            environmentLabel == null
+                ? user.role.label
+                : '${user.role.label} · $environmentLabel',
+          ),
+          const SizedBox(height: 6),
+          Aparicion(
+            child: Text(
+              'Hola, ${user.firstName}',
+              style: theme.textTheme.headlineMedium,
+            ),
+          ),
+          for (final section in sections) ...[
+            const SizedBox(height: 28),
+            Text(
+              section.title,
+              style: MarcaTema.of(context).rotulo.copyWith(
+                color: Paleta.textoSecundario,
+                fontSize: 12.5,
               ),
             ),
             const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              // Fuera de la semántica porque el nombre ya está en la etiqueta
-              // de la baldosa: sin esto el lector de pantalla lo decía dos
-              // veces, «Notificaciones, Notificaciones».
-              child: ExcludeSemantics(
-                child: Text(label, textAlign: TextAlign.center, maxLines: 2),
+            GridView.builder(
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 220,
+                mainAxisExtent: 116,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
               ),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: section.modules.length,
+              itemBuilder: (context, index) {
+                final module = section.modules[index];
+                void abrir() => context.push(module.route);
+                final baldosa = !module.cuentaPendientes
+                    ? BaldosaDeAcceso(
+                        icono: module.icon,
+                        etiqueta: module.label,
+                        onTap: abrir,
+                      )
+                    // Un Consumer propio para que el número no reconstruya
+                    // la grilla entera cada vez que llega un aviso.
+                    : Consumer(
+                        builder: (context, ref, _) => BaldosaDeAcceso(
+                          icono: module.icon,
+                          etiqueta: module.label,
+                          onTap: abrir,
+                          pendientes:
+                              ref.watch(unreadNotificationsProvider).value ??
+                              0,
+                        ),
+                      );
+                return Aparicion(orden: orden++, child: baldosa);
+              },
             ),
           ],
-        ),
+        ],
       ),
-    ),
-  );
+    );
+  }
 }
