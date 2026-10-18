@@ -1,0 +1,13 @@
+{
+  "name": "techstore-generador-de-marca",
+  "private": true,
+  "type": "module",
+  "description": "Genera los archivos de la marca TechStore (kit, ícono de Android, splash, web y PDF).",
+  "scripts": {
+    "generar": "node generar-marca.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "opentype.js": "1.3.4"
+  }
+}

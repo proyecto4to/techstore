@@ -11,9 +11,11 @@ import java.io.InputStream;
  * es editable desde Admin → Empresa, así que un logo con el nombre adentro
  * quedaría contradiciendo al documento si el negocio se renombra.
  *
- * <p>Va en PNG porque openpdf no dibuja SVG. El original vectorial está en
- * {@code techstore-frontend/public/isotipo.svg}; si se cambia, hay que volver a
- * exportar este PNG.
+ * <p>Va en PNG porque openpdf no dibuja SVG. Es la variante para papel: sin el
+ * cuadrado negro de la web —no se gasta tinta en un bloque oscuro en cada
+ * factura— y con los azules más profundos que se leen sobre blanco. No se
+ * edita a mano: lo genera {@code docs/marca/generador/generar-marca.mjs}, el
+ * mismo script que arma el favicon y el ícono de la app, así no se despegan.
  */
 public final class LogoPdf {
 

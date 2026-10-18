@@ -90,26 +90,34 @@ dev_dependencies:
   flutter_native_splash: ^2.4.8
   local_auth_platform_interface: ^1.1.0
 
+# Los PNG de assets/branding no se editan a mano: salen de
+# docs/marca/generador/generar-marca.mjs, que ya los deja con el margen que
+# pide cada máscara. Por eso el inset va en cero.
 flutter_launcher_icons:
   android: true
-  image_path_android: assets/branding/techstore_app_icon.png
+  image_path_android: assets/branding/icono_app.png
   min_sdk_android: 24
-  adaptive_icon_background: "#071A34"
-  adaptive_icon_foreground: assets/branding/techstore_app_icon_foreground.png
-  adaptive_icon_foreground_inset: 18
+  adaptive_icon_background: assets/branding/icono_app_fondo.png
+  adaptive_icon_foreground: assets/branding/icono_app_frente.png
+  adaptive_icon_foreground_inset: 0
+  # Android 13 tiñe este con los colores del fondo de pantalla si la persona
+  # activó los íconos temáticos.
+  adaptive_icon_monochrome: assets/branding/icono_app_mono.png
 
+# La misma imagen en todas las versiones: así el isotipo aparece del mismo
+# tamaño y en el mismo lugar en cualquier teléfono, y la pantalla /splash de
+# Flutter lo puede continuar sin salto.
 flutter_native_splash:
   android: true
   ios: false
   web: false
-  color: "#071A34"
-  image: assets/branding/techstore_app_icon_foreground.png
+  color: "#000000"
+  image: assets/branding/splash_isotipo.png
   android_gravity: center
   fullscreen: false
   android_12:
-    color: "#071A34"
-    image: assets/branding/techstore_app_icon_foreground.png
-    icon_background_color: "#071A34"
+    color: "#000000"
+    image: assets/branding/splash_isotipo.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -124,6 +132,38 @@ flutter:
 
   assets:
     - assets/images/login_background.png
+    # Las licencias van en la app: la OFL pide distribuirlas con la fuente.
+    - assets/fonts/OFL-Inter.txt
+    - assets/fonts/OFL-SpaceGrotesk.txt
+    - assets/fonts/OFL-JetBrainsMono.txt
+
+  # Inter para leer, Space Grotesk para titular y para los precios, JetBrains
+  # Mono para los rótulos «de código». Inter y Space Grotesk traen el signo ₲;
+  # JetBrains Mono no, así que nunca se usa para importes.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-400.ttf
+        - asset: assets/fonts/Inter-500.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-600.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-700.ttf
+          weight: 700
+    - family: SpaceGrotesk
+      fonts:
+        - asset: assets/fonts/SpaceGrotesk-500.ttf
+          weight: 500
+        - asset: assets/fonts/SpaceGrotesk-600.ttf
+          weight: 600
+        - asset: assets/fonts/SpaceGrotesk-700.ttf
+          weight: 700
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-500.ttf
+          weight: 500
+        - asset: assets/fonts/JetBrainsMono-700.ttf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:
