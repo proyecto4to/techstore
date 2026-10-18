@@ -12,6 +12,10 @@ import 'offline_coordinator.dart';
 import 'push_coordinator.dart';
 import 'realtime_coordinator.dart';
 
+/// Se arma una vez: el tema tiene decenas de objetos y la app no cambia de
+/// tema mientras corre.
+final _tema = AppTheme.marca();
+
 class TechStoreApp extends ConsumerWidget {
   const TechStoreApp({required this.environment, super.key});
 
@@ -25,9 +29,12 @@ class TechStoreApp extends ConsumerWidget {
     return MaterialApp.router(
       debugShowCheckedModeBanner: environment.flavor != AppFlavor.production,
       title: 'TechStore',
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      // Un solo tema, oscuro, aunque el teléfono esté en modo claro: el negro
+      // es la marca. Se pasa como `theme` y como `darkTheme` para que ningún
+      // ajuste del sistema llegue a cambiarlo.
+      theme: _tema,
+      darkTheme: _tema,
+      themeMode: ThemeMode.dark,
       routerConfig: ref.watch(routerProvider),
       // SessionGuard va por fuera: tiene que enterarse del cambio de ciclo de
       // vida aunque arriba haya un bloqueo biométrico o un aviso de versión.

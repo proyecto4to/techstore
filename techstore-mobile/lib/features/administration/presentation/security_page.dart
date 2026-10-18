@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
+import '../../../core/diseno/marca_tema.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/widgets/async_states.dart';
 import '../../security/application/security_providers.dart';
@@ -581,7 +582,7 @@ class _AccionDeLaPersona extends StatelessWidget {
     final origen = accion['origen']?.toString() ?? '';
     final esExcepcion = origen == 'CONCEDIDO' || origen == 'RESTRINGIDO';
     final color = switch (origen) {
-      'CONCEDIDO' => Colors.green,
+      'CONCEDIDO' => MarcaTema.of(context).exito,
       'RESTRINGIDO' => theme.colorScheme.error,
       _ => theme.colorScheme.onSurfaceVariant,
     };
@@ -592,7 +593,9 @@ class _AccionDeLaPersona extends StatelessWidget {
           Icon(
             permitido ? Icons.check_circle_outline : Icons.block,
             size: 18,
-            color: permitido ? Colors.green : theme.colorScheme.error,
+            color: permitido
+                ? MarcaTema.of(context).exito
+                : theme.colorScheme.error,
           ),
           const SizedBox(width: 8),
           Expanded(

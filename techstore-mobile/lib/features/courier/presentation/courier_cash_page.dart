@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/diseno/marca_tema.dart';
+import '../../../core/diseno/tipografia.dart';
 import '../../../core/errors/app_failure.dart';
 import '../application/courier_providers.dart';
 
@@ -296,7 +298,12 @@ class _MovementTile extends StatelessWidget {
       isThreeLine: item['observacion'] != null,
       trailing: Text(
         '${credit ? '+' : '−'}${_money(item['monto'], '${item['moneda']}')}',
-        style: TextStyle(color: credit ? Colors.green : Colors.red),
+        style: TextStyle(
+          color: credit
+              ? MarcaTema.of(context).exito
+              : MarcaTema.of(context).error,
+          fontFeatures: Tipografia.cifrasTabulares,
+        ),
       ),
     );
   }

@@ -159,6 +159,16 @@ class _AccountPageState extends ConsumerState<AccountPage> {
             value: _hapticsEnabled,
             onChanged: _busy ? null : _setHaptics,
           ),
+          const SizedBox(height: 28),
+          // Antes solo estaba en la barra del inicio. Mi cuenta es donde se lo
+          // busca, y la vidriera del cliente lo tiene ahora en un menú.
+          OutlinedButton.icon(
+            onPressed: _busy
+                ? null
+                : ref.read(authSessionProvider.notifier).logout,
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Cerrar sesión'),
+          ),
         ],
       ),
     );

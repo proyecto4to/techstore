@@ -35,10 +35,9 @@ void main() {
   // Flutter lo corta con puntos suspensivos; «Escribí un correo válido, como
   // nombre@correo.com» se leía «…como nombre…», justo sin el ejemplo.
   test('los errores de los campos pueden ocupar varias líneas', () {
-    for (final tema in [AppTheme.light(), AppTheme.dark()]) {
-      expect(tema.inputDecorationTheme.errorMaxLines, greaterThan(1));
-      expect(tema.inputDecorationTheme.helperMaxLines, greaterThan(1));
-    }
+    final tema = AppTheme.marca();
+    expect(tema.inputDecorationTheme.errorMaxLines, greaterThan(1));
+    expect(tema.inputDecorationTheme.helperMaxLines, greaterThan(1));
   });
 }
 

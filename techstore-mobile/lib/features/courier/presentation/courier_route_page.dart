@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/di/providers.dart';
+import '../../../core/diseno/paleta.dart';
 import '../application/courier_providers.dart';
 
 class CourierRoutePage extends ConsumerStatefulWidget {
@@ -260,7 +261,7 @@ class _RoutePainter extends CustomPainter {
 
     final projected = coordinates.map(project).toList(growable: false);
     final line = Paint()
-      ..color = Colors.blueGrey
+      ..color = Paleta.azulPrincipal.withValues(alpha: 0.7)
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
     if (projected.length > 1) {
@@ -275,13 +276,14 @@ class _RoutePainter extends CustomPainter {
       canvas.drawCircle(
         projected[index],
         active ? 15 : 12,
-        Paint()..color = active ? Colors.deepOrange : Colors.indigo,
+        Paint()..color = active ? Paleta.cian : Paleta.azulElectrico,
       );
       final text = TextPainter(
         text: TextSpan(
           text: '${points[index]['orden']}',
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            // Sobre el cian, el blanco no se lee (2,1:1): ahí va tinta.
+            color: active ? Paleta.tinta : Paleta.texto,
             fontWeight: FontWeight.bold,
           ),
         ),

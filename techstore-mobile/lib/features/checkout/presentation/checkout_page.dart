@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/diseno/movimiento.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/format/money.dart';
 import '../../cart/application/cart_controller.dart';
@@ -302,10 +303,15 @@ class _Steps extends StatelessWidget {
                   children: [
                     // Además del color, el paso actual se marca con la barra
                     // más gruesa y el texto en negrita.
-                    Container(
+                    // El paso en curso lleva el color del cursor de la marca.
+                    AnimatedContainer(
+                      duration: Movimiento.o(context, Movimiento.medio),
+                      curve: Movimiento.estandar,
                       height: i == current ? 5 : 3,
                       decoration: BoxDecoration(
-                        color: i <= current
+                        color: i == current
+                            ? theme.colorScheme.secondary
+                            : i < current
                             ? theme.colorScheme.primary
                             : theme.colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(3),
@@ -674,6 +680,7 @@ class _ChoiceCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       margin: EdgeInsets.zero,
+      color: selected ? theme.colorScheme.primaryContainer : null,
       // La selección no se comunica solo con color: hay borde marcado y una
       // tilde, para que se distinga sin depender de la vista del color.
       shape: RoundedRectangleBorder(

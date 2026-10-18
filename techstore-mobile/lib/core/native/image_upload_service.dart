@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../diseno/paleta.dart';
 import '../errors/app_failure.dart';
 import '../network/api_client.dart';
 import 'app_excursion.dart';
@@ -103,8 +103,12 @@ final class ImageUploadService {
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: title,
-          toolbarColor: const Color(0xFF1F2937),
-          toolbarWidgetColor: Colors.white,
+          toolbarColor: Paleta.negroPrincipal,
+          statusBarLight: false,
+          backgroundColor: Paleta.fondo,
+          activeControlsWidgetColor: Paleta.azulPrincipal,
+          cropFrameColor: Paleta.cian,
+          toolbarWidgetColor: Paleta.texto,
           lockAspectRatio: false,
         ),
       ],
