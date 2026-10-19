@@ -110,6 +110,7 @@ class EscenarioDeProducto extends ConsumerWidget {
                   : KeyedSubtree(
                       key: ValueKey(rasgos.tipo),
                       child: _envolverHero(
+                        context,
                         _Producto(
                           producto: producto,
                           foto: foto,
@@ -149,7 +150,10 @@ class EscenarioDeProducto extends ConsumerWidget {
     );
   }
 
-  Widget _envolverHero(Widget hijo) => heroTag == null
+  /// Sin animaciones pedidas por el sistema, la foto no viaja: la ficha
+  /// aparece con un fundido, como cualquier otra pantalla.
+  Widget _envolverHero(BuildContext context, Widget hijo) =>
+      heroTag == null || Movimiento.reducido(context)
       ? hijo
       : Hero(
           tag: heroTag!,

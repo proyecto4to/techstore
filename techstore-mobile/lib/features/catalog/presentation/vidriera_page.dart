@@ -228,8 +228,8 @@ class _Bienvenida extends StatelessWidget {
   }
 }
 
-/// El carrusel principal: productos a todo el ancho que pasan solos mientras
-/// la vidriera está a la vista y nadie los está tocando.
+/// El carrusel principal: productos a todo el ancho que pasan solos, una
+/// vuelta, mientras la vidriera está a la vista y nadie los está tocando.
 class _CarruselDeCampanas extends StatefulWidget {
   const _CarruselDeCampanas({required this.productos, required this.rotulo});
 
@@ -244,6 +244,10 @@ class _CarruselDeCampanasState extends State<_CarruselDeCampanas> {
   final _paginas = PageController(viewportFraction: 0.88);
   Timer? _avance;
   int _actual = 0;
+
+  /// Ya no avanza solo: dio la vuelta entera o la persona lo tomó con la mano.
+  /// Un carrusel que gira para siempre es movimiento que nadie pidió.
+  bool _quieto = false;
 
   /// Cuánto se queda cada producto antes de pasar al siguiente.
   static const _pausa = Duration(seconds: 6);
@@ -261,12 +265,18 @@ class _CarruselDeCampanasState extends State<_CarruselDeCampanas> {
     super.dispose();
   }
 
-  /// Sin animaciones pedidas por el sistema, o con un solo producto, no
-  /// avanza solo. Tampoco cuando la pantalla quedó tapada por otra: un
-  /// temporizador corriendo detrás no le sirve a nadie y gasta batería.
+  /// Sin animaciones pedidas por el sistema, con el lector de pantalla
+  /// activo —el contenido no puede cambiar mientras se lo están leyendo— o
+  /// con un solo producto, no avanza solo. Tampoco cuando la pantalla quedó
+  /// tapada por otra: un temporizador corriendo detrás no le sirve a nadie.
   void _programar() {
     _avance?.cancel();
-    if (widget.productos.length < 2 || Movimiento.reducido(context)) return;
+    if (_quieto ||
+        widget.productos.length < 2 ||
+        Movimiento.reducido(context) ||
+        MediaQuery.accessibleNavigationOf(context)) {
+      return;
+    }
     _avance = Timer.periodic(_pausa, (_) {
       if (!mounted || !_paginas.hasClients) return;
       if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
@@ -276,7 +286,14 @@ class _CarruselDeCampanasState extends State<_CarruselDeCampanas> {
         duration: Movimiento.escena,
         curve: Movimiento.estandar,
       );
+      // De vuelta en el primero: la vuelta está completa y se queda ahí.
+      if (siguiente == 0) _detener();
     });
+  }
+
+  void _detener() {
+    _quieto = true;
+    _avance?.cancel();
   }
 
   @override
@@ -293,12 +310,12 @@ class _CarruselDeCampanasState extends State<_CarruselDeCampanas> {
         SizedBox(
           height: alto,
           child: NotificationListener<ScrollNotification>(
-            // Si la persona lo toca, se reinicia la espera: no se le mueve el
-            // producto que está mirando.
+            // Si la persona lo toca, el carrusel queda en sus manos: no se le
+            // mueve más el producto que está mirando.
             onNotification: (aviso) {
               if (aviso is ScrollStartNotification &&
                   aviso.dragDetails != null) {
-                _programar();
+                _detener();
               }
               return false;
             },
@@ -422,6 +439,7 @@ class _Colecciones extends StatelessWidget {
             itemBuilder: (context, indice) => Aparicion(
               clave: 'coleccion-${colecciones[indice].nombre}',
               orden: indice.clamp(0, 4),
+              animar: indice < 3,
               desplazamiento: 0,
               escala: 0.94,
               child: _TarjetaDeColeccion(
@@ -439,7 +457,6 @@ class _Colecciones extends StatelessWidget {
 class _TarjetaDeColeccion extends StatelessWidget {
   const _TarjetaDeColeccion({required this.coleccion, required this.contar});
 
-              animar: indice < 3,
   final ColeccionDeVidriera coleccion;
   final bool contar;
 

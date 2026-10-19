@@ -539,7 +539,10 @@ class _VisorDeFotoState extends State<_VisorDeFoto>
       begin: _transformacion.value,
       end: destino,
     ).animate(CurvedAnimation(parent: _zoom, curve: Movimiento.estandar));
-    _zoom.forward(from: 0);
+    // Sin animaciones pedidas por el sistema, el acercamiento es un salto.
+    _zoom
+      ..duration = Movimiento.o(context, Movimiento.medio)
+      ..forward(from: 0);
   }
 
   @override
