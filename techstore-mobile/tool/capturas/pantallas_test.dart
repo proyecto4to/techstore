@@ -1,32 +1,34 @@
-import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:techstore_mobile/app/home_page.dart';
 import 'package:techstore_mobile/app/realtime_coordinator.dart';
-import 'package:techstore_mobile/core/database/app_database.dart';
 import 'package:techstore_mobile/core/di/providers.dart';
 import 'package:techstore_mobile/features/auth/application/session_controller.dart';
+import 'package:techstore_mobile/features/auth/presentation/account_page.dart';
 import 'package:techstore_mobile/features/auth/presentation/login_page.dart';
+import 'package:techstore_mobile/features/auth/presentation/password_recovery_page.dart';
+import 'package:techstore_mobile/features/auth/presentation/register_page.dart';
 import 'package:techstore_mobile/features/cart/application/cart_controller.dart';
 import 'package:techstore_mobile/features/cart/presentation/cart_page.dart';
 import 'package:techstore_mobile/features/catalog/application/catalog_providers.dart';
 import 'package:techstore_mobile/features/catalog/presentation/catalog_page.dart';
 import 'package:techstore_mobile/features/catalog/presentation/ficha_de_producto_page.dart';
 import 'package:techstore_mobile/features/notifications/presentation/notifications_page.dart';
+import 'package:techstore_mobile/features/orders/presentation/orders_page.dart';
 
 import '../../test/support/sesion_de_prueba.dart';
 import 'api_de_banco.dart';
 import 'banco.dart';
 
-ProviderContainer _contenedor({bool conSesion = true}) => contenedorDeBanco(
+ProviderContainer _contenedor({bool conSesion = true, String rol = 'Cliente'}) =>
+    contenedorDeBanco(
   extra: [
-    apiClientProvider.overrideWithValue(apiDeBanco()),
+    apiClientProvider.overrideWithValue(apiDeBanco(rol: rol)),
     secureStoreProvider.overrideWithValue(
       conSesion ? StoreConSesion() : (StoreConSesion()..value = null),
     ),
-    databaseProvider.overrideWithValue(AppDatabase(NativeDatabase.memory())),
     eventosRealtimeProvider.overrideWithValue(const Stream.empty()),
   ],
 );
@@ -44,6 +46,8 @@ Future<void> _capturar(
   Widget pantalla,
   String nombre, {
   double alto = 915,
+  double ancho = 412,
+  double escalaDeTexto = 1,
   List<ProviderListenable<AsyncValue<Object?>>> precarga = const [],
   void Function()? antes,
 }) async {
@@ -64,7 +68,14 @@ Future<void> _capturar(
   });
   await prepararFotos(tester, contenedor, productosReales());
   antes?.call();
-  await montar(tester, contenedor, pantalla, alto: alto);
+  await montar(
+    tester,
+    contenedor,
+    pantalla,
+    alto: alto,
+    ancho: ancho,
+    escalaDeTexto: escalaDeTexto,
+  );
   await esperarImagenes(tester, vueltas: 40);
   await tester.pump(const Duration(seconds: 2));
   await expectLater(
@@ -184,5 +195,117 @@ void main() {
     final contenedor = _contenedor(conSesion: false);
     addTearDown(contenedor.dispose);
     await _capturar(tester, contenedor, const LoginPage(), 'ingreso');
+  }, timeout: limite);
+
+  for (final (nombre, pantalla, conSesion) in <(String, Widget, bool)>[
+    ('registro', const RegisterPage(), false),
+    ('recuperacion', const PasswordRecoveryPage(), false),
+    ('cuenta', const AccountPage(), true),
+    ('pedidos', const OrdersPage(), true),
+    ('notificaciones', const NotificationsPage(), true),
+  ]) {
+    testWidgets('pantalla: $nombre', (tester) async {
+      if (!hayBanco) return;
+      final contenedor = _contenedor(conSesion: conSesion);
+      addTearDown(contenedor.dispose);
+      await _capturar(tester, contenedor, pantalla, nombre);
+    }, timeout: limite);
+  }
+
+  testWidgets('pantalla: inicio de caja', (tester) async {
+    if (!hayBanco) return;
+    final contenedor = _contenedor(rol: 'Cajero');
+    addTearDown(contenedor.dispose);
+    await _capturar(
+      tester,
+      contenedor,
+      const HomePage(environmentLabel: null),
+      'inicio-caja',
+      alto: 1400,
+    );
+  }, timeout: limite);
+
+  // El Moto G42 del local tiene la pantalla agrandada: 346 puntos de ancho.
+  testWidgets('pantalla: vidriera angosta', (tester) async {
+    if (!hayBanco) return;
+    final contenedor = _contenedor();
+    addTearDown(contenedor.dispose);
+    await _capturar(
+      tester,
+      contenedor,
+      const HomePage(environmentLabel: null),
+      'vidriera-346',
+      alto: 2600,
+      ancho: 346,
+      precarga: [vidrieraProvider, unreadNotificationsProvider],
+    );
+  }, timeout: limite);
+
+  testWidgets('pantalla: catálogo angosto', (tester) async {
+    if (!hayBanco) return;
+    final contenedor = _contenedor();
+    addTearDown(contenedor.dispose);
+    await _capturar(
+      tester,
+      contenedor,
+      const CatalogPage(),
+      'catalogo-346',
+      alto: 2400,
+      ancho: 346,
+      precarga: [
+        brandsProvider,
+        catalogoOrdenadoProvider((search: '', brandId: null, orden: novedades)),
+      ],
+    );
+  }, timeout: limite);
+
+  // Un Redmi Note (393 dp) con la letra del sistema al 130 %.
+  testWidgets('pantalla: vidriera con letra grande', (tester) async {
+    if (!hayBanco) return;
+    final contenedor = _contenedor();
+    addTearDown(contenedor.dispose);
+    await _capturar(
+      tester,
+      contenedor,
+      const HomePage(environmentLabel: null),
+      'vidriera-letra-grande',
+      alto: 2900,
+      ancho: 393,
+      escalaDeTexto: 1.3,
+      precarga: [vidrieraProvider, unreadNotificationsProvider],
+    );
+  }, timeout: limite);
+
+  testWidgets('pantalla: catálogo con letra grande', (tester) async {
+    if (!hayBanco) return;
+    final contenedor = _contenedor();
+    addTearDown(contenedor.dispose);
+    await _capturar(
+      tester,
+      contenedor,
+      const CatalogPage(),
+      'catalogo-letra-grande',
+      alto: 2400,
+      ancho: 393,
+      escalaDeTexto: 1.3,
+      precarga: [
+        brandsProvider,
+        catalogoOrdenadoProvider((search: '', brandId: null, orden: novedades)),
+      ],
+    );
+  }, timeout: limite);
+
+  testWidgets('pantalla: ingreso con letra grande', (tester) async {
+    if (!hayBanco) return;
+    final contenedor = _contenedor(conSesion: false);
+    addTearDown(contenedor.dispose);
+    await _capturar(
+      tester,
+      contenedor,
+      const LoginPage(),
+      'ingreso-letra-grande',
+      ancho: 393,
+      escalaDeTexto: 1.3,
+    );
   }, timeout: limite);
 }

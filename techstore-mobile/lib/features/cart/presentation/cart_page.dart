@@ -141,7 +141,10 @@ class _CartPageState extends ConsumerState<CartPage> {
                 if (ref.read(authSessionProvider).isAuthenticated) {
                   context.push('/checkout');
                 } else {
-                  context.go('/login?returnTo=/checkout');
+                  // Encima del carrito y no en su lugar: si la persona se
+                  // arrepiente y vuelve atrás, encuentra su carrito y no se
+                  // cierra la app.
+                  context.push('/login?returnTo=/checkout');
                 }
               },
             ),

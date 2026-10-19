@@ -14,6 +14,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:techstore_mobile/app/app_theme.dart';
 import 'package:techstore_mobile/app/environment.dart';
+import 'package:techstore_mobile/core/database/app_database.dart';
 import 'package:techstore_mobile/core/di/providers.dart';
 import 'package:techstore_mobile/features/catalog/domain/product.dart';
 import 'package:techstore_mobile/features/catalog/presentation/vitrina/foto_de_producto.dart';
@@ -61,13 +63,19 @@ Future<void> cargarFuentes() async {
   await iconos.load();
 }
 
-/// Un contenedor de Riverpod con las fotos servidas desde disco.
+File _foto(String url) =>
+    File('$carpeta/fotos/${Uri.parse(url).pathSegments.last}');
+
+/// Un contenedor de Riverpod con las fotos servidas desde disco y la base
+/// local en memoria.
 ProviderContainer contenedorDeBanco({List<Override> extra = const []}) =>
     ProviderContainer(
       overrides: [
         environmentProvider.overrideWithValue(AppEnvironment.development()),
-        fabricaDeFotosProvider.overrideWithValue(
-          (url) => FileImage(File('$carpeta/fotos/${Uri.parse(url).pathSegments.last}')),
+        fabricaDeFotosProvider.overrideWithValue((url) => FileImage(_foto(url))),
+        archivoDeFotoProvider.overrideWithValue((url) async => _foto(url)),
+        databaseProvider.overrideWithValue(
+          AppDatabase(NativeDatabase.memory()),
         ),
         ...extra,
       ],
@@ -105,15 +113,20 @@ Future<void> esperarImagenes(WidgetTester tester, {int vueltas = 30}) async {
   await tester.pump(const Duration(seconds: 1));
 }
 
-/// Monta [hijo] en un teléfono de 412 × [alto] con el tema de la marca.
+/// Monta [hijo] en un teléfono de [ancho] × [alto] con el tema de la marca.
+/// 412 es un teléfono común; 346 es el Moto G42 con la pantalla agrandada y
+/// 393 un Redmi Note. [escalaDeTexto] imita el tamaño de letra del sistema:
+/// en HyperOS es común encontrarlo agrandado.
 Future<void> montar(
   WidgetTester tester,
   ProviderContainer contenedor,
   Widget hijo, {
   double alto = 915,
+  double ancho = 412,
+  double escalaDeTexto = 1,
 }) async {
   tester.view
-    ..physicalSize = Size(412 * 2.625, alto * 2.625)
+    ..physicalSize = Size(ancho * 2.625, alto * 2.625)
     ..devicePixelRatio = 2.625;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
@@ -122,6 +135,12 @@ Future<void> montar(
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.marca(),
+        builder: (context, pantalla) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(escalaDeTexto)),
+          child: pantalla!,
+        ),
         home: hijo,
       ),
     ),

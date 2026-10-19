@@ -33,6 +33,13 @@ class RasgosDeImagen {
     this.fondo,
   });
 
+  factory RasgosDeImagen.fromJson(Map<String, Object?> json) => RasgosDeImagen(
+    tipo: TipoDeFoto.values.byName(json['tipo']! as String),
+    proporcion: (json['proporcion']! as num).toDouble(),
+    tono: Color((json['tono']! as num).toInt()),
+    fondo: json['fondo'] == null ? null : Color((json['fondo']! as num).toInt()),
+  );
+
   static const ausente = RasgosDeImagen(
     tipo: TipoDeFoto.ausente,
     proporcion: 1,
@@ -50,6 +57,15 @@ class RasgosDeImagen {
 
   /// El color del fondo, solo en las fotos de estudio.
   final Color? fondo;
+
+  /// Para guardarlo en el caché local: cada foto se analiza una vez en la vida
+  /// de la instalación, no en cada apertura.
+  Map<String, Object?> toJson() => {
+    'tipo': tipo.name,
+    'proporcion': proporcion,
+    'tono': tono.toARGB32(),
+    'fondo': fondo?.toARGB32(),
+  };
 
   bool get apaisada => proporcion >= 1.3;
   bool get vertical => proporcion <= 0.8;

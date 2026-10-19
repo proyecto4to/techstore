@@ -17,6 +17,7 @@ import '../../cart/presentation/boton_carrito.dart';
 import '../application/catalog_providers.dart';
 import '../domain/product.dart';
 import 'vitrina/estilo_de_coleccion.dart';
+import 'vitrina/foto_de_producto.dart';
 import 'vitrina/motor_de_presentacion.dart';
 import 'vitrina/tarjetas_de_producto.dart';
 
@@ -86,6 +87,11 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
   @override
   Widget build(BuildContext context) {
     final catalogo = ref.watch(catalogoOrdenadoProvider(_consulta));
+    // Las fotos de lo que todavía no se ve se bajan en los ratos libres.
+    ref.listen(catalogoOrdenadoProvider(_consulta), (_, siguiente) {
+      final productos = siguiente.value;
+      if (productos != null) precalentarFotos(context, productos);
+    });
     final marcas = ref.watch(brandsProvider).value ?? const [];
     final cargador = ref.read(catalogoOrdenadoProvider(_consulta).notifier);
     final nombreMarca = _nombreDeMarca(marcas, _marca);
@@ -549,6 +555,7 @@ class _Editorial extends StatelessWidget {
           return Aparicion(
             clave: 'catalogo-${bloque.clave}',
             orden: indice.clamp(0, 4),
+            animar: indice < 4,
             child: _bloque(context, bloque),
           );
         },
@@ -558,12 +565,16 @@ class _Editorial extends StatelessWidget {
 
   Widget _bloque(BuildContext context, BloqueDeCatalogo bloque) =>
       switch (bloque) {
-        BloqueDestacado(:final producto, :final rotulo) => AspectRatio(
-          aspectRatio: 0.92,
-          child: TarjetaDestacada(
-            producto: producto,
-            contexto: 'catalogo',
-            rotulo: rotulo,
+        // En vertical, el escaparate es casi cuadrado; acostado o en una
+        // tableta sería más alto que la pantalla, así que se apaisa.
+        BloqueDestacado(:final producto, :final rotulo) => LayoutBuilder(
+          builder: (context, limites) => AspectRatio(
+            aspectRatio: limites.maxWidth > 560 ? 1.8 : 0.92,
+            child: TarjetaDestacada(
+              producto: producto,
+              contexto: 'catalogo',
+              rotulo: rotulo,
+            ),
           ),
         ),
         BloqueAncho(:final producto, :final fotoALaDerecha) => SizedBox(
@@ -636,6 +647,7 @@ class _Grilla extends StatelessWidget {
             return Aparicion(
               clave: 'grilla-${producto.id}',
               orden: indice % 6,
+              animar: indice < 6,
               child: TarjetaDeProducto(producto: producto, contexto: 'catalogo'),
             );
           },

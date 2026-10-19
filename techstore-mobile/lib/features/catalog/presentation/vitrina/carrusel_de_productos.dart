@@ -75,6 +75,7 @@ class CarruselDeProductos extends StatelessWidget {
               child: Aparicion(
                 clave: '$contexto-${productos[indice].id}',
                 orden: indice.clamp(0, 4),
+                animar: indice < 3,
                 desplazamiento: 0,
                 escala: 0.94,
                 child: TarjetaDeProducto(

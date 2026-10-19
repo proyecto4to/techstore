@@ -7,7 +7,9 @@ import 'package:techstore_mobile/core/animacion/vuelo_al_carrito.dart';
 import 'package:techstore_mobile/core/database/app_database.dart';
 import 'package:techstore_mobile/core/di/providers.dart';
 import 'package:techstore_mobile/core/storage/secure_store.dart';
+import 'package:techstore_mobile/features/cart/application/cart_controller.dart';
 import 'package:techstore_mobile/features/cart/presentation/boton_carrito.dart';
+import 'package:techstore_mobile/features/catalog/domain/product.dart';
 
 final class _SinSesion implements SecureStore {
   @override
@@ -92,5 +94,38 @@ void main() {
 
     // La primera pantalla sigue montada debajo, con su carrito, pero no se ve.
     expect(DestinosDelCarrito.visible, isNull);
+  });
+
+  testWidgets('el lector de pantalla anuncia el carrito con sus unidades', (
+    tester,
+  ) async {
+    final semantica = tester.ensureSemantics();
+    await tester.pumpWidget(_tienda());
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Carrito vacío'), findsOneWidget);
+
+    final contenedor = ProviderScope.containerOf(
+      tester.element(find.byType(BotonCarrito)),
+    );
+    contenedor
+        .read(cartProvider.notifier)
+        .add(
+          const Product(
+            id: 7,
+            name: 'ASUS ROG Strix B650-A',
+            price: 1850000,
+            currency: 'PYG',
+            available: true,
+            maxPerOrder: 5,
+          ),
+          quantity: 3,
+        );
+    await tester.pumpAndSettle();
+
+    final nodo = tester.getSemantics(find.byType(IconButton));
+    // Antes se anunciaba «3, botón»: el número del distintivo tapaba el resto.
+    expect(nodo.label, isEmpty);
+    expect(nodo.tooltip, 'Carrito, 3 unidades');
+    semantica.dispose();
   });
 }

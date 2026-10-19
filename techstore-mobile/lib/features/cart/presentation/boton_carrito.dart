@@ -87,9 +87,11 @@ class _BotonCarritoState extends ConsumerState<BotonCarrito>
             duration: Movimiento.o(context, Movimiento.corto),
             transitionBuilder: (hijo, animacion) =>
                 ScaleTransition(scale: animacion, child: hijo),
-            child: Text(
-              unidades > 99 ? '99+' : '$unidades',
+            // El número solo se ve: el lector de pantalla dice el tooltip
+            // («Carrito, 3 unidades»). Si no, anunciaba «3, botón».
+            child: ExcludeSemantics(
               key: ValueKey(unidades),
+              child: Text(unidades > 99 ? '99+' : '$unidades'),
             ),
           ),
           child: const Icon(Icons.shopping_bag_outlined),

@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +9,7 @@ import '../../../../core/diseno/paleta.dart';
 import '../../../../core/diseno/tipografia.dart';
 import '../../domain/product.dart';
 import 'estilo_de_coleccion.dart';
+import 'fondo_rasterizado.dart';
 import 'foto_de_producto.dart';
 import 'rasgos_de_imagen.dart';
 
@@ -19,18 +19,25 @@ enum Encuadre { miniatura, tarjeta, destacado, ficha }
 
 /// El producto presentado dentro de la composición, no pegado encima de ella.
 ///
-/// Arma capas —luz, patrón de la colección, marca de agua, producto, sombra— y
-/// elige el tratamiento según lo que la foto *es* ([RasgosDeImagen]): un
-/// recorte flota sobre su propia silueta; una foto de estudio se monta en una
-/// vitrina iluminada del color de su fondo, así el borde de la foto no se ve;
-/// una escena se enmarca sobre su propia luz desenfocada; y sin foto queda una
+/// Arma capas —luz, patrón de la colección, marca de agua, producto— y elige
+/// el tratamiento según lo que la foto *es* ([RasgosDeImagen]): un recorte
+/// flota sobre su propia silueta; una foto de estudio se monta en una vitrina
+/// iluminada del color de su fondo, así el borde de la foto no se ve; una
+/// escena se enmarca sobre su propia luz desenfocada; y sin foto queda una
 /// composición tipográfica, nunca un ícono roto.
+///
+/// Pensado para que desplazar una grilla llena de escenarios no cueste: el
+/// fondo se dibuja una vez como imagen ([FondosRasterizados]) y los fundidos
+/// son degradados superpuestos, no máscaras que obliguen a pintar cada
+/// tarjeta en una capa aparte en cada cuadro.
 class EscenarioDeProducto extends ConsumerWidget {
   const EscenarioDeProducto({
     required this.producto,
     this.encuadre = Encuadre.tarjeta,
     this.heroTag,
     this.paralaje = 0,
+    this.aireSuperior = 0,
+    this.aireInferior = 0,
     super.key,
   });
 
@@ -44,6 +51,16 @@ class EscenarioDeProducto extends ConsumerWidget {
   /// desplazamiento de la lista o del carrusel). Las capas de atrás se mueven
   /// menos que el producto y eso da la profundidad.
   final double paralaje;
+
+  /// Lugar que el producto deja libre arriba para la barra que flota encima
+  /// (la ficha): sin él, la foto quedaba debajo del reloj y de los botones.
+  /// El fondo y la luz siguen llegando hasta el borde.
+  final double aireSuperior;
+
+  /// Lugar que el producto deja libre abajo para el texto que va encima del
+  /// escenario (el escaparate): sin él, la foto quedaba debajo del título.
+  /// El fondo y la luz siguen ocupando todo.
+  final double aireInferior;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,15 +85,17 @@ class EscenarioDeProducto extends ConsumerWidget {
               estilo: estilo,
               rasgos: rasgos,
               encuadre: encuadre,
+              marcaDeAgua: (producto.brand ?? producto.name).toUpperCase(),
               paralaje: paralaje,
             ),
-            if (encuadre != Encuadre.miniatura && rasgos != null)
-              _MarcaDeAgua(
-                producto: producto,
-                estilo: estilo,
-                rasgos: rasgos,
+            // La silueta translúcida del mismo producto: solo con un recorte,
+            // donde la forma es el producto y no un rectángulo de foto.
+            if (rasgos?.tipo == TipoDeFoto.recortada &&
+                foto != null &&
+                (encuadre == Encuadre.ficha || encuadre == Encuadre.destacado))
+              _Silueta(
                 foto: foto,
-                encuadre: encuadre,
+                acento: estilo.acento,
                 tamano: tamano,
                 paralaje: paralaje,
               ),
@@ -99,6 +118,8 @@ class EscenarioDeProducto extends ConsumerWidget {
                           encuadre: encuadre,
                           tamano: tamano,
                           paralaje: paralaje,
+                          aireSuperior: aireSuperior,
+                          aireInferior: aireInferior,
                         ),
                       ),
                     ),
@@ -146,151 +167,170 @@ class EscenarioDeProducto extends ConsumerWidget {
   ];
 }
 
-/// Luz y textura de la colección, detrás de todo.
+/// Luz, textura de la colección y marca de agua: todo en una imagen que se
+/// dibuja una vez por colección y tamaño.
 class _Fondo extends StatelessWidget {
   const _Fondo({
     required this.estilo,
     required this.rasgos,
     required this.encuadre,
+    required this.marcaDeAgua,
     required this.paralaje,
   });
 
   final EstiloDeColeccion estilo;
   final RasgosDeImagen? rasgos;
   final Encuadre encuadre;
+  final String marcaDeAgua;
   final double paralaje;
 
   @override
   Widget build(BuildContext context) {
-    // La luz es azul siempre; el tono del producto la entibia apenas, para
-    // que una placa con luces violetas no quede bajo una luz que no es suya.
-    final luz = Color.lerp(
-      estilo.acento,
-      rasgos?.tono ?? estilo.acento,
-      0.18,
-    )!;
     if (encuadre == Encuadre.miniatura) {
       return const ColoredBox(color: Paleta.negroAzulado);
     }
-    final intensidad = switch (encuadre) {
-      Encuadre.ficha || Encuadre.destacado => 0.42,
-      _ => 0.3,
-    };
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Paleta.negroPrincipal,
-        gradient: RadialGradient(
-          center: Alignment(0, encuadre == Encuadre.ficha ? -0.1 : 0.05),
-          radius: 0.85,
-          colors: [
-            luz.withValues(alpha: intensidad),
-            luz.withValues(alpha: intensidad * 0.22),
-            Paleta.negroPrincipal.withValues(alpha: 0),
-          ],
-          stops: const [0, 0.55, 1],
-        ),
-      ),
-      child: CustomPaint(
-        painter: PintorDePatron(
+    final grande = encuadre != Encuadre.tarjeta;
+    // La luz es azul siempre; en los encuadres grandes el tono del producto
+    // la entibia apenas, para que una placa con luces violetas no quede bajo
+    // una luz que no es suya. En las tarjetas no: cambiaría el fondo cuando
+    // llega la foto y obligaría a dibujarlo dos veces.
+    final luz = grande
+        ? Color.lerp(estilo.acento, rasgos?.tono ?? estilo.acento, 0.18)!
+        : estilo.acento;
+    final intensidad = grande ? 0.42 : 0.3;
+    final margen = grande ? 28.0 : 0.0;
+    final clave = [
+      estilo.patron.name,
+      estilo.acento.toARGB32(),
+      luz.toARGB32(),
+      encuadre.name,
+      marcaDeAgua,
+    ].join('|');
+
+    return CustomPaint(
+      painter: PintorDeFondoRasterizado(
+        clave: clave,
+        escala: MediaQuery.devicePixelRatioOf(context),
+        margen: margen,
+        desplazamiento: Offset(14 * paralaje, -12 * paralaje),
+        dibujar: (canvas, tamano) => _dibujarFondo(
+          canvas,
+          tamano,
           estilo: estilo,
-          opacidad: encuadre == Encuadre.tarjeta ? 0.06 : 0.075,
-          desplazamiento: Offset(0, -18 * paralaje),
+          luz: luz,
+          intensidad: intensidad,
+          encuadre: encuadre,
+          marcaDeAgua: marcaDeAgua,
+          margen: margen,
         ),
-        child: const SizedBox.expand(),
       ),
+      child: const SizedBox.expand(),
     );
   }
 }
 
-/// La marca de agua: el nombre de la marca en contorno, enorme y cortado por
-/// el borde, y —si la foto es un recorte— la silueta del mismo producto.
-class _MarcaDeAgua extends StatelessWidget {
-  const _MarcaDeAgua({
-    required this.producto,
-    required this.estilo,
-    required this.rasgos,
+void _dibujarFondo(
+  Canvas canvas,
+  Size tamano, {
+  required EstiloDeColeccion estilo,
+  required Color luz,
+  required double intensidad,
+  required Encuadre encuadre,
+  required String marcaDeAgua,
+  required double margen,
+}) {
+  final todo = Offset.zero & tamano;
+  canvas.drawRect(todo, Paint()..color = Paleta.negroPrincipal);
+  // La zona que se ve (sin el margen del paralaje) define dónde va la luz.
+  final visible = todo.deflate(margen);
+  canvas.drawRect(
+    todo,
+    Paint()
+      ..shader = RadialGradient(
+        center: Alignment(0, encuadre == Encuadre.ficha ? -0.1 : 0.05),
+        radius: 0.85,
+        colors: [
+          luz.withValues(alpha: intensidad),
+          luz.withValues(alpha: intensidad * 0.22),
+          Paleta.negroPrincipal.withValues(alpha: 0),
+        ],
+        stops: const [0, 0.55, 1],
+      ).createShader(visible),
+  );
+  PintorDePatron(
+    estilo: estilo,
+    opacidad: encuadre == Encuadre.tarjeta ? 0.06 : 0.075,
+  ).paint(canvas, tamano);
+
+  // El nombre de la marca en contorno, enorme y cortado por el borde.
+  final cuerpo =
+      visible.height *
+      switch (encuadre) {
+        Encuadre.ficha => 0.36,
+        Encuadre.destacado => 0.4,
+        _ => 0.34,
+      };
+  final texto = TextPainter(
+    text: TextSpan(
+      text: marcaDeAgua,
+      style: TextStyle(
+        fontFamily: Tipografia.titulares,
+        fontWeight: FontWeight.w700,
+        fontSize: cuerpo,
+        height: 1,
+        letterSpacing: -cuerpo * 0.04,
+        foreground: Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1, cuerpo / 90)
+          ..color = estilo.acento.withValues(alpha: 0.16),
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+    maxLines: 1,
+  )..layout();
+  texto.paint(
+    canvas,
+    Offset(visible.left - cuerpo * 0.08, visible.bottom - cuerpo * 0.78),
+  );
+  texto.dispose();
+}
+
+/// La silueta translúcida del producto recortado, más grande y corrida. Se
+/// tiñe en el mismo dibujo de la imagen: sin capa de opacidad aparte.
+class _Silueta extends StatelessWidget {
+  const _Silueta({
     required this.foto,
-    required this.encuadre,
+    required this.acento,
     required this.tamano,
     required this.paralaje,
   });
 
-  final Product producto;
-  final EstiloDeColeccion estilo;
-  final RasgosDeImagen rasgos;
-  final ImageProvider? foto;
-  final Encuadre encuadre;
+  final ImageProvider foto;
+  final Color acento;
   final Size tamano;
   final double paralaje;
 
   @override
-  Widget build(BuildContext context) {
-    final texto = (producto.brand ?? producto.name).toUpperCase();
-    final cuerpo = tamano.height *
-        switch (encuadre) {
-          Encuadre.ficha => 0.36,
-          Encuadre.destacado => 0.4,
-          _ => 0.34,
-        };
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned(
-          left: -cuerpo * 0.08 + 22 * paralaje,
-          bottom: -cuerpo * 0.22,
-          child: Text(
-            texto,
-            maxLines: 1,
-            softWrap: false,
-            style: TextStyle(
-              fontFamily: Tipografia.titulares,
-              fontWeight: FontWeight.w700,
-              fontSize: cuerpo,
-              height: 1,
-              letterSpacing: -cuerpo * 0.04,
-              foreground: Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = math.max(1, cuerpo / 90)
-                ..color = estilo.acento.withValues(alpha: 0.16),
-            ),
+  Widget build(BuildContext context) => Positioned.fill(
+    child: Transform.translate(
+      offset: Offset(tamano.width * 0.16 - 26 * paralaje, -8),
+      child: Transform.scale(
+        scale: 1.45,
+        child: Image(
+          image: ResizeImage.resizeIfNeeded(
+            (tamano.width * 0.8).round(),
+            null,
+            foto,
           ),
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          color: acento.withValues(alpha: 0.14),
+          colorBlendMode: BlendMode.srcIn,
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
         ),
-        // La silueta translúcida del mismo producto, más grande y corrida:
-        // solo tiene sentido con un recorte, donde la forma es el producto y
-        // no un rectángulo de foto.
-        if (rasgos.tipo == TipoDeFoto.recortada &&
-            foto != null &&
-            encuadre != Encuadre.tarjeta)
-          Positioned.fill(
-            child: Transform.translate(
-              offset: Offset(tamano.width * 0.16 - 26 * paralaje, -8),
-              child: Transform.scale(
-                scale: 1.45,
-                child: Opacity(
-                  opacity: 0.14,
-                  child: ColorFiltered(
-                    colorFilter: ColorFilter.mode(
-                      estilo.acento,
-                      BlendMode.srcIn,
-                    ),
-                    child: Image(
-                      image: ResizeImage.resizeIfNeeded(
-                        (tamano.width * 0.8).round(),
-                        null,
-                        foto!,
-                      ),
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
+      ),
+    ),
+  );
 }
 
 /// El producto, con el tratamiento que le corresponde a su foto.
@@ -303,6 +343,8 @@ class _Producto extends StatelessWidget {
     required this.encuadre,
     required this.tamano,
     required this.paralaje,
+    this.aireSuperior = 0,
+    this.aireInferior = 0,
   });
 
   final Product producto;
@@ -312,6 +354,16 @@ class _Producto extends StatelessWidget {
   final Encuadre encuadre;
   final Size tamano;
   final double paralaje;
+  final double aireSuperior;
+  final double aireInferior;
+
+  /// El mismo margen de cada lado, más el aire de arriba y de abajo.
+  EdgeInsets _relleno(double margen) => EdgeInsets.fromLTRB(
+    margen,
+    margen + aireSuperior,
+    margen,
+    margen + aireInferior,
+  );
 
   double get _margen => switch (encuadre) {
     Encuadre.miniatura => 0,
@@ -320,12 +372,15 @@ class _Producto extends StatelessWidget {
     Encuadre.ficha => 28,
   };
 
+  bool get _grande =>
+      encuadre == Encuadre.ficha || encuadre == Encuadre.destacado;
+
   @override
   Widget build(BuildContext context) {
     if (foto == null || rasgos.tipo == TipoDeFoto.ausente) {
       return _SinFoto(producto: producto, estilo: estilo, encuadre: encuadre);
     }
-    final desplazado = Transform.translate(
+    return Transform.translate(
       offset: Offset(-8 * paralaje, 0),
       child: switch (rasgos.tipo) {
         TipoDeFoto.recortada => _recorte(context),
@@ -335,10 +390,14 @@ class _Producto extends StatelessWidget {
         TipoDeFoto.ausente => const SizedBox.shrink(),
       },
     );
-    return desplazado;
   }
 
-  Widget _imagen(BuildContext context, BoxFit ajuste, {double escala = 1}) {
+  Widget _imagen(
+    BuildContext context,
+    BoxFit ajuste, {
+    double escala = 1,
+    Color? tinte,
+  }) {
     final ancho = (tamano.width * escala * MediaQuery.devicePixelRatioOf(context))
         .round()
         .clamp(64, 1600);
@@ -347,118 +406,134 @@ class _Producto extends StatelessWidget {
       fit: ajuste,
       filterQuality: FilterQuality.medium,
       gaplessPlayback: true,
+      // El tinte se aplica al dibujar la imagen, no con un filtro sobre una
+      // capa aparte: cuesta lo mismo que dibujarla sin tinte.
+      color: tinte,
+      colorBlendMode: tinte == null ? null : BlendMode.multiply,
       errorBuilder: (_, _, _) =>
           _SinFoto(producto: producto, estilo: estilo, encuadre: encuadre),
     );
   }
 
   /// Recorte: el producto flota, con su sombra en el piso.
-  Widget _recorte(BuildContext context) {
-    final piso = Positioned(
-      left: tamano.width * 0.2,
-      right: tamano.width * 0.2,
-      bottom: _margen * 0.6,
-      height: math.max(8, tamano.height * 0.07),
-      child: const DecoratedBox(
+  Widget _recorte(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      if (encuadre != Encuadre.miniatura)
+        Positioned(
+          left: tamano.width * 0.2,
+          right: tamano.width * 0.2,
+          bottom: _margen * 0.6,
+          height: math.max(8, tamano.height * 0.07),
+          child: const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                colors: [Color(0xB3000000), Color(0x00000000)],
+              ),
+            ),
+          ),
+        ),
+      Padding(
+        padding: _relleno(_margen + tamano.shortestSide * 0.06),
+        child: _imagen(context, BoxFit.contain),
+      ),
+    ],
+  );
+
+  /// Estudio con fondo oscuro: la foto se funde con el negro por los bordes.
+  /// El fundido es un degradado encima, del color del escenario.
+  Widget _fundido(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      Padding(
+        padding: _relleno(_margen * 0.5),
+        child: _imagen(context, BoxFit.contain),
+      ),
+      const DecoratedBox(
         decoration: BoxDecoration(
           gradient: RadialGradient(
-            colors: [Color(0xB3000000), Color(0x00000000)],
+            radius: 0.75,
+            colors: [
+              Color(0x00080A10),
+              Color(0x00080A10),
+              Paleta.negroPrincipal,
+            ],
+            stops: [0, 0.62, 1],
           ),
         ),
       ),
-    );
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (encuadre != Encuadre.miniatura) piso,
-        Padding(
-          padding: EdgeInsets.all(_margen + tamano.shortestSide * 0.06),
-          child: _imagen(context, BoxFit.contain),
-        ),
-      ],
-    );
-  }
-
-  /// Estudio con fondo oscuro: la foto se funde con el negro por los bordes.
-  Widget _fundido(BuildContext context) => Padding(
-    padding: EdgeInsets.all(_margen * 0.5),
-    child: ShaderMask(
-      blendMode: BlendMode.dstIn,
-      shaderCallback: (rect) => const RadialGradient(
-        radius: 0.75,
-        colors: [Colors.white, Colors.white, Color(0x00FFFFFF)],
-        stops: [0, 0.62, 1],
-      ).createShader(rect),
-      child: _imagen(context, BoxFit.contain),
-    ),
+    ],
   );
 
   /// Estudio con fondo claro o gris: una caja de luz del color del fondo de la
   /// foto, encendida desde el centro.
   ///
   /// El blanco puro sobre negro encandila y se lee como una foto pegada. Por
-  /// eso la foto pasa por un tinte frío y la caja entera —foto incluida— por
-  /// una viñeta: como las dos cosas afectan igual a la foto y a la caja, el
-  /// borde de la foto no aparece y queda una vitrina iluminada, no un recorte.
+  /// eso la foto lleva un tinte frío y la caja entera —foto incluida— una
+  /// viñeta: como las dos cosas afectan igual a la foto y a la caja, el borde
+  /// de la foto no aparece y queda una vitrina iluminada, no un recorte.
   Widget _vitrina(BuildContext context) {
     final fondo = _tenir(rasgos.fondo!);
-    final foto = ColorFiltered(
-      colorFilter: const ColorFilter.mode(_tinte, BlendMode.multiply),
-      child: _imagen(context, BoxFit.contain),
-    );
+    final foto = _imagen(context, BoxFit.contain, tinte: _tinte);
     if (encuadre == Encuadre.miniatura) {
       return ColoredBox(
         color: fondo,
         child: Padding(padding: const EdgeInsets.all(5), child: foto),
       );
     }
-    final grande = encuadre != Encuadre.tarjeta;
     final forma = FormaConCorte(
-      corte: grande ? 16 : 10,
-      radio: grande ? 20 : 14,
+      corte: _grande ? 16 : 10,
+      radio: _grande ? 20 : 14,
     );
     final caja = DecoratedBox(
       decoration: ShapeDecoration(
         color: fondo,
         shape: forma,
-        shadows: [
-          // La caja encendida irradia su propia luz sobre el negro, y la luz
-          // azul de la colección la levanta desde abajo.
-          BoxShadow(
-            color: fondo.withValues(alpha: 0.12),
-            blurRadius: grande ? 46 : 20,
-            spreadRadius: -6,
-          ),
-          BoxShadow(
-            color: estilo.acento.withValues(alpha: 0.32),
-            blurRadius: grande ? 40 : 24,
-            spreadRadius: -12,
-            offset: Offset(0, grande ? 20 : 10),
-          ),
-        ],
+        // La luz alrededor de la caja, solo en los encuadres grandes: en una
+        // grilla serían decenas de desenfoques por cuadro.
+        shadows: _grande
+            ? [
+                BoxShadow(
+                  color: fondo.withValues(alpha: 0.12),
+                  blurRadius: 46,
+                  spreadRadius: -6,
+                ),
+                BoxShadow(
+                  color: estilo.acento.withValues(alpha: 0.32),
+                  blurRadius: 40,
+                  spreadRadius: -12,
+                  offset: const Offset(0, 20),
+                ),
+              ]
+            : null,
       ),
       child: ClipPath(
         clipper: ShapeBorderClipper(shape: forma),
-        child: ShaderMask(
-          blendMode: BlendMode.modulate,
-          shaderCallback: (rect) => const RadialGradient(
-            radius: 0.95,
-            colors: [Colors.white, Color(0xFFDDE2E9), Color(0xFF6B7380)],
-            stops: [0, 0.42, 1],
-          ).createShader(rect),
-          child: ColoredBox(
-            color: fondo,
-            child: Padding(
-              padding: EdgeInsets.all(grande ? tamano.shortestSide * 0.04 : 6),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Padding(
+              padding: EdgeInsets.all(_grande ? tamano.shortestSide * 0.04 : 6),
               child: foto,
             ),
-          ),
+            // La viñeta: oscurece los bordes de la caja y de la foto por
+            // igual, así la caja parece encendida desde adentro.
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  radius: 0.95,
+                  colors: [Color(0x00000000), Color(0x14000000), Color(0x8C000000)],
+                  stops: [0, 0.42, 1],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
     // La caja toma la proporción de la foto: no sobra panel alrededor.
     return Padding(
-      padding: EdgeInsets.all(_margen + (grande ? 12 : 2)),
+      padding: _relleno(_margen + (_grande ? 12 : 2)),
       child: Center(
         child: AspectRatio(
           aspectRatio: rasgos.proporcion.clamp(0.55, 2.4),
@@ -486,15 +561,25 @@ class _Producto extends StatelessWidget {
   Widget _cuadro(BuildContext context) {
     if (encuadre == Encuadre.miniatura) return _imagen(context, BoxFit.cover);
     if (encuadre == Encuadre.tarjeta) {
-      return ShaderMask(
-        blendMode: BlendMode.dstIn,
-        shaderCallback: (rect) => const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.white, Colors.white, Color(0x00FFFFFF)],
-          stops: [0, 0.56, 1],
-        ).createShader(rect),
-        child: _imagen(context, BoxFit.cover),
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          _imagen(context, BoxFit.cover),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x00080A10),
+                  Color(0x00080A10),
+                  Paleta.negroPrincipal,
+                ],
+                stops: [0, 0.56, 1],
+              ),
+            ),
+          ),
+        ],
       );
     }
     const forma = FormaConCorte(corte: 16, radio: 20);
@@ -502,20 +587,27 @@ class _Producto extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         // La misma foto, enorme y desenfocada: la luz de la escena se derrama
-        // alrededor del cuadro en lugar de cortarse en su borde. Se decodifica
-        // chica: desenfocada, la resolución no se nota y cuesta mucho menos.
-        Opacity(
-          opacity: 0.62,
-          child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-            child: _imagen(context, BoxFit.cover, escala: 0.3),
-          ),
+        // alrededor del cuadro en lugar de cortarse en su borde.
+        //
+        // No es un desenfoque de verdad, que era lo más caro de dibujar de
+        // toda la vidriera: la foto se decodifica a 24 píxeles de ancho y se
+        // estira. El filtrado al agrandarla ya la deja borrosa, y el oscurecido
+        // de encima se aplica en el mismo dibujo.
+        Image(
+          image: ResizeImage.resizeIfNeeded(24, null, foto!),
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.medium,
+          gaplessPlayback: true,
+          color: const Color(0x9E000000),
+          colorBlendMode: BlendMode.srcATop,
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
         ),
-        const ColoredBox(color: Color(0x59000000)),
         Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: _margen + tamano.width * 0.08,
-            vertical: _margen + 6,
+          padding: EdgeInsets.fromLTRB(
+            _margen + tamano.width * 0.08,
+            _margen + 6 + aireSuperior,
+            _margen + tamano.width * 0.08,
+            _margen + 6 + aireInferior,
           ),
           child: Center(
             child: AspectRatio(

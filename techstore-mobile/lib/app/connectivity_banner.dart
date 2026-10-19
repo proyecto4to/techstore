@@ -73,42 +73,52 @@ class _ConnectivityBannerState extends ConsumerState<ConnectivityBanner>
         : ref
               .watch(offlineQueueProvider)
               .pendingCount(offlineScopeForSession(token, email));
-    return Column(
-      children: [
-        StreamBuilder<int>(
-          stream: pending,
-          initialData: 0,
-          builder: (context, snapshot) {
-            final count = snapshot.data ?? 0;
-            if (_online && count == 0) return const SizedBox.shrink();
-            final color = _online
-                ? Theme.of(context).colorScheme.tertiaryContainer
-                : Theme.of(context).colorScheme.errorContainer;
-            final message = !_online
-                ? (_hayDatosGuardados
-                      ? 'Sin conexión · se muestran datos guardados'
-                      : 'Sin conexión con el servidor')
-                : '$count operación${count == 1 ? '' : 'es'} pendiente${count == 1 ? '' : 's'} de sincronizar';
-            return Material(
-              color: color,
-              child: SafeArea(
-                bottom: false,
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    child: Text(message, textAlign: TextAlign.center),
-                  ),
-                ),
+    return StreamBuilder<int>(
+      stream: pending,
+      initialData: 0,
+      builder: (context, snapshot) {
+        final count = snapshot.data ?? 0;
+        final visible = !_online || count > 0;
+        return Column(
+          children: [
+            if (visible) _aviso(context, count) else const SizedBox.shrink(),
+            Expanded(
+              // El aviso ya ocupa el lugar de la barra de estado: la pantalla
+              // de abajo no tiene que volver a dejarlo, o queda una franja
+              // negra entre los dos.
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: visible,
+                child: widget.child,
               ),
-            );
-          },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _aviso(BuildContext context, int count) {
+    final color = _online
+        ? Theme.of(context).colorScheme.tertiaryContainer
+        : Theme.of(context).colorScheme.errorContainer;
+    final message = !_online
+        ? (_hayDatosGuardados
+              ? 'Sin conexión · se muestran datos guardados'
+              : 'Sin conexión con el servidor')
+        : '$count operación${count == 1 ? '' : 'es'} pendiente${count == 1 ? '' : 's'} de sincronizar';
+    return Material(
+      color: color,
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Text(message, textAlign: TextAlign.center),
+          ),
         ),
-        Expanded(child: widget.child),
-      ],
+      ),
     );
   }
 }

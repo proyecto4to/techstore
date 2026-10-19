@@ -201,9 +201,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                                 : 'Ingresar',
                                           ),
                                         ),
+                                        // Encima del ingreso, no en su lugar:
+                                        // así «atrás» vuelve acá y no cierra
+                                        // la app.
                                         TextButton(
                                           onPressed: () =>
-                                              context.go('/password/forgot'),
+                                              context.push('/password/forgot'),
                                           child: const Text(
                                             'Olvidé mi contraseña',
                                           ),
@@ -233,7 +236,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           Aparicion(
                             orden: 6,
                             child: TextButton(
-                              onPressed: () => context.go('/register'),
+                              onPressed: () => context.push('/register'),
                               child: const Text('Crear una cuenta'),
                             ),
                           ),

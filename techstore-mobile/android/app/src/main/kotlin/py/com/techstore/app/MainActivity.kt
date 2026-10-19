@@ -1,6 +1,8 @@
 package py.com.techstore.app
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -10,6 +12,9 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
+import java.nio.ByteBuffer
+import java.util.concurrent.Executors
+import kotlin.math.max
 /**
  * Puente con el instalador de paquetes de Android.
  *
@@ -23,8 +28,15 @@ class MainActivity : FlutterFragmentActivity() {
     private companion object {
         const val CANAL = "py.com.techstore.app/instalador"
     }
+        const val CANAL_MINIATURAS = "py.com.techstore.app/miniaturas"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+    /**
+     * Un solo hilo: las miniaturas se arman de a una, sin competir con la
+     * interfaz por los núcleos.
+     */
+    private val decodificador = Executors.newSingleThreadExecutor()
+
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL)
             .setMethodCallHandler { call, resultado ->
@@ -36,6 +48,73 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
     }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL_MINIATURAS)
+            .setMethodCallHandler { call, resultado ->
+                when (call.method) {
+                    "rgba" -> miniatura(
+                        call.argument<String>("ruta"),
+                        call.argument<Int>("ancho") ?: 48,
+                        resultado,
+                    )
+                    else -> resultado.notImplemented()
+                }
+            }
+    }
+
+    override fun onDestroy() {
+        decodificador.shutdown()
+        super.onDestroy()
+    }
+
+    /**
+     * Los píxeles de una foto achicada a [ancho], en RGBA, para que la vitrina
+     * decida cómo presentarla.
+     *
+     * Existe porque hacerlo del lado de Flutter salía caro de las dos formas
+     * posibles: leer los píxeles de una imagen ya decodificada obliga a traerla
+     * de vuelta desde la GPU y frena el dibujo, y decodificarla en Dart puro
+     * ocupa un núcleo entero por cada foto grande. El decodificador de Android
+     * es nativo y, con el muestreo, nunca arma la foto entera en memoria: un
+     * JPEG lo lee directamente achicado y un PNG lo descomprime salteando
+     * filas y columnas.
+     */
+    private fun miniatura(ruta: String?, ancho: Int, resultado: MethodChannel.Result) {
+        if (ruta.isNullOrBlank() || ancho <= 0) {
+            resultado.error("argumentos", "Falta la ruta o el ancho", null)
+            return
+        }
+        decodificador.execute {
+            try {
+                val medidas = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(ruta, medidas)
+                if (medidas.outWidth <= 0 || medidas.outHeight <= 0) {
+                    runOnUiThread { resultado.error("ilegible", "No es una imagen", null) }
+                    return@execute
+                }
+                // La potencia de dos más grande que todavía deja la foto más
+                // ancha que la miniatura: el resto lo hace el escalado final.
+                var muestreo = 1
+                while (medidas.outWidth / (muestreo * 2) >= ancho) muestreo *= 2
+                val decodificada = BitmapFactory.decodeFile(
+                    ruta,
+                    BitmapFactory.Options().apply {
+                        inSampleSize = muestreo
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
+                    },
+                ) ?: throw IllegalStateException("No se pudo decodificar")
+                val alto = max(1, decodificada.height * ancho / decodificada.width)
+                val chica = Bitmap.createScaledBitmap(decodificada, ancho, alto, true)
+                if (chica !== decodificada) decodificada.recycle()
+                // ARGB_8888 guarda los bytes en orden R, G, B, A.
+                val pixeles = ByteBuffer.allocate(chica.byteCount)
+                chica.copyPixelsToBuffer(pixeles)
+                chica.recycle()
+                val datos = mapOf("ancho" to ancho, "alto" to alto, "rgba" to pixeles.array())
+                runOnUiThread { resultado.success(datos) }
+            } catch (error: Exception) {
+                runOnUiThread { resultado.error("miniatura", error.message, null) }
+            }
+        }
 
     private fun puedeInstalar(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

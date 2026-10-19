@@ -362,6 +362,10 @@ class TarjetaDestacada extends ConsumerWidget {
                   encuadre: Encuadre.destacado,
                   heroTag: heroTag,
                   paralaje: paralaje,
+                  // El producto sube y deja abajo el lugar del rótulo, el
+                  // nombre y el precio, que van encima de la escena.
+                  aireInferior:
+                      60 + 80 * escalaDeTarjeta(context).scale(1),
                 ),
                 // El texto va sobre la escena: un degradé lo separa de la
                 // foto sin taparla entera.

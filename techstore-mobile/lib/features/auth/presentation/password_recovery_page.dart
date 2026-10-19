@@ -74,7 +74,10 @@ class _PasswordRecoveryPageState extends ConsumerState<PasswordRecoveryPage> {
         ),
         const SizedBox(height: 24),
         FilledButton(
-          onPressed: () => context.go('/login'),
+          // Si se llegó desde el ingreso, se vuelve a ese mismo: lo que había
+          // debajo —el carrito, la ficha— sigue ahí.
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/login'),
           child: const Text('Volver al ingreso'),
         ),
         const SizedBox(height: 8),

@@ -118,7 +118,13 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   }
 
   Widget _contenido(Product item) {
-    final alto = math.min(MediaQuery.sizeOf(context).width * 1.02, 470.0);
+    // La barra flota sobre la escena: el producto se ubica debajo de ella y
+    // la escena crece lo mismo, para que la foto no pierda tamaño.
+    final barra = MediaQuery.paddingOf(context).top + kToolbarHeight;
+    final alto =
+        math.min(MediaQuery.sizeOf(context).width * 1.02, 470.0) +
+        barra * 0.6 -
+        28;
     return CustomScrollView(
       controller: _desplazamiento,
       slivers: [
@@ -130,36 +136,37 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
               child: Semantics(
                 button: item.imageUrl != null,
                 hint: item.imageUrl == null ? null : 'Ver la foto en grande',
-                child: ValueListenableBuilder<double>(
-                  valueListenable: _corrimiento,
-                  builder: (context, corrido, hijo) {
-                    // El escenario baja a la mitad de velocidad que el texto
-                    // y sus capas se corren entre sí: profundidad, no adorno.
-                    final avance = (corrido / alto).clamp(0.0, 1.0);
-                    return Transform.translate(
-                      offset: Offset(0, corrido * 0.45),
-                      child: Opacity(
-                        opacity: 1 - avance * 0.6,
-                        child: EscenarioDeProducto(
-                          producto: item,
-                          encuadre: Encuadre.ficha,
-                          heroTag: _heroTag,
-                          paralaje: avance * 1.4,
+                // La escena se corre dentro de su lugar y no más allá: en una
+                // lista, la primera pieza se pinta encima de las demás, y al
+                // bajar tapaba el título.
+                child: ClipRect(
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: _corrimiento,
+                    builder: (context, corrido, hijo) {
+                      // El escenario baja a la mitad de velocidad que el texto
+                      // y sus capas se corren entre sí: profundidad, no adorno.
+                      final avance = (corrido / alto).clamp(0.0, 1.0);
+                      return Transform.translate(
+                        offset: Offset(0, corrido * 0.45),
+                        child: Opacity(
+                          opacity: 1 - avance * 0.6,
+                          child: EscenarioDeProducto(
+                            producto: item,
+                            encuadre: Encuadre.ficha,
+                            heroTag: _heroTag,
+                            paralaje: avance * 1.4,
+                            aireSuperior: barra - 20,
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
           ),
         ),
-        SliverToBoxAdapter(
-          child: Transform.translate(
-            offset: const Offset(0, -28),
-            child: _Datos(producto: item),
-          ),
-        ),
+        SliverToBoxAdapter(child: _Datos(producto: item)),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.only(top: 12, bottom: 28),
@@ -296,7 +303,12 @@ class _Datos extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(Medidas.margen, 24, Medidas.margen, 8),
+        padding: const EdgeInsets.fromLTRB(
+          Medidas.margen,
+          24,
+          Medidas.margen,
+          8,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -350,9 +362,7 @@ class _Datos extends StatelessWidget {
                           margin: const EdgeInsets.only(top: 11, right: 12),
                           color: marca.cursor,
                         ),
-                        Expanded(
-                          child: Text(punto, style: textos.bodyLarge),
-                        ),
+                        Expanded(child: Text(punto, style: textos.bodyLarge)),
                       ],
                     ),
                   ),
@@ -422,9 +432,12 @@ class _FichaTecnica extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(clave, style: textos.bodyMedium?.copyWith(
-                      color: Paleta.textoSecundario,
-                    )),
+                    child: Text(
+                      clave,
+                      style: textos.bodyMedium?.copyWith(
+                        color: Paleta.textoSecundario,
+                      ),
+                    ),
                   ),
                   Flexible(
                     child: Text(

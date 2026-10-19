@@ -74,6 +74,10 @@ dependencies:
   # bajar por el túnel cada vez que se abría la app.
   cached_network_image: ^4.0.4
   flutter_cache_manager: ^3.4.5
+  # Arma en Dart la miniatura con la que se analiza cada foto donde no está el
+  # decodificador de Android (las pruebas y el banco de capturas). Ya venía
+  # como dependencia de pdf; se fija en la misma versión.
+  image: ^4.9.2
 
 dev_dependencies:
   flutter_test:
@@ -91,6 +95,9 @@ dev_dependencies:
   json_serializable: ^6.14.1
   drift_dev: ^2.34.5
   mocktail: ^1.0.5
+  # Respuestas HTTP armadas a mano para probar cómo se guardan las fotos. Ya
+  # venía como dependencia de flutter_cache_manager; se fija en esa versión.
+  http: ^1.6.0
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.8
   local_auth_platform_interface: ^1.1.0

@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -42,7 +43,10 @@ class CatalogoPublicoIT {
     void sirveLasFotosEmpaquetadasDelCatalogoSinAutenticacion() throws Exception {
         mvc.perform(get("/img/productos/cpu.jpg"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.IMAGE_JPEG));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.IMAGE_JPEG))
+                // Con "no-cache" la tienda y la app volvian a bajar cada foto
+                // en cada visita.
+                .andExpect(header().string("Cache-Control", "max-age=604800, public"));
     }
 
     @Test

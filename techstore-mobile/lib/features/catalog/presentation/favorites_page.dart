@@ -93,6 +93,7 @@ class FavoritesPage extends ConsumerWidget {
                             itemCount: productos.length,
                             itemBuilder: (context, indice) => Aparicion(
                               orden: indice % 6,
+                              animar: indice < 6,
                               child: TarjetaDeProducto(
                                 producto: productos[indice],
                                 contexto: 'favoritos',

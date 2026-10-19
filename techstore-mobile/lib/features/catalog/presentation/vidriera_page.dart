@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +25,7 @@ import '../domain/product.dart';
 import 'vitrina/carrusel_de_productos.dart';
 import 'vitrina/escenario_de_producto.dart';
 import 'vitrina/estilo_de_coleccion.dart';
+import 'vitrina/foto_de_producto.dart';
 import 'vitrina/tarjetas_de_producto.dart';
 
 /// El inicio de quien compra: una vidriera, no una grilla de módulos.
@@ -42,6 +44,12 @@ class VidrieraPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final usuario = ref.watch(authSessionProvider).user;
     final vidriera = ref.watch(vidrieraProvider);
+    // Las fotos de los carruseles se bajan en los ratos libres, antes de que
+    // alguien los deslice.
+    ref.listen(vidrieraProvider, (_, siguiente) {
+      final datos = siguiente.value;
+      if (datos != null) precalentarFotos(context, datos.productos);
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -273,8 +281,13 @@ class _CarruselDeCampanasState extends State<_CarruselDeCampanas> {
 
   @override
   Widget build(BuildContext context) {
-    final ancho = MediaQuery.sizeOf(context).width;
-    final alto = (ancho * 0.88 / 0.9).clamp(320.0, 470.0);
+    final pantalla = MediaQuery.sizeOf(context);
+    // Proporcional al ancho, pero nunca más alto que tres cuartos de la
+    // pantalla: acostado, el carrusel no puede tapar todo lo demás.
+    final alto = math.min(
+      (pantalla.width * 0.88 / 0.9).clamp(320.0, 470.0),
+      math.max(280.0, pantalla.height * 0.75),
+    );
     return Column(
       children: [
         SizedBox(
@@ -426,6 +439,7 @@ class _Colecciones extends StatelessWidget {
 class _TarjetaDeColeccion extends StatelessWidget {
   const _TarjetaDeColeccion({required this.coleccion, required this.contar});
 
+              animar: indice < 3,
   final ColeccionDeVidriera coleccion;
   final bool contar;
 

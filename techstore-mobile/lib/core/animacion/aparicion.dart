@@ -17,10 +17,17 @@ class Aparicion extends StatefulWidget {
     this.clave,
     this.desplazamiento = 18,
     this.escala = 1,
+    this.animar = true,
     super.key,
   });
 
   final Widget child;
+
+  /// En una lista larga, solo lo que se ve al abrir entra animado. Lo que
+  /// aparece después, al desplazar, llega directo: animar cada tarjeta
+  /// mientras se desliza suma capas de opacidad justo cuando más se necesita
+  /// fluidez.
+  final bool animar;
 
   /// Posición en la cascada; se topa para que el décimo no espere de más.
   final int orden;
@@ -57,7 +64,8 @@ class _AparicionState extends State<Aparicion>
     if (_decidido) return;
     _decidido = true;
     final clave = widget.clave;
-    if (Movimiento.reducido(context) ||
+    if (!widget.animar ||
+        Movimiento.reducido(context) ||
         (clave != null && Aparicion._vistas.contains(clave))) {
       _control.value = 1;
       return;
@@ -82,6 +90,7 @@ class _AparicionState extends State<Aparicion>
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.animar) return widget.child;
     final curva = CurvedAnimation(parent: _control, curve: Movimiento.llegada);
     return FadeTransition(
       opacity: CurvedAnimation(parent: _control, curve: Curves.easeOut),

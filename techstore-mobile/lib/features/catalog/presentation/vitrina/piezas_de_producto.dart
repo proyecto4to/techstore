@@ -82,13 +82,13 @@ class PrecioDeProducto extends StatelessWidget {
         alignment: Alignment.centerLeft,
         children: [...previos, ?actual],
       ),
-      child: Text(
-        texto,
+      // Un precio no se corta nunca: si no entra (una tarjeta angosta, un
+      // teléfono con la pantalla agrandada), se achica hasta entrar entero.
+      child: FittedBox(
         key: ValueKey(texto),
-        style: estilo,
-        maxLines: 1,
-        overflow: TextOverflow.fade,
-        softWrap: false,
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(texto, style: estilo, maxLines: 1, softWrap: false),
       ),
     );
     if (!producto.hasPromotion) return precio;
@@ -154,15 +154,21 @@ class IndicadorDeStock extends StatelessWidget {
     builder: (context) => Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // El halo es un segundo círculo translúcido y no una sombra
+        // desenfocada: hay uno por tarjeta, y un desenfoque por tarjeta en
+        // cada cuadro de un desplazamiento se nota.
         Container(
-          width: 7,
-          height: 7,
+          width: 13,
+          height: 13,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: color,
+            color: color.withValues(alpha: 0.18),
             shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 6),
-            ],
+          ),
+          child: Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
         ),
         const SizedBox(width: 7),
