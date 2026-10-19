@@ -292,6 +292,8 @@ class _AddressMapPageState extends ConsumerState<AddressMapPage> {
         SnackBar(
           content: Text('$motivo Podés marcarla tocando el mapa.'),
           duration: const Duration(seconds: 6),
+          // Fijo solo con lector de pantalla; si no, se va solo.
+          persist: MediaQuery.accessibleNavigationOf(context),
           action: salida == SalidaSugerida.reintentar
               ? SnackBarAction(
                   label: 'Reintentar',

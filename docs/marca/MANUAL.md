@@ -99,7 +99,7 @@ Los PNG de cada versión están en `recursos/png/`.
 
 | Rol | Hex | Motivo |
 |---|---|---|
-| Borde de control | `#4B5B75` | Los campos y botones con contorno necesitan 3:1 contra el fondo para reconocerse como controles; el borde de la paleta (1,63:1) solo decora |
+| Borde de control | `#5B6D8A` | Los campos y botones con contorno necesitan 3:1 para reconocerse como controles, y lo tienen contra todas las superficies oscuras: 4,0:1 sobre el negro, 3,6:1 sobre el relleno de los campos y 3,1:1 sobre la tarjeta elevada. El borde de la paleta (1,63:1) solo decora |
 | Azul tinta (papel) | `#1D4ED8` | Isotipo sobre blanco |
 | Cursor sobre papel | `#0284C7` | El cian se lava sobre blanco |
 

@@ -67,6 +67,9 @@ Future<void> alternarFavorito(
       ..showSnackBar(
         SnackBar(
           content: const Text('Ingresá para guardar favoritos.'),
+          // Fijo solo con lector de pantalla; si no, se va solo (ver
+          // agregarAlCarrito).
+          persist: MediaQuery.accessibleNavigationOf(context),
           action: SnackBarAction(
             label: 'Ingresar',
             onPressed: () => context.push(

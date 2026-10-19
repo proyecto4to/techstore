@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
+import '../diseno/movimiento.dart';
+
 /// A cuántos puntos por pulgada se dibuja cada página.
 ///
 /// Es lo que decide hasta dónde se puede acercar sin que la letra se deshaga.
@@ -175,6 +177,11 @@ class _VisorDeDocumentoState extends State<VisorDeDocumento> {
   }
 
   void _irA(int indice) {
+    // Sin animaciones pedidas por el sistema, la hoja cambia de un salto.
+    if (Movimiento.reducido(context)) {
+      _hojas.jumpToPage(indice);
+      return;
+    }
     _hojas.animateToPage(
       indice,
       duration: const Duration(milliseconds: 250),

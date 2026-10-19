@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/di/providers.dart';
+import '../../../core/diseno/movimiento.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/native/haptics_service.dart';
 import '../../../core/offline/offline_queue_service.dart';
@@ -443,6 +444,11 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   /// La lista se dibuja invertida, así que el final es el desplazamiento cero.
   void _alUltimo() {
     if (!_scroll.hasClients) return;
+    // Sin animaciones pedidas por el sistema, salta directo al final.
+    if (Movimiento.reducido(context)) {
+      _scroll.jumpTo(0);
+      return;
+    }
     _scroll.animateTo(
       0,
       duration: const Duration(milliseconds: 250),

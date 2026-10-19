@@ -37,6 +37,11 @@ Future<bool> agregarAlCarrito(
         SnackBar(
           content: Text(resultado.message),
           duration: Duration(seconds: resultado.isSuccess ? 2 : 4),
+          // Flutter deja fijo todo aviso con acción hasta que se lo toque: el
+          // «Agregado al carrito» quedaba tapando los productos minutos
+          // después. Solo se queda con un lector de pantalla activo, para que
+          // la acción se alcance.
+          persist: MediaQuery.accessibleNavigationOf(context),
           action: resultado.isSuccess
               ? SnackBarAction(
                   label: 'Ver carrito',

@@ -30,9 +30,11 @@ abstract final class Paleta {
   /// contorno de un control: para eso está [bordeDeControl].
   static const borde = Color(0xFF253247);
 
-  /// Contorno de campos y botones delineados: 3:1 contra el fondo, el mínimo
-  /// para que un control se reconozca como tal.
-  static const bordeDeControl = Color(0xFF4B5B75);
+  /// Contorno de campos y botones delineados: al menos 3:1 contra todas las
+  /// superficies oscuras de la app —el negro, el relleno de los campos y las
+  /// tarjetas elevadas—, el mínimo para que un control se reconozca como tal.
+  /// El tono anterior (#4B5B75) llegaba a 3:1 solo sobre el negro puro.
+  static const bordeDeControl = Color(0xFF5B6D8A);
 
   /// Contenedor de lo seleccionado: un azul tan oscuro que todavía es negro.
   static const azulProfundo = Color(0xFF13233F);
