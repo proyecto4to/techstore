@@ -140,7 +140,12 @@ void main() {
     );
   }, timeout: limite);
 
-  for (final (id, nombre) in const [(33, 'ups'), (2, 'rtx'), (36, 'silla')]) {
+  for (final (id, nombre, escala) in const [
+    (33, 'ups', 1.0),
+    (2, 'rtx', 1.0),
+    (36, 'silla', 1.0),
+    (33, 'ups-letra-grande', 1.3),
+  ]) {
     testWidgets('pantalla: ficha $nombre', (tester) async {
       if (!hayBanco) return;
       final contenedor = _contenedor();
@@ -152,6 +157,8 @@ void main() {
         ProductDetailPage(productId: id),
         'ficha-$nombre',
         alto: 1900,
+        ancho: escala == 1 ? 412 : 393,
+        escalaDeTexto: escala,
         precarga: [
           productProvider(id),
           relacionadosProvider((
@@ -164,31 +171,41 @@ void main() {
     }, timeout: limite);
   }
 
-  testWidgets('pantalla: carrito', (tester) async {
-    if (!hayBanco) return;
-    final contenedor = _contenedor();
-    addTearDown(contenedor.dispose);
-    final productos = productosReales();
-    // El carrito se arma en tiempo real, así su restauración termina antes de
-    // agregarle las líneas.
-    await tester.runAsync(() async {
-      final escucha = contenedor.listen(cartProvider, (_, _) {});
-      addTearDown(escucha.close);
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    });
-    await _capturar(
-      tester,
-      contenedor,
-      const CartPage(),
-      'carrito',
-      antes: () {
-        final carrito = contenedor.read(cartProvider.notifier);
-        for (final (id, cantidad) in const [(10, 2), (8, 1), (32, 3)]) {
-          carrito.add(productos.firstWhere((p) => p.id == id), quantity: cantidad);
-        }
-      },
-    );
-  }, timeout: limite);
+  for (final (nombre, escala) in const [
+    ('carrito', 1.0),
+    ('carrito-letra-grande', 1.3),
+  ]) {
+    testWidgets('pantalla: $nombre', (tester) async {
+      if (!hayBanco) return;
+      final contenedor = _contenedor();
+      addTearDown(contenedor.dispose);
+      final productos = productosReales();
+      // El carrito se arma en tiempo real, así su restauración termina antes
+      // de agregarle las líneas.
+      await tester.runAsync(() async {
+        final escucha = contenedor.listen(cartProvider, (_, _) {});
+        addTearDown(escucha.close);
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      });
+      await _capturar(
+        tester,
+        contenedor,
+        const CartPage(),
+        nombre,
+        ancho: escala == 1 ? 412 : 393,
+        escalaDeTexto: escala,
+        antes: () {
+          final carrito = contenedor.read(cartProvider.notifier);
+          for (final (id, cantidad) in const [(10, 2), (8, 1), (32, 3)]) {
+            carrito.add(
+              productos.firstWhere((p) => p.id == id),
+              quantity: cantidad,
+            );
+          }
+        },
+      );
+    }, timeout: limite);
+  }
 
   testWidgets('pantalla: ingreso', (tester) async {
     if (!hayBanco) return;
@@ -197,6 +214,7 @@ void main() {
     await _capturar(tester, contenedor, const LoginPage(), 'ingreso');
   }, timeout: limite);
 
+  // Cada una también con la letra del sistema al 130 %, en un Redmi Note.
   for (final (nombre, pantalla, conSesion) in <(String, Widget, bool)>[
     ('registro', const RegisterPage(), false),
     ('recuperacion', const PasswordRecoveryPage(), false),
@@ -204,26 +222,43 @@ void main() {
     ('pedidos', const OrdersPage(), true),
     ('notificaciones', const NotificationsPage(), true),
   ]) {
-    testWidgets('pantalla: $nombre', (tester) async {
-      if (!hayBanco) return;
-      final contenedor = _contenedor(conSesion: conSesion);
-      addTearDown(contenedor.dispose);
-      await _capturar(tester, contenedor, pantalla, nombre);
-    }, timeout: limite);
+    for (final escala in const [1.0, 1.3]) {
+      final captura = escala == 1 ? nombre : '$nombre-letra-grande';
+      testWidgets('pantalla: $captura', (tester) async {
+        if (!hayBanco) return;
+        final contenedor = _contenedor(conSesion: conSesion);
+        addTearDown(contenedor.dispose);
+        await _capturar(
+          tester,
+          contenedor,
+          pantalla,
+          captura,
+          ancho: escala == 1 ? 412 : 393,
+          escalaDeTexto: escala,
+        );
+      }, timeout: limite);
+    }
   }
 
-  testWidgets('pantalla: inicio de caja', (tester) async {
-    if (!hayBanco) return;
-    final contenedor = _contenedor(rol: 'Cajero');
-    addTearDown(contenedor.dispose);
-    await _capturar(
-      tester,
-      contenedor,
-      const HomePage(environmentLabel: null),
-      'inicio-caja',
-      alto: 1400,
-    );
-  }, timeout: limite);
+  for (final (nombre, escala) in const [
+    ('inicio-caja', 1.0),
+    ('inicio-caja-letra-grande', 1.3),
+  ]) {
+    testWidgets('pantalla: $nombre', (tester) async {
+      if (!hayBanco) return;
+      final contenedor = _contenedor(rol: 'Cajero');
+      addTearDown(contenedor.dispose);
+      await _capturar(
+        tester,
+        contenedor,
+        const HomePage(environmentLabel: null),
+        nombre,
+        alto: 1400,
+        ancho: escala == 1 ? 412 : 393,
+        escalaDeTexto: escala,
+      );
+    }, timeout: limite);
+  }
 
   // El Moto G42 del local tiene la pantalla agrandada: 346 puntos de ancho.
   testWidgets('pantalla: vidriera angosta', (tester) async {

@@ -117,7 +117,9 @@ class VidrieraPage extends ConsumerWidget {
                   SliverToBoxAdapter(
                     child: _CarruselDeCampanas(
                       productos: datos.destacados,
-                      rotulo: datos.destacaOfertas ? 'en oferta' : 'recién llegado',
+                      rotulo: datos.destacaOfertas
+                          ? 'en oferta'
+                          : 'recién llegado',
                     ),
                   ),
                 if (datos.colecciones.isNotEmpty)
@@ -163,7 +165,9 @@ class VidrieraPage extends ConsumerWidget {
                     ),
                   ),
                 SliverToBoxAdapter(
-                  child: _TodoElCatalogo(total: datos.completo ? datos.total : null),
+                  child: _TodoElCatalogo(
+                    total: datos.completo ? datos.total : null,
+                  ),
                 ),
               ],
             ),
@@ -190,7 +194,12 @@ class _Bienvenida extends StatelessWidget {
         ? 'bienvenido'
         : 'hola, ${nombre!.trim().toLowerCase()}';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Medidas.margen, 10, Medidas.margen, 22),
+      padding: const EdgeInsets.fromLTRB(
+        Medidas.margen,
+        10,
+        Medidas.margen,
+        22,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -328,8 +337,8 @@ class _CarruselDeCampanasState extends State<_CarruselDeCampanas> {
                 builder: (context, hijo) {
                   // Qué tan lejos está esta página del centro: mueve las capas
                   // del escenario y achica apenas las de los costados.
-                  final pagina = _paginas.hasClients &&
-                          _paginas.position.haveDimensions
+                  final pagina =
+                      _paginas.hasClients && _paginas.position.haveDimensions
                       ? _paginas.page ?? _actual.toDouble()
                       : _actual.toDouble();
                   final distancia = (indice - pagina).clamp(-1.0, 1.0);
@@ -522,11 +531,7 @@ class _TarjetaDeColeccion extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Container(
-                          width: 18,
-                          height: 3,
-                          color: estilo.acento,
-                        ),
+                        Container(width: 18, height: 3, color: estilo.acento),
                         const SizedBox(height: 10),
                         Text(
                           coleccion.nombre,
@@ -543,10 +548,7 @@ class _TarjetaDeColeccion extends StatelessWidget {
                         ),
                         if (contar) ...[
                           const SizedBox(height: 4),
-                          Text(
-                            cantidad,
-                            style: MarcaTema.of(context).rotulo,
-                          ),
+                          Text(cantidad, style: MarcaTema.of(context).rotulo),
                         ],
                       ],
                     ),
@@ -575,7 +577,9 @@ class _TodoElCatalogo extends StatelessWidget {
       onTap: () => context.push('/catalog'),
       etiqueta: 'Ver todo el catálogo',
       child: Container(
-        height: 132,
+        // Alto mínimo y no fijo: con la letra del sistema agrandada, el texto
+        // se salía por abajo.
+        constraints: const BoxConstraints(minHeight: 132),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: Medidas.bordeTarjeta,
@@ -587,6 +591,7 @@ class _TodoElCatalogo extends StatelessWidget {
           border: Border.all(color: Paleta.borde),
         ),
         child: Stack(
+          alignment: AlignmentDirectional.centerStart,
           children: [
             const Positioned(
               right: -26,
@@ -596,8 +601,8 @@ class _TodoElCatalogo extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Rotulo(total == null ? 'catálogo' : '$total productos'),
                   const SizedBox(height: 6),
@@ -639,43 +644,50 @@ class _AccesosDeCuenta extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 26),
-    child: SizedBox(
-      height: 98,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: Medidas.margen),
-        itemCount: _accesos.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, indice) {
-          final (icono, etiqueta, ruta) = _accesos[indice];
-          void abrir() => context.push(ruta);
-          final Widget baldosa = ruta != '/notifications'
-              ? BaldosaDeAcceso(
-                  icono: icono,
-                  etiqueta: etiqueta,
-                  onTap: abrir,
-                  compacta: true,
-                )
-              // Un Consumer propio para que el número no reconstruya el carril
-              // entero cada vez que llega un aviso.
-              : Consumer(
-                  builder: (context, ref, _) => BaldosaDeAcceso(
+  Widget build(BuildContext context) {
+    // Las baldosas crecen con la letra del sistema: con la letra agrandada,
+    // «Notificaciones» se partía al medio y el nombre se salía por abajo.
+    final letra = MediaQuery.textScalerOf(context);
+    final ancho = math.min(letra.scale(116), 180.0);
+    final alto = 66 + letra.scale(32);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 26),
+      child: SizedBox(
+        height: alto,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: Medidas.margen),
+          itemCount: _accesos.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 10),
+          itemBuilder: (context, indice) {
+            final (icono, etiqueta, ruta) = _accesos[indice];
+            void abrir() => context.push(ruta);
+            final Widget baldosa = ruta != '/notifications'
+                ? BaldosaDeAcceso(
                     icono: icono,
                     etiqueta: etiqueta,
                     onTap: abrir,
                     compacta: true,
-                    pendientes:
-                        ref.watch(unreadNotificationsProvider).value ?? 0,
-                  ),
-                );
-          return SizedBox(
-            width: 116,
-            child: Aparicion(orden: indice + 3, child: baldosa),
-          );
-        },
+                  )
+                // Un Consumer propio para que el número no reconstruya el carril
+                // entero cada vez que llega un aviso.
+                : Consumer(
+                    builder: (context, ref, _) => BaldosaDeAcceso(
+                      icono: icono,
+                      etiqueta: etiqueta,
+                      onTap: abrir,
+                      compacta: true,
+                      pendientes:
+                          ref.watch(unreadNotificationsProvider).value ?? 0,
+                    ),
+                  );
+            return SizedBox(
+              width: ancho,
+              child: Aparicion(orden: indice + 3, child: baldosa),
+            );
+          },
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

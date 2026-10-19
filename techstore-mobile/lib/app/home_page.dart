@@ -177,8 +177,8 @@ class HomePage extends ConsumerWidget {
     return [
       for (final seccion in secciones)
         if (seccion.modules
-            .where((m) => m.modulo == null || permisos.puede(m.modulo!))
-            .toList()
+                .where((m) => m.modulo == null || permisos.puede(m.modulo!))
+                .toList()
             case final visibles when visibles.isNotEmpty)
           _Section(seccion.title, visibles),
     ];
@@ -236,16 +236,16 @@ class HomePage extends ConsumerWidget {
             const SizedBox(height: 28),
             Text(
               section.title,
-              style: MarcaTema.of(context).rotulo.copyWith(
-                color: Paleta.textoSecundario,
-                fontSize: 12.5,
-              ),
+              style: MarcaTema.of(context).rotulo
+                  .copyWith(color: Paleta.textoSecundario, fontSize: 12.5),
             ),
             const SizedBox(height: 10),
             GridView.builder(
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 220,
-                mainAxisExtent: 116,
+                // Crece con la letra del sistema: con la letra agrandada, el
+                // nombre de dos líneas se salía de la baldosa.
+                mainAxisExtent: 76 + MediaQuery.textScalerOf(context).scale(40),
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
               ),
@@ -269,8 +269,7 @@ class HomePage extends ConsumerWidget {
                           etiqueta: module.label,
                           onTap: abrir,
                           pendientes:
-                              ref.watch(unreadNotificationsProvider).value ??
-                              0,
+                              ref.watch(unreadNotificationsProvider).value ?? 0,
                         ),
                       );
                 return Aparicion(orden: orden++, child: baldosa);

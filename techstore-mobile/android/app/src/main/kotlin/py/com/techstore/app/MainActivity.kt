@@ -5,16 +5,17 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
-
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import kotlin.math.max
+
 /**
  * Puente con el instalador de paquetes de Android.
  *
@@ -27,16 +28,16 @@ class MainActivity : FlutterFragmentActivity() {
 
     private companion object {
         const val CANAL = "py.com.techstore.app/instalador"
-    }
         const val CANAL_MINIATURAS = "py.com.techstore.app/miniaturas"
+    }
 
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
     /**
      * Un solo hilo: las miniaturas se arman de a una, sin competir con la
      * interfaz por los núcleos.
      */
     private val decodificador = Executors.newSingleThreadExecutor()
 
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL)
             .setMethodCallHandler { call, resultado ->
@@ -47,7 +48,6 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> resultado.notImplemented()
                 }
             }
-    }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL_MINIATURAS)
             .setMethodCallHandler { call, resultado ->
                 when (call.method) {
@@ -115,6 +115,7 @@ class MainActivity : FlutterFragmentActivity() {
                 runOnUiThread { resultado.error("miniatura", error.message, null) }
             }
         }
+    }
 
     private fun puedeInstalar(): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -168,5 +169,34 @@ class MainActivity : FlutterFragmentActivity() {
         } catch (error: Exception) {
             resultado.error("instalacion_fallida", error.message, null)
         }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        pedirLaFrecuenciaMasAlta()
+    }
+
+    /**
+     * Las pantallas de 90 y 120 Hz —la mayoría de los Redmi, Poco y Samsung de
+     * gama media— dejan a cada app en 60 Hz salvo que la app pida más. Se pide
+     * el modo más rápido que tenga la misma resolución: Flutter dibuja al ritmo
+     * de la pantalla, y al salir de TechStore el sistema vuelve al suyo.
+     */
+    private fun pedirLaFrecuenciaMasAlta() {
+        val pantalla = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay
+        } ?: return
+        val actual = pantalla.mode
+        val mejor = pantalla.supportedModes
+            .filter {
+                it.physicalWidth == actual.physicalWidth &&
+                    it.physicalHeight == actual.physicalHeight
+            }
+            .maxByOrNull { it.refreshRate } ?: return
+        if (mejor.modeId == actual.modeId) return
+        window.attributes = window.attributes.apply { preferredDisplayModeId = mejor.modeId }
     }
 }

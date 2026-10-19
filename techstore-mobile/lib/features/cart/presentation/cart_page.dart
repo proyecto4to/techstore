@@ -6,6 +6,7 @@ import '../../../core/animacion/aparicion.dart';
 import '../../../core/diseno/forma_con_corte.dart';
 import '../../../core/diseno/marca_tema.dart';
 import '../../../core/diseno/medidas.dart';
+import '../../../core/diseno/movimiento.dart';
 import '../../../core/diseno/paleta.dart';
 import '../../../core/format/money.dart';
 import '../../../core/widgets/async_states.dart';
@@ -437,7 +438,7 @@ class _CartSummary extends StatelessWidget {
                   ),
                   Flexible(
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
+                      duration: Movimiento.o(context, Movimiento.corto),
                       transitionBuilder: (hijo, animacion) => FadeTransition(
                         opacity: animacion,
                         child: SlideTransition(
@@ -448,11 +449,18 @@ class _CartSummary extends StatelessWidget {
                           child: hijo,
                         ),
                       ),
-                      child: Text(
-                        formatTotals(totals),
+                      // En una línea: con la letra del sistema agrandada, el
+                      // «₲» saltaba abajo del número. Se achica antes de
+                      // partirse.
+                      child: FittedBox(
                         key: ValueKey(formatTotals(totals)),
-                        textAlign: TextAlign.end,
-                        style: marca.precioGrande.copyWith(fontSize: 28),
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          formatTotals(totals),
+                          maxLines: 1,
+                          style: marca.precioGrande.copyWith(fontSize: 28),
+                        ),
                       ),
                     ),
                   ),
