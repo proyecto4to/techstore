@@ -170,5 +170,6 @@ La marca se mueve como un cursor: aparece, se ubica y se queda quieta.
 | Favicon y barra de la web | `techstore-frontend/public/isotipo.svg` | La insignia |
 | Logos de la web | `public/logo.svg`, `public/logo-blanco.svg` | Imagotipo horizontal, claro y oscuro |
 | Factura, nota de crédito, KuDE | `techstore-backend/.../logo/isotipo.png` | Variante para papel, sin cuadrado |
+| Accesos directos de Windows | `docs/marca/recursos/techstore.ico` | La insignia de 16 a 256 px en un solo archivo |
 
 Para cambiar algo, se edita el generador y se vuelve a correr (instrucciones en su encabezado). Ningún PNG se retoca a mano.

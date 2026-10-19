@@ -32,8 +32,14 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Un tunel viejo mantiene tomada la direccion y el nuevo no puede usarla.
-Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+# Un tunel viejo de TechStore mantiene tomada la direccion y el nuevo no puede
+# usarla. Se cierra solo ese, con el mismo criterio que detener-techstore.ps1:
+# otro ngrok del equipo -el de otro proyecto, con su propia cuenta- sigue
+# andando.
+Get-Process ngrok -ErrorAction SilentlyContinue | Where-Object {
+    $linea = (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue).CommandLine
+    [string]$linea -match 'http\s+8090'
+} | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
 Write-Host ''

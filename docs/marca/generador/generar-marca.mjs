@@ -215,6 +215,32 @@ function escribir(archivo, texto) {
   fs.writeFileSync(archivo, texto.replace(/\s+\n/g, '\n') + '\n');
 }
 
+// Un .ico guarda varios tamaños y Windows elige el que corresponde a la
+// pantalla. Desde Vista acepta cada tamaño como PNG, así que se arma con los
+// mismos renders: cabecera, una entrada de 16 bytes por tamaño y los PNG.
+function ico(svg, tamanos, archivo) {
+  const imagenes = tamanos.map((t) =>
+    new Resvg(svg, { fitTo: { mode: 'width', value: t } }).render().asPng(),
+  );
+  const indice = Buffer.alloc(6 + 16 * imagenes.length);
+  indice.writeUInt16LE(0, 0); // reservado
+  indice.writeUInt16LE(1, 2); // 1 = ícono
+  indice.writeUInt16LE(imagenes.length, 4);
+  let posicion = indice.length;
+  imagenes.forEach((imagen, i) => {
+    const lado = tamanos[i] >= 256 ? 0 : tamanos[i]; // 0 significa 256
+    const entrada = 6 + 16 * i;
+    indice.writeUInt8(lado, entrada);
+    indice.writeUInt8(lado, entrada + 1);
+    indice.writeUInt16LE(1, entrada + 4); // planos
+    indice.writeUInt16LE(32, entrada + 6); // bits por píxel
+    indice.writeUInt32LE(imagen.length, entrada + 8);
+    indice.writeUInt32LE(posicion, entrada + 12);
+    posicion += imagen.length;
+  });
+  fs.writeFileSync(archivo, Buffer.concat([indice, ...imagenes]));
+}
+
 const kit = (n) => path.join(destinos.kit, n);
 const insignia = isotipoInsignia();
 escribir(kit('isotipo.svg'), isotipoSuelto('oscuro'));
@@ -231,6 +257,8 @@ escribir(kit('imagotipo-vertical-claro.svg'), imagotipoVertical('claro'));
 for (const t of [16, 32, 48, 64, 128, 180, 192, 256, 512, 1024]) {
   png(insignia, t, kit(`png/isotipo-insignia-${t}.png`));
 }
+// Para los accesos directos de Windows (los lanzadores del escritorio).
+ico(insignia, [16, 24, 32, 48, 64, 128, 256], kit('techstore.ico'));
 png(isotipoSuelto('oscuro'), 1024, kit('png/isotipo-1024.png'));
 png(isotipoSuelto('claro'), 1024, kit('png/isotipo-claro-1024.png'));
 png(imagotipoHorizontal('oscuro'), 1600, kit('png/imagotipo-horizontal-1600.png'));
