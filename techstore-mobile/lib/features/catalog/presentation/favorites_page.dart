@@ -45,7 +45,7 @@ class FavoritesPage extends ConsumerWidget {
                       'Guardá productos con el corazón para encontrarlos '
                       'rápido cuando vuelvas.',
                   accion: 'Ver productos',
-                  onAccion: () => context.go('/catalog'),
+                  onAccion: () => context.push('/catalog'),
                 )
               : CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),

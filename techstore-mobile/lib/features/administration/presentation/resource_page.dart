@@ -5,6 +5,7 @@ import '../../../core/di/providers.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/user_message.dart';
 import '../../../core/format/money_input.dart';
+import '../../../core/format/status_labels.dart';
 import '../../../core/native/document_service.dart';
 import '../../../core/widgets/image_origin_sheet.dart';
 import '../../../core/widgets/titulo_de_pantalla.dart';
@@ -39,18 +40,16 @@ class ResourcePage extends ConsumerWidget {
           if (definition.key == 'smtp-config')
             IconButton(
               tooltip: 'Editar',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SmtpConfigPage()),
-              ),
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SmtpConfigPage())),
               icon: const Icon(Icons.edit_outlined),
             ),
           if (definition.key == 'company')
             IconButton(
               tooltip: 'Ubicación',
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const CompanyLocationPage(),
-                ),
+                MaterialPageRoute(builder: (_) => const CompanyLocationPage()),
               ),
               icon: const Icon(Icons.place_outlined),
             ),
@@ -100,9 +99,10 @@ class ResourcePage extends ConsumerWidget {
                 ],
               );
             }
-            return ListView.builder(
+            return ListView.separated(
               padding: const EdgeInsets.all(12),
               itemCount: rows.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 final row = rows[index];
                 return _RecordCard(
@@ -162,6 +162,7 @@ class ResourcePage extends ConsumerWidget {
           'Confirmar pedido',
           'PUT',
           '/api/v1/pedidos/$id/confirmar',
+          detalle: _describirPedido(row),
         );
       case 'cancel-order':
         await _confirmAndExecute(
@@ -170,6 +171,9 @@ class ResourcePage extends ConsumerWidget {
           'Cancelar pedido',
           'PUT',
           '/api/v1/pedidos/$id/cancelar',
+          detalle:
+              '${_describirPedido(row)}\n'
+              'Los productos reservados vuelven a quedar disponibles.',
         );
       case 'receive-purchase':
         await _confirmAndExecute(
@@ -346,7 +350,13 @@ class ResourcePage extends ConsumerWidget {
           {'activo': row['activo'] != true},
         );
       case 'pay-order':
-        await _paymentDialog(context, ref, '/api/v1/pedidos/$id/pago');
+        // Se propone el total para no tener que recordarlo; se puede cambiar.
+        await _paymentDialog(
+          context,
+          ref,
+          '/api/v1/pedidos/$id/pago',
+          montoPropuesto: row['total'] as num?,
+        );
       case 'credit-note':
         await _creditNoteDialog(context, ref, id);
       case 'shipping-state':
@@ -438,22 +448,27 @@ class ResourcePage extends ConsumerWidget {
     WidgetRef ref,
     String path, {
     String method = 'POST',
+    num? montoPropuesto,
   }) async {
     final data = await showDialog<Map<String, Object?>>(
       context: context,
-      builder: (_) => const _MutationDialog(
+      builder: (_) => _MutationDialog(
         mutation: _Mutation(
           title: 'Registrar pago',
           path: '',
-          fields: [
+          fields: const [
             _Field(
               'tipoPago',
               'Medio',
-              choices: ['Efectivo', 'Tarjeta', 'Transferencia', 'Cheque'],
+              choices: ['Efectivo', 'Transferencia'],
             ),
             _Field('monto', 'Monto', money: true),
             _Field('numeroComprobante', 'Comprobante', required: false),
           ],
+          initialValues: {
+            if (montoPropuesto != null)
+              'monto': _textoDeMonto(montoPropuesto),
+          },
         ),
       ),
     );
@@ -639,13 +654,16 @@ class ResourcePage extends ConsumerWidget {
     WidgetRef ref,
     String title,
     String method,
-    String path,
-  ) async {
+    String path, {
+    String? detalle,
+  }) async {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: const Text('La regla final será validada por el servidor.'),
+        // Antes decía «La regla final será validada por el servidor», que
+        // no le dice nada a quien opera: ahora nombra sobre qué se actúa.
+        content: detalle == null ? null : Text(detalle),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -717,13 +735,35 @@ class _RecordCard extends StatelessWidget {
     final secondary = map == null
         ? ''
         : _secondary(map, definition.secondaryFields);
+    final estadoCrudo = map?['estado']?.toString();
+    final estado = estadoCrudo == null
+        ? null
+        : definition.etiquetaDeEstado?.call(estadoCrudo);
     return Card(
       child: ExpansionTile(
         leading: Icon(definition.icon),
-        title: Text(primary.isEmpty ? definition.title : primary),
-        subtitle: secondary.isEmpty
+        title: Text(
+          primary.isEmpty
+              ? definition.title
+              : '${definition.prefijoDeTitulo}$primary',
+        ),
+        subtitle: secondary.isEmpty && estado == null
             ? null
-            : Text(secondary, maxLines: 2, overflow: TextOverflow.ellipsis),
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (secondary.isNotEmpty)
+                    Text(
+                      secondary,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  if (estado != null) ...[
+                    const SizedBox(height: 6),
+                    StatusChip(status: estado, compact: true),
+                  ],
+                ],
+              ),
         trailing: actions.isEmpty
             ? const Icon(Icons.expand_more)
             : PopupMenuButton<String>(
@@ -743,7 +783,11 @@ class _RecordCard extends StatelessWidget {
                     value.toString(),
                     style: Theme.of(context).textTheme.bodyMedium,
                   )
-                : DetailFields(registro: map),
+                : DetailFields(
+                    registro: estado == null
+                        ? map
+                        : {...map, 'estado': estado.label},
+                  ),
           ),
         ],
       ),
@@ -1161,11 +1205,33 @@ String _first(Map<String, Object?> map, List<String> fields) {
   return map['id'] == null ? '' : '#${map['id']}';
 }
 
-String _secondary(Map<String, Object?> map, List<String> fields) => fields
-    .where((field) => map[field] != null)
-    .map((field) => '${_label(field)}: ${map[field]}')
-    .join(' · ');
+/// «Pedido N.º 4 por 100.000 ₲», para que una confirmación diga sobre qué
+/// pedido se actúa.
+String _describirPedido(Map<String, Object?> row) {
+  final numero = row['numero'] ?? row['id'];
+  final total = row['total'];
+  if (total == null) return 'Pedido N.º $numero.';
+  final moneda = row['moneda']?.toString().trim() ?? 'PYG';
+  return 'Pedido N.º $numero por '
+      '${formatearValor('total', total, moneda: moneda)}.';
+}
 
-String _label(String value) => value
-    .replaceAllMapped(RegExp(r'([A-Z])'), (match) => ' ${match.group(1)}')
-    .toLowerCase();
+/// El monto como lo escribiría una persona en el campo: con coma decimal.
+///
+/// El campo descarta los puntos, porque en es_PY agrupan miles; pasarle
+/// `100000.0` tal cual lo convertía en un millón.
+String _textoDeMonto(num monto) => monto == monto.roundToDouble()
+    ? monto.round().toString()
+    : monto.toString().replaceFirst('.', separadorDecimal);
+
+String _secondary(Map<String, Object?> map, List<String> fields) {
+  final moneda = map['moneda']?.toString().trim() ?? 'PYG';
+  return fields
+      .where((field) => map[field] != null)
+      .map(
+        (field) =>
+            '${etiquetaDeCampo(field)}: '
+            '${formatearValor(field, map[field], moneda: moneda)}',
+      )
+      .join(' · ');
+}

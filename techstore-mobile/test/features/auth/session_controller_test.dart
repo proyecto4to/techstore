@@ -13,6 +13,33 @@ import 'package:techstore_mobile/features/auth/application/session_controller.da
 
 void main() {
   test(
+    'credenciales incorrectas no se presentan como una sesión vencida',
+    () async {
+      final client = ApiClient(
+        baseUrl: 'https://techstore.local',
+        logger: const _SilentLogger(),
+        dio: Dio()..httpClientAdapter = _AuthAdapter(),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          apiClientProvider.overrideWithValue(client),
+          secureStoreProvider.overrideWithValue(_MemorySecureStore()),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(authSessionProvider);
+      await _waitFor(() => !container.read(authSessionProvider).isBusy);
+      final ok = await container
+          .read(authSessionProvider.notifier)
+          .login(email: 'persona@example.invalid', password: 'incorrecta');
+      expect(ok, isFalse);
+      expect(
+        container.read(authSessionProvider).message,
+        'El correo o la contraseña no son correctos. Revisalos e intentá de nuevo.',
+      );
+    },
+  );
+  test(
     'restaura y rota refresh una sola vez para solicitudes concurrentes',
     () async {
       final adapter = _AuthAdapter();
@@ -71,6 +98,9 @@ final class _AuthAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    if (options.path.endsWith('/auth/login')) {
+      return _json(401, {'title': 'No autorizado', 'status': 401});
+    }
     if (options.path.endsWith('/auth/refresh')) {
       refreshRequests++;
       await Future<void>.delayed(const Duration(milliseconds: 40));

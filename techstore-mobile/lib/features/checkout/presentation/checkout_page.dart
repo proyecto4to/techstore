@@ -159,7 +159,7 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             ? null
             : () {
                 if (_step == 0) {
-                  context.pop();
+                  context.canPop() ? context.pop() : context.go('/cart');
                 } else {
                   setState(() => _step -= 1);
                 }
@@ -179,10 +179,18 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
   Future<void> _selectQuote(List<CartLine> cart, int addressId) async {
     try {
-      final quotes = await ref
+      final allQuotes = await ref
           .read(checkoutRepositoryProvider)
           .quotes(cart, addressId: addressId);
-      if (!mounted) return;
+      // El servidor cotiza también el retiro, que ya tiene su propio camino.
+      final quotes = allQuotes
+          .where((quote) => quote.type != 'RETIRO_TIENDA')
+          .toList(growable: false);
+      if (!mounted ||
+          _addressId != addressId ||
+          _delivery != _Delivery.shipping) {
+        return;
+      }
       if (quotes.isEmpty) {
         _toast(
           'No hay envíos disponibles a esa dirección. '
@@ -216,13 +224,20 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
           ),
         ),
       );
-      if (selected != null && mounted) setState(() => _quote = selected);
+      if (selected != null &&
+          mounted &&
+          _addressId == addressId &&
+          _delivery == _Delivery.shipping) {
+        setState(() => _quote = selected);
+      }
     } on AppFailure catch (failure) {
       if (mounted) _toast(failure.message);
     }
   }
 
   Future<void> _submit(List<CartLine> cart) async {
+    // Dos toques pueden llegar antes de que se dibuje el botón deshabilitado.
+    if (_busy) return;
     setState(() {
       _busy = true;
       _blockingMessage = null;
@@ -246,7 +261,11 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               : 'La disponibilidad de tu carrito cambió. Revisá las '
                     'cantidades antes de confirmar.';
         });
-        if (remaining.isEmpty && mounted) context.go('/cart');
+        // Se vuelve al carrito que abrió el checkout, no a uno nuevo: con
+        // «go» se perdía la pila y el «atrás» siguiente cerraba la app.
+        if (remaining.isEmpty && mounted) {
+          context.canPop() ? context.pop() : context.go('/cart');
+        }
         return;
       }
 
@@ -261,7 +280,9 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
       ref.read(cartProvider.notifier).clear();
       ref.invalidate(ordersProvider);
       if (!mounted) return;
-      _toast('¡Listo! Tu pedido quedó confirmado.');
+      // El pedido nace pendiente: decir «quedó confirmado» contradecía al
+      // detalle, que abre justo debajo con «Pendiente de confirmación».
+      _toast('¡Listo! Recibimos tu pedido.');
       context.go('/orders/$id');
     } on AppFailure catch (failure) {
       if (mounted) setState(() => _blockingMessage = failure.message);
@@ -561,9 +582,13 @@ class _ConfirmStep extends StatelessWidget {
                             style: theme.textTheme.bodyMedium,
                           ),
                         ),
-                        Text(
-                          formatMoney(line.subtotal, line.product.currency),
-                          style: theme.textTheme.bodyMedium,
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            formatMoney(line.subtotal, line.product.currency),
+                            textAlign: TextAlign.end,
+                            style: theme.textTheme.bodyMedium,
+                          ),
                         ),
                       ],
                     ),
@@ -636,8 +661,12 @@ class _SummaryRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: style),
-          Text(value, style: style),
+          Expanded(child: Text(label, style: style)),
+          const SizedBox(width: 12),
+          Flexible(
+            flex: 2,
+            child: Text(value, style: style, textAlign: TextAlign.end),
+          ),
         ],
       ),
     );
@@ -792,54 +821,60 @@ class _Footer extends StatelessWidget {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            // Flexible y no Expanded: con un tercio fijo del ancho, «Volver al
-            // carrito» se partía en tres renglones y el botón quedaba el doble
-            // de alto que el principal. Así toma lo que necesita y cede solo
-            // si de verdad no entra.
-            Flexible(
-              child: OutlinedButton(
-                onPressed: onBack,
-                // Con el relleno de 24 px por lado que trae Material, «Volver
-                // al carrito» se pasaba por unos pocos píxeles y se cortaba en
-                // «Volver al car…». El área táctil sigue por encima del mínimo.
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                ),
-                child: Text(
-                  step == 0 ? 'Volver al carrito' : 'Atrás',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final apilar =
+                constraints.maxWidth < 340 ||
+                MediaQuery.textScalerOf(context).scale(14) > 17;
+            final volver = OutlinedButton(
+              onPressed: onBack,
+              // Con el relleno de 24 px por lado que trae Material, «Volver
+              // al carrito» se pasaba por unos pocos píxeles y se cortaba en
+              // «Volver al car…». El área táctil sigue por encima del mínimo.
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.icon(
-                // Mientras procesa queda deshabilitado: evita que dos toques
-                // generen dos pedidos.
-                onPressed: busy || !canContinue ? null : onNext,
-                icon: busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(
-                        isLast
-                            ? Icons.check_circle_outline
-                            : Icons.arrow_forward,
-                      ),
-                label: Text(
-                  busy
-                      ? 'Procesando pedido...'
-                      : isLast
-                      ? 'Confirmar compra'
-                      : 'Continuar',
-                ),
+              child: Text(
+                step == 0 ? 'Volver al carrito' : 'Atrás',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
+            );
+            final continuar = FilledButton.icon(
+              // Mientras procesa queda deshabilitado: evita que dos toques
+              // generen dos pedidos.
+              onPressed: busy || !canContinue ? null : onNext,
+              icon: busy
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      isLast ? Icons.check_circle_outline : Icons.arrow_forward,
+                    ),
+              label: Text(
+                busy
+                    ? 'Procesando pedido...'
+                    : isLast
+                    ? 'Confirmar compra'
+                    : 'Continuar',
+              ),
+            );
+            if (apilar) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [continuar, const SizedBox(height: 8), volver],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: volver),
+                const SizedBox(width: 12),
+                Expanded(flex: isLast ? 2 : 1, child: continuar),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -882,7 +917,7 @@ class _EmptyCheckout extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: () => context.go('/catalog'),
+                onPressed: () => context.push('/catalog'),
                 icon: const Icon(Icons.storefront_outlined),
                 label: const Text('Ver productos'),
               ),

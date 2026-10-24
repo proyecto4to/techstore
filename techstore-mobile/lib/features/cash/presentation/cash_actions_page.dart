@@ -496,12 +496,10 @@ class _MovimientoDialogState extends State<_MovimientoDialog> {
               decoration: const InputDecoration(labelText: 'Medio'),
               items: const [
                 DropdownMenuItem(value: 'Efectivo', child: Text('Efectivo')),
-                DropdownMenuItem(value: 'Tarjeta', child: Text('Tarjeta')),
                 DropdownMenuItem(
                   value: 'Transferencia',
                   child: Text('Transferencia'),
                 ),
-                DropdownMenuItem(value: 'Cheque', child: Text('Cheque')),
               ],
               onChanged: (valor) =>
                   setState(() => _medio = valor ?? 'Efectivo'),

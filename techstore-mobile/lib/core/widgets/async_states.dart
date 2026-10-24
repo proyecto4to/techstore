@@ -126,7 +126,12 @@ class _Composicion extends StatelessWidget {
     final textos = Theme.of(context).textTheme;
     return LayoutBuilder(
       builder: (context, limites) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
+        // Dentro de otra lista no debe capturar el arrastre: sin un alto
+        // acotado su contenido ya entra entero y desplaza la lista exterior.
+        primary: limites.hasBoundedHeight ? null : false,
+        physics: limites.hasBoundedHeight
+            ? const AlwaysScrollableScrollPhysics()
+            : const NeverScrollableScrollPhysics(),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             minHeight: limites.maxHeight.isFinite ? limites.maxHeight : 0,
@@ -180,10 +185,7 @@ class _Composicion extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (boton != null) ...[
-                      const SizedBox(height: 24),
-                      boton!,
-                    ],
+                    if (boton != null) ...[const SizedBox(height: 24), boton!],
                   ],
                 ),
               ),

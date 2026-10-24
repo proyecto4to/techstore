@@ -219,6 +219,9 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
           ),
           for (var index = 0; index < _payments.length; index++)
             _PaymentEditor(
+              // El medio se toma como valor inicial: sin la clave, al quitar
+              // o renovar líneas un editor podía mostrar el medio de otra.
+              key: ObjectKey(_payments[index]),
               line: _payments[index],
               canDelete: _payments.length > 1,
               onDelete: () => setState(() {
@@ -268,6 +271,7 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
   }
 
   Future<void> _submit() async {
+    if (_busy) return;
     final payments = <Map<String, Object?>>[];
     for (final line in _payments) {
       // El campo muestra el monto agrupado; lo que viaja es el numero.
@@ -285,19 +289,20 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
       });
     }
     if (!mounted) return;
-    final confirmed = await confirmarOperacion(
-      context,
-      ref,
-      reason: 'Confirmá la venta por ${formatMoney(_total, _currency)}',
-      titulo: 'Confirmar venta',
-    );
-    if (!confirmed) {
-      _cue(HapticCue.error);
-      _message('Venta cancelada: no se validó la identidad');
-      return;
-    }
     setState(() => _busy = true);
     try {
+      final confirmed = await confirmarOperacion(
+        context,
+        ref,
+        reason: 'Confirmá la venta por ${formatMoney(_total, _currency)}',
+        titulo: 'Confirmar venta',
+      );
+      if (!mounted) return;
+      if (!confirmed) {
+        _cue(HapticCue.error);
+        _message('Venta cancelada: no se validó la identidad');
+        return;
+      }
       final response = await ref
           .read(apiClientProvider)
           .post<Map<String, Object?>>(
@@ -314,11 +319,21 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
               'lineas': payments,
             },
           );
+      if (!mounted) return;
       _items.clear();
+      // Los pagos eran de la venta recién facturada: si quedaban, la
+      // siguiente arrancaba con el monto anterior ya cargado.
+      for (final line in _payments) {
+        line.dispose();
+      }
+      _payments
+        ..clear()
+        ..add(_PaymentLine());
       _cue(HapticCue.success);
-      _message('Venta #${response.data?['numero']} registrada');
+      _message(_avisoDeVenta(response.data));
       setState(() {});
     } on AppFailure catch (failure) {
+      if (!mounted) return;
       _cue(HapticCue.error);
       _message(failure.message);
     } finally {
@@ -332,6 +347,19 @@ class _DirectSalePageState extends ConsumerState<DirectSalePage> {
           .showSnackBar(SnackBar(content: Text(value)));
     }
   }
+}
+
+/// El servidor responde con el pago: el número de la venta viene en
+/// `pedidoNumero` y el de la factura dentro de `factura`. Se leía `numero`,
+/// que no existe, y el aviso decía «Venta #null registrada».
+String _avisoDeVenta(Map<String, Object?>? respuesta) {
+  final numero = respuesta?['pedidoNumero'];
+  final factura = respuesta?['factura'];
+  final numeroDeFactura = factura is Map ? factura['numero'] : null;
+  return [
+    numero == null ? 'Venta registrada' : 'Venta N.º $numero registrada',
+    if (numeroDeFactura != null) 'Factura $numeroDeFactura',
+  ].join(' · ');
 }
 
 class _PaymentLine {
@@ -350,6 +378,7 @@ class _PaymentEditor extends StatefulWidget {
     required this.line,
     required this.canDelete,
     required this.onDelete,
+    super.key,
   });
   final _PaymentLine line;
   final bool canDelete;
@@ -371,12 +400,10 @@ class _PaymentEditorState extends State<_PaymentEditor> {
             decoration: const InputDecoration(labelText: 'Medio'),
             items: const [
               DropdownMenuItem(value: 'Efectivo', child: Text('Efectivo')),
-              DropdownMenuItem(value: 'Tarjeta', child: Text('Tarjeta')),
               DropdownMenuItem(
                 value: 'Transferencia',
                 child: Text('Transferencia'),
               ),
-              DropdownMenuItem(value: 'Cheque', child: Text('Cheque')),
             ],
             onChanged: (value) => setState(() => widget.line.type = value!),
           ),

@@ -29,6 +29,21 @@ void main() {
   InteractiveViewer marcoDe(WidgetTester tester) =>
       tester.widget<InteractiveViewer>(find.byType(InteractiveViewer).first);
 
+  testWidgets('la página tiene papel blanco aun con tema oscuro', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: Scaffold(body: VisorDeDocumento(paginas: hojas(1))),
+      ),
+    );
+    final papel = find
+        .ancestor(of: find.byType(Image), matching: find.byType(ColoredBox))
+        .first;
+    expect(tester.widget<ColoredBox>(papel).color, Colors.white);
+  });
+
   testWidgets('la hoja no queda presa del tamaño del marco', (tester) async {
     await tester.pumpWidget(visor(1));
 

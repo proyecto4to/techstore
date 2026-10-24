@@ -99,7 +99,7 @@ class HomePage extends ConsumerWidget {
           _Module(
             Icons.receipt_long_outlined,
             'Pedidos',
-            '/orders',
+            '/resources/all-orders',
             modulo: Modulos.pedidos,
           ),
           _Module(
@@ -152,7 +152,7 @@ class HomePage extends ConsumerWidget {
         _Module(
           Icons.receipt_long_outlined,
           'Pedidos',
-          '/orders',
+          '/resources/all-orders',
           modulo: Modulos.pedidos,
         ),
       ]),

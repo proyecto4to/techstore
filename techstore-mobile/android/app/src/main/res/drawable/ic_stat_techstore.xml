@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Silueta del isotipo (docs/marca/recursos/isotipo-mono.svg) para la barra
+     de notificaciones: Android solo usa el canal alfa, así que va en blanco. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <group android:translateY="-1">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M12,26L28,16H81Q84,16 84,19V33Q84,36 81,36H64V52L32,72V36H15Q12,36 12,33Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M32,78L64,58V79Q64,82 61,82H35Q32,82 32,79Z" />
+    </group>
+</vector>

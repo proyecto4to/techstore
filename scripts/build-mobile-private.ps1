@@ -74,7 +74,8 @@ try {
     $sourceApk = Join-Path $mobile 'build\app\outputs\flutter-apk\app-private-release.apk'
     if (-not (Test-Path -LiteralPath $sourceApk)) { throw 'Flutter no produjo app-private-release.apk.' }
 
-    node (Join-Path $root 'scripts\ci-security-check.mjs') --archive $sourceApk
+    $securityOptions = if ($firebase.Count -gt 0) { @('--firebase-config', (Join-Path $env:LOCALAPPDATA 'TechStore\mobile-signing\firebase-android.json')) } else { @() }
+    node (Join-Path $root 'scripts\ci-security-check.mjs') @securityOptions --archive $sourceApk
     if ($LASTEXITCODE -ne 0) { throw 'El escaneo de seguridad del APK falló.' }
 
     $sdk = if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { 'C:\Android\Sdk' }

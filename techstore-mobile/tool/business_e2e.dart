@@ -77,6 +77,8 @@ Future<void> main() async {
       'barrio': 'Centro',
       'direccionLinea1': 'Calle E2E 100',
       'referencia': 'Prueba automatizada',
+      'latitud': -25.2867,
+      'longitud': -57.647,
       'principal': true,
     };
     final created = await api.post<Map<String, Object?>>(

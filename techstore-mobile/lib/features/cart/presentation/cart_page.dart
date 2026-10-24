@@ -95,7 +95,7 @@ class _CartPageState extends ConsumerState<CartPage> {
               title: 'Tu carrito está vacío',
               message: 'Cuando agregues productos van a aparecer acá.',
               accion: 'Ver productos',
-              onAccion: () => context.go('/catalog'),
+              onAccion: () => context.push('/catalog'),
             )
           : RefreshIndicator(
               onRefresh: _refreshAvailability,

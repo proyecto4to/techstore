@@ -134,12 +134,18 @@ class _VisorDeDocumentoState extends State<VisorDeDocumento> {
                     // para tirarla fuera de la pantalla.
                     panEnabled: indice == _pagina && acercado,
                     child: Center(
-                      child: Image.memory(
-                        widget.paginas[indice].imagen,
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.medium,
-                        semanticLabel:
-                            'Página ${indice + 1} de ${widget.paginas.length}',
+                      // La hoja es papel: el PDF no trae fondo propio, y sobre
+                      // la superficie oscura de la app el texto negro de la
+                      // factura no se leía.
+                      child: ColoredBox(
+                        color: Colors.white,
+                        child: Image.memory(
+                          widget.paginas[indice].imagen,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.medium,
+                          semanticLabel:
+                              'Página ${indice + 1} de ${widget.paginas.length}',
+                        ),
                       ),
                     ),
                   ),

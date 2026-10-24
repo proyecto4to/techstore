@@ -24,6 +24,9 @@ void main() {
     expect(find.byKey(const Key('login-background')), findsOneWidget);
     expect(find.text('Iniciar sesión'), findsOneWidget);
     expect(find.text('Olvidé mi contraseña'), findsOneWidget);
+    final context = tester.element(find.text('Iniciar sesión'));
+    expect(Localizations.localeOf(context).languageCode, 'es');
+    expect(MaterialLocalizations.of(context).backButtonTooltip, 'Atrás');
   });
 
   for (final (enlace, titulo) in const [

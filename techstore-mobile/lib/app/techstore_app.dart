@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/auth/session_guard.dart';
@@ -29,6 +30,9 @@ class TechStoreApp extends ConsumerWidget {
     return MaterialApp.router(
       debugShowCheckedModeBanner: environment.flavor != AppFlavor.production,
       title: 'TechStore',
+      locale: const Locale('es', 'PY'),
+      supportedLocales: const [Locale('es', 'PY')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // Un solo tema, oscuro, aunque el teléfono esté en modo claro: el negro
       // es la marca. Se pasa como `theme` y como `darkTheme` para que ningún
       // ajuste del sistema llegue a cambiarlo.

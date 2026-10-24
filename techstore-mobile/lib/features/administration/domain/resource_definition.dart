@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/format/status_labels.dart';
 import '../../security/domain/app_permissions.dart';
 
 final class ResourceDefinition {
@@ -18,6 +19,8 @@ final class ResourceDefinition {
       'estado',
     ],
     this.secondaryFields = const ['descripcion', 'fecha', 'total', 'activo'],
+    this.prefijoDeTitulo = '',
+    this.etiquetaDeEstado,
   });
 
   final String key;
@@ -34,6 +37,16 @@ final class ResourceDefinition {
   final Map<String, Object?> query;
   final List<String> primaryFields;
   final List<String> secondaryFields;
+
+  /// Lo que va antes del campo principal en el título: un pedido se llamaba
+  /// «5» a secas.
+  final String prefijoDeTitulo;
+
+  /// Traduce `estado` cuando el recurso tiene su propio diccionario de códigos.
+  ///
+  /// Sin esto, la lista de pedidos del mostrador no mostraba el estado y un
+  /// pedido cancelado se veía igual que uno por confirmar.
+  final StatusLabel Function(String?)? etiquetaDeEstado;
 }
 
 const resources = <String, ResourceDefinition>{
@@ -58,6 +71,10 @@ const resources = <String, ResourceDefinition>{
     path: '/api/v1/pedidos',
     icon: Icons.receipt_long_outlined,
     query: {'page': 0, 'size': 50, 'sort': 'fecha,DESC'},
+    primaryFields: ['numero'],
+    secondaryFields: ['fecha', 'total'],
+    prefijoDeTitulo: 'Pedido N.º ',
+    etiquetaDeEstado: orderStatusLabel,
   ),
   'purchases': ResourceDefinition(
     key: 'purchases',

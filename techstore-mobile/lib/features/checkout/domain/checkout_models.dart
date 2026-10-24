@@ -87,6 +87,7 @@ final class ShippingQuote {
     required this.name,
     required this.cost,
     required this.currency,
+    this.type,
     this.estimatedFrom,
     this.estimatedTo,
   });
@@ -96,6 +97,7 @@ final class ShippingQuote {
     name: json['nombre'] as String? ?? '',
     cost: (json['costo'] as num?)?.toDouble() ?? 0,
     currency: json['moneda'] as String? ?? 'PYG',
+    type: json['tipo'] as String?,
     estimatedFrom: json['fechaEstimadaDesde'] as String?,
     estimatedTo: json['fechaEstimadaHasta'] as String?,
   );
@@ -104,6 +106,7 @@ final class ShippingQuote {
   final String name;
   final double cost;
   final String currency;
+  final String? type;
   final String? estimatedFrom;
   final String? estimatedTo;
 }

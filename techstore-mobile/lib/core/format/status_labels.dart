@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../diseno/marca_tema.dart';
+
 /// Traducción de los estados internos a lenguaje de cliente.
 ///
 /// El servidor manda códigos (`P`, `G`, `EN_RUTA`) porque son las etiquetas del
@@ -12,7 +14,12 @@ import 'package:flutter/material.dart';
 enum StatusTone { neutral, progress, positive, warning, danger }
 
 final class StatusLabel {
-  const StatusLabel(this.label, {required this.icon, required this.tone, this.detail});
+  const StatusLabel(
+    this.label, {
+    required this.icon,
+    required this.tone,
+    this.detail,
+  });
 
   /// Lo que se muestra. Nunca es un código interno.
   final String label;
@@ -28,15 +35,17 @@ final class StatusLabel {
     return switch (tone) {
       StatusTone.neutral => scheme.onSurfaceVariant,
       StatusTone.progress => scheme.primary,
-      StatusTone.positive => scheme.tertiary,
-      StatusTone.warning => scheme.secondary,
+      StatusTone.positive => MarcaTema.of(context).exito,
+      StatusTone.warning => MarcaTema.of(context).aviso,
       StatusTone.danger => scheme.error,
     };
   }
 }
 
 /// Estado del pedido (`EstadoPedido` en el backend).
-StatusLabel orderStatusLabel(String? raw) => switch (raw?.trim().toUpperCase()) {
+StatusLabel orderStatusLabel(String? raw) => switch (raw
+    ?.trim()
+    .toUpperCase()) {
   'P' => const StatusLabel(
     'Pendiente de confirmación',
     detail: 'Estamos revisando tu pedido. Te avisamos apenas lo confirmemos.',

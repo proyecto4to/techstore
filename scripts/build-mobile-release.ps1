@@ -71,7 +71,8 @@ try {
     Copy-Item -LiteralPath $aab -Destination $aabFinal -Force
     Copy-Item -LiteralPath $apk -Destination $apkFinal -Force
 
-    node (Join-Path $root 'scripts\ci-security-check.mjs') --archive $apkFinal
+    $securityOptions = if ($firebase.Count -gt 0) { @('--firebase-config', (Join-Path $env:LOCALAPPDATA 'TechStore\mobile-signing\firebase-android.json')) } else { @() }
+    node (Join-Path $root 'scripts\ci-security-check.mjs') @securityOptions --archive $apkFinal
     if ($LASTEXITCODE -ne 0) { throw 'El escaneo de seguridad del APK falló.' }
 
     $commit = (& git -C $root rev-parse HEAD).Trim()

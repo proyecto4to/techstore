@@ -46,6 +46,11 @@ final class SessionController extends Notifier<AuthState> {
     try {
       await _apply(await _repository.login(email: email, password: password));
       return true;
+    } on UnauthorizedFailure {
+      state = const AuthState.unauthenticated(
+        'El correo o la contraseña no son correctos. Revisalos e intentá de nuevo.',
+      );
+      return false;
     } on AppFailure catch (failure) {
       state = AuthState.unauthenticated(failure.message);
       return false;

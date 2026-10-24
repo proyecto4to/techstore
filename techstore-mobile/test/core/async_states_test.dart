@@ -3,6 +3,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:techstore_mobile/core/widgets/async_states.dart';
 
 void main() {
+  testWidgets(
+    'un error dentro de una lista permite desplazar la lista exterior',
+    (tester) async {
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              controller: scroll,
+              children: const [
+                AppErrorState(message: 'No se pudo cargar'),
+                SizedBox(height: 900),
+                Text('Acciones del formulario'),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.drag(find.text('No se pudo cargar'), const Offset(0, -250));
+      await tester.pumpAndSettle();
+      expect(scroll.offset, greaterThan(100));
+    },
+  );
+
   testWidgets('estados async exponen semántica y reintento accesible', (
     tester,
   ) async {

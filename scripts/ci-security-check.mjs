@@ -82,11 +82,14 @@ function lineNumber(source, offset) {
   return source.slice(0, offset).split('\n').length;
 }
 
-function recordMatches(relativePath, source, patterns) {
+function recordMatches(relativePath, source, patterns, publicGoogleApiKey) {
   for (const [label, pattern] of patterns) {
     pattern.lastIndex = 0;
-    const match = pattern.exec(source);
-    if (match) failures.push(`${relativePath}:${lineNumber(source, match.index)} contiene ${label}`);
+    for (const match of source.matchAll(pattern)) {
+      if (label === 'API key Google' && match[0] === publicGoogleApiKey) continue;
+      failures.push(`${relativePath}:${lineNumber(source, match.index)} contiene ${label}`);
+      break;
+    }
   }
 }
 
@@ -124,7 +127,7 @@ function scanArtifact(targets) {
   console.log(`ARTIFACT_SECURITY_OK files=${files.length} targets=${targets.length}`);
 }
 
-function scanArchives(targets) {
+function scanArchives(targets, publicGoogleApiKey) {
   let entryCount = 0;
   for (const target of targets) {
     const absoluteTarget = resolve(target);
@@ -159,7 +162,7 @@ function scanArchives(targets) {
     recordMatches(normalizePath(relative(repositoryRoot, absoluteTarget)), source, [
       ...secretPatterns,
       ['nombre de secreto de servidor', mobileSecretAssignment],
-    ]);
+    ], /\.(apk|aab)$/i.test(absoluteTarget) ? publicGoogleApiKey : undefined);
   }
   console.log(`ARCHIVE_SECURITY_OK archives=${targets.length} entries=${entryCount}`);
 }
@@ -233,10 +236,32 @@ function scanRepository() {
 
 const archiveIndex = process.argv.indexOf('--archive');
 const artifactIndex = process.argv.indexOf('--artifact');
+// Firebase client API keys identify the app; they are public by design.
+// Only exempt the exact configured key in Android archives. Server credentials
+// and all other Google API keys remain forbidden. Place this option BEFORE --archive.
+// https://firebase.google.com/docs/projects/api-keys
+const firebaseConfigIndex = process.argv.indexOf('--firebase-config');
+let publicGoogleApiKey;
+if (firebaseConfigIndex >= 0) {
+  try {
+    if (archiveIndex < 0 || firebaseConfigIndex + 1 >= archiveIndex) {
+      throw new Error('--firebase-config debe preceder a --archive');
+    }
+    const config = JSON.parse(readFileSync(process.argv[firebaseConfigIndex + 1], 'utf8').replace(/^\uFEFF/, ''));
+    if (!/^AIza[0-9A-Za-z_-]{35}$/.test(config.apiKey || '')
+        || !/^1:\d+:android:[a-f0-9]+$/.test(config.appId || '')
+        || !config.projectId || String(config.messagingSenderId) !== config.appId.split(':')[1]) {
+      throw new Error('configuración Android Firebase inválida');
+    }
+    publicGoogleApiKey = config.apiKey;
+  } catch (error) {
+    failures.push(`No se pudo validar la clave pública Firebase: ${error.message}`);
+  }
+}
 if (archiveIndex >= 0) {
   const targets = process.argv.slice(archiveIndex + 1);
   if (!targets.length) failures.push('Falta indicar al menos un archivo después de --archive');
-  else scanArchives(targets);
+  else scanArchives(targets, publicGoogleApiKey);
 } else if (artifactIndex >= 0) {
   const targets = process.argv.slice(artifactIndex + 1);
   if (!targets.length) failures.push('Falta indicar al menos un artefacto después de --artifact');
