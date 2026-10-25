@@ -24,9 +24,13 @@ if (-not (Test-Path -LiteralPath $ngrok)) {
 }
 
 # Primero el sistema; sin backend arriba el tunel publicaria una puerta cerrada.
-$argumentos = @('-PermitirRedLocal')
-if (-not $SinPush) { $argumentos += '-ConPush' }
-& (Join-Path $raiz 'iniciar-techstore.ps1') @argumentos
+# Las opciones van en una tabla: pasadas como texto dentro de un arreglo
+# ('-ConPush'), PowerShell no las toma como switches y el push quedaba apagado
+# sin aviso. La API sigue escuchando solo en esta PC: ngrok llega por
+# localhost, asi que no hace falta abrirla a la red de casa.
+$opciones = @{}
+if (-not $SinPush) { $opciones.ConPush = $true }
+& (Join-Path $raiz 'iniciar-techstore.ps1') @opciones
 if ($LASTEXITCODE -ne 0) {
     Write-Host '  El sistema no arranco; no se abre el tunel.' -ForegroundColor Red
     exit 1

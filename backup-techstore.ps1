@@ -11,6 +11,13 @@ $secretsLocal = Join-Path $root 'secrets.local.ps1'
 
 function Escribir($texto, $color = 'Gray') {
     if (-not $Silencioso) { Write-Host $texto -ForegroundColor $color }
+    # En silencio el arranque solo ve el codigo de salida: el motivo de un
+    # error queda anotado para poder diagnosticarlo.
+    elseif ($color -eq 'Red') {
+        $registro = Join-Path $env:LOCALAPPDATA 'TechStore\backups\ultimo-error.log'
+        New-Item -ItemType Directory -Force -Path (Split-Path $registro) | Out-Null
+        Add-Content -LiteralPath $registro -Value ('{0:yyyy-MM-dd HH:mm:ss} {1}' -f (Get-Date), $texto.Trim()) -Encoding UTF8
+    }
 }
 
 if (-not (Test-Path -LiteralPath $secretsLocal)) {
