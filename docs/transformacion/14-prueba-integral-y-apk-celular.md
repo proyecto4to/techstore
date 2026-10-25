@@ -2,7 +2,7 @@
 
 Revisión iniciada el 21/10/2026, retomada el 22/10 y continuada por Claude Code entre el 23/10 y la madrugada del 24/10/2026. Rama: `rediseno-monokai`.
 
-**Estado al 24/10, 11:45: entregado.** Se probaron en la interfaz los cuatro roles (administrador, cajero, cliente y repartidor), verificando cada paso contra el servidor de QA. Se corrigieron dos errores y pasaron el análisis y 268 pruebas. El APK final, recompilado con esas correcciones, quedó en `Escritorio\TechStore 1.0.23`. No se publicó para los clientes ni se probó en un teléfono físico; ver [Pendientes fuera de esta revisión](#pendientes-fuera-de-esta-revisión).
+**Estado al 25/10, 11:31: publicada.** La 1.0.23 (24), con notificaciones push e ícono propio en los avisos, se publicó desde el commit `a34b241`. Se probaron en la interfaz los cuatro roles y el push con la app cerrada, todo en emulador y contra el servidor de QA. Falta la prueba en un teléfono físico; ver [Ícono del aviso, commit y publicación](#ícono-del-aviso-commit-y-publicación-del-2510).
 
 ## Objetivo y entorno
 
@@ -192,8 +192,7 @@ Observaciones que no son errores de la app móvil: asignar repartidor y aceptar 
 ## Pendientes fuera de esta revisión
 
 - Instalar el APK en un teléfono físico (idealmente un Redmi con HyperOS) y hacer una compra real con el servidor público levantado.
-- Decidir si se publica: `scripts/build-mobile-release.ps1`, descrito en `11-entrega.md`, reescribe `release-metadata.json`.
-- Commitear los cambios de la rama `rediseno-monokai`, que siguen sin commit. No se hizo porque el usuario no lo pidió.
+- ~~Decidir si se publica~~ y ~~commitear~~: hechos el 24 y el 25/10, por pedido del usuario. Ver [Ícono del aviso, commit y publicación](#ícono-del-aviso-commit-y-publicación-del-2510).
 
 Los APK de QA (`TechStore-QA-1.0.23*.apk`) son artefactos en modo debug que se conectan al servidor aislado. No deben confundirse con el instalador final.
 
@@ -218,3 +217,27 @@ La app de pruebas `py.com.techstore.app.dev` fue registrada con autorización de
 - El APK exacto de producción con Firebase también se instaló y abrió la pantalla de ingreso. El aviso de servidor sin conexión corresponde al túnel público apagado; no se inició sesión contra el negocio.
 
 Evidencias en `artifacts/qa-push-20261024`: `push-notification.png`, `push-opened-order.png`, `production-firebase-start.png` y `push-validation.json`. La primera parte de la prueba estuvo afectada por poca memoria y avisos ANR de System UI, Mensajes y la app debug; se completó con el emulador de QA, renderizado por software y 2 GB asignados. Google Play Services estaba deshabilitado y se habilitó para que FCM pudiera registrar el token. Esto no reemplaza la prueba en un teléfono físico ni comprueba el servidor público.
+
+## Ícono del aviso, commit y publicación del 25/10
+
+**Ícono.** Sin una silueta propia, Android dibujaba los avisos con un círculo vacío. Se agregaron `res/drawable/ic_stat_techstore.xml` (el isotipo de `docs/marca/recursos/isotipo-mono.svg` en blanco), el color `notificacion_acento` (#2563EB) en `res/values/notificaciones.xml` y los `meta-data` `default_notification_icon` y `default_notification_color` en el manifiesto. El color va aparte de `colors.xml` porque ese lo regenera `flutter_launcher_icons`.
+
+Se verificó con el mismo procedimiento que la prueba de push: APK de QA con Firebase, backend QA con FCM, cliente registrado, proceso cerrado sin `force-stop` y pedido 1 confirmado por API. El aviso llegó a los ~12 s con la «T» blanca sobre azul (`artifacts/qa-final-20261022/i04-aviso-icono.png`).
+
+**Commit.** `a34b241` en `rediseno-monokai`, sin push al remoto: correcciones de QA, push, control de seguridad, ícono e informes 13 y 14. Antes pasaron el escaneo del repositorio (única advertencia: la excepción SIFEN heredada) y la prueba del escáner.
+
+**Publicación.** El 25/10 a las 11:00 se ejecutó `artifacts/qa-final-20261022/publicar-1.0.23.ps1`, que llama a `scripts/build-mobile-release.ps1`. `flutter analyze --fatal-infos` no dio observaciones, y `flutter test` aprobó 266 pruebas; las 2 E2E omitidas necesitan el backend de QA. Después compiló el AAB y el APK con Firebase, y el escaneo del APK dio `SECURITY_OK warnings=0`. A las 11:31 se escribió `release-metadata.json`:
+
+| Dato | Valor |
+| --- | --- |
+| Versión | 1.0.23, código 24, actualización opcional |
+| Commit | `a34b2415cfc756bfc6f06ed0672be6fc33aee650`, `gitTreeClean: true` |
+| Firebase | `true` (proyecto `techstore-mobile-513c4`) |
+| APK | `TechStore-1.0.23+24.apk`, SHA-256 `8eb7cf16afb228129c858b1976b8b03f3f08243801e52d79232e89a64b47d182`, 47.756.156 bytes |
+| AAB | `TechStore-1.0.23+24.aab`, SHA-256 `670b14139de319b317b35acb3d4172c0dbf99c0a914d200b2d4cd6161d410928` |
+| Firma | el certificado de siempre (`c4a09839…aabf0a2`) |
+| Novedades | `changelog.json`, seis líneas para el cliente |
+
+El APK publicado contiene el ícono del aviso, la configuración de Firebase, el servidor público y las correcciones, y ninguna dirección de QA. Se copió con el AAB a `Escritorio\TechStore 1.0.23`, donde `SHA256SUMS.txt` verifica los dos archivos. La metadata anterior (1.0.21) está en `artifacts/mobile/release/respaldo-1.0.21`. Los teléfonos ven la actualización cuando el servidor público está levantado; el backend relee la metadata sin reiniciarse.
+
+Sigue pendiente la prueba en un teléfono físico con el servidor público.
