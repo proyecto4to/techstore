@@ -2,12 +2,14 @@ package com.techstore.integracion;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.techstore.comun.tenant.TenantContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -37,6 +39,7 @@ class RepartoVehiculosIT {
     }
 
     @Autowired MockMvc mvc;
+    @Autowired JdbcTemplate jdbc;
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
@@ -284,6 +287,18 @@ class RepartoVehiculosIT {
             }
         }
         assertTrue(tariff > 0, "La base de prueba debe ofrecer al menos una tarifa a domicilio");
+        // Un pedido nuevo a domicilio ya no admite efectivo al repartidor: se
+        // paga por transferencia. Lo que esta prueba cuida —el efectivo que
+        // cobra el repartidor y que después rinde en caja— sigue existiendo para
+        // los pedidos que se hicieron antes de la regla, así que se arma uno así:
+        // se crea por la API y se lo deja como estaban aquellos.
+        mvc.perform(put("/api/v1/pagos/transferencia")
+                        .header("Authorization", bearer(login("admin@techstore.py", "admin123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"banco":"Banco de Prueba","titular":"TechStore S.A.","numeroCuenta":"0011223344"}
+                                """))
+                .andExpect(status().isOk());
         MvcResult result = mvc.perform(post("/api/v1/pedidos")
                         .header("Authorization", bearer(token))
                         .header("Idempotency-Key", "it-" + System.nanoTime())
@@ -291,11 +306,16 @@ class RepartoVehiculosIT {
                         .content("""
                                 {"items":[{"productoId":%d,"cantidad":1}],
                                  "metodoEntrega":"ENVIO_DOMICILIO",
-                                 "metodoPago":"PAGO_EFECTIVO_REPARTIDOR",
+                                 "metodoPago":"TRANSFERENCIA_BANCARIA",
                                  "direccionEntregaId":%d,"tarifaEnvioId":%d}
                                 """.formatted(product, address, tariff)))
                 .andExpect(status().isCreated()).andReturn();
-        return json.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+        long pedido = json.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+        TenantContext.comoTenant(1L, () -> jdbc.update("""
+                UPDATE pedidos SET metodo_pago_checkout = 'PAGO_EFECTIVO_REPARTIDOR', estado_pago = 'NO_REQUERIDO'
+                WHERE id = ?
+                """, pedido));
+        return pedido;
     }
 
     private long assign(String token, long order, long courier, int orderInRoute) throws Exception {

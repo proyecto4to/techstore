@@ -21,6 +21,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -148,13 +150,170 @@ class ComprobantesDePagoIT {
         return items;
     }
 
-    /** Un pedido de retiro en tienda, que es el camino más corto a tener uno. */
-    private long nuevoPedido(String token) throws Exception {
+    @Test
+    void laTransferenciaSeVerificaAntesDePrepararElPedido() throws Exception {
+        String cliente = nuevoCliente("comprobantes.flujo@techstore.py");
+        String admin = login("admin@techstore.py", "admin123");
+        datosDeTransferencia(admin);
+        JsonNode producto = primerProducto();
+
+        // El cliente transfiere y sube el respaldo antes de confirmar la compra.
+        long suelto = subirSuelto(cliente);
+        MvcResult creado = mvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", bearer(cliente))
+                        .header("Idempotency-Key", "it-flujo-" + System.nanoTime())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"items":[{"productoId":%d,"cantidad":1}],
+                                 "metodoEntrega":"RETIRO_TIENDA",
+                                 "metodoPago":"TRANSFERENCIA_BANCARIA",
+                                 "comprobanteIds":[%d],
+                                 "totalEsperado":%s}
+                                """.formatted(producto.path("id").asLong(), suelto,
+                                producto.path("precio").decimalValue().toPlainString())))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode pedido = json.readTree(creado.getResponse().getContentAsString());
+        long pedidoId = pedido.path("id").asLong();
+        assertEquals("EN_VERIFICACION", pedido.path("estadoPago").asText());
+        assertEquals("P", pedido.path("estado").asText());
+        assertEquals(1, comprobantes(cliente, pedidoId).size());
+
+        // Aparece en la bandeja de quien cobra, y no se puede saltear la revisión.
+        MvcResult bandeja = mvc.perform(get("/api/v1/pagos/verificaciones").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk())
+                .andReturn();
+        boolean enBandeja = false;
+        for (JsonNode fila : json.readTree(bandeja.getResponse().getContentAsString())) {
+            enBandeja |= fila.path("pedidoId").asLong() == pedidoId;
+        }
+        assertTrue(enBandeja, "El pedido tiene que estar en Verificar pagos");
+        mvc.perform(put("/api/v1/pedidos/{id}/confirmar", pedidoId).header("Authorization", bearer(admin)))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/pedidos/{id}/pago", pedidoId)
+                        .header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lineas\":[{\"tipoPago\":\"Efectivo\",\"monto\":1}]}"))
+                .andExpect(status().isConflict());
+        // Con el pago en revisión, el cliente ya transfirió: no lo cancela solo.
+        mvc.perform(put("/api/v1/pedidos/{id}/cancelar", pedidoId).header("Authorization", bearer(cliente)))
+                .andExpect(status().isConflict());
+
+        // Rechazo: el pedido sigue pendiente y el cliente puede mandar otro.
+        mvc.perform(put("/api/v1/pedidos/{id}/pago/rechazar", pedidoId)
+                        .header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motivo\":\"La foto no se lee\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estadoPago").value("RECHAZADO"))
+                .andExpect(jsonPath("$.pagoRechazoMotivo").value("La foto no se lee"))
+                .andExpect(jsonPath("$.estado").value("P"));
+        adjuntar(cliente, pedidoId);
+        mvc.perform(get("/api/v1/pedidos/{id}", pedidoId).header("Authorization", bearer(cliente)))
+                .andExpect(jsonPath("$.estadoPago").value("EN_VERIFICACION"));
+
+        // Aprobación: confirma, cobra, factura y pone el envío en preparación.
+        mvc.perform(put("/api/v1/pedidos/{id}/pago/aprobar", pedidoId)
+                        .header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"referencia\":\"OP-778899\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estadoPago").value("APROBADO"))
+                .andExpect(jsonPath("$.estado").value("G"))
+                .andExpect(jsonPath("$.facturaDisponible").value(true));
+        mvc.perform(get("/api/v1/envios/pedidos/{id}", pedidoId).header("Authorization", bearer(cliente)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("PREPARANDO"));
+        // Una segunda aprobación no cobra dos veces.
+        mvc.perform(put("/api/v1/pedidos/{id}/pago/aprobar", pedidoId).header("Authorization", bearer(admin)))
+                .andExpect(status().isConflict());
+
+        MvcResult historial = mvc.perform(get("/api/v1/pedidos/{id}/historial", pedidoId)
+                        .header("Authorization", bearer(cliente)))
+                .andExpect(status().isOk())
+                .andReturn();
+        java.util.List<String> pasos = new java.util.ArrayList<>();
+        json.readTree(historial.getResponse().getContentAsString()).forEach(e -> pasos.add(e.path("tipo").asText()));
+        assertTrue(pasos.containsAll(java.util.List.of(
+                "CREADO", "COMPROBANTE_ADJUNTO", "PAGO_RECHAZADO", "PAGO_APROBADO", "CONFIRMADO")), pasos.toString());
+    }
+
+    @Test
+    void unComprobanteSueltoEsSoloDeQuienLoSubio() throws Exception {
+        String duenio = nuevoCliente("comprobantes.suelto.duenio@techstore.py");
+        String ajeno = nuevoCliente("comprobantes.suelto.ajeno@techstore.py");
+        datosDeTransferencia(login("admin@techstore.py", "admin123"));
+        long suelto = subirSuelto(duenio);
+
+        mvc.perform(get("/api/v1/pagos/comprobantes/{id}/archivo", suelto).header("Authorization", bearer(ajeno)))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", bearer(ajeno))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"items":[{"productoId":%d,"cantidad":1}],
+                                 "metodoEntrega":"RETIRO_TIENDA",
+                                 "metodoPago":"TRANSFERENCIA_BANCARIA",
+                                 "comprobanteIds":[%d]}
+                                """.formatted(primerProducto().path("id").asLong(), suelto)))
+                .andExpect(status().isConflict());
+        mvc.perform(get("/api/v1/pagos/comprobantes/{id}/archivo", suelto).header("Authorization", bearer(duenio)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void sinDatosBancariosNoHayTransferenciaYElTotalTieneQueCoincidir() throws Exception {
+        String admin = login("admin@techstore.py", "admin123");
+        String cliente = nuevoCliente("comprobantes.total@techstore.py");
+        datosDeTransferencia(admin);
+        long suelto = subirSuelto(cliente);
+
+        mvc.perform(post("/api/v1/pedidos")
+                        .header("Authorization", bearer(cliente))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"items":[{"productoId":%d,"cantidad":1}],
+                                 "metodoEntrega":"RETIRO_TIENDA",
+                                 "metodoPago":"TRANSFERENCIA_BANCARIA",
+                                 "comprobanteIds":[%d],
+                                 "totalEsperado":1}
+                                """.formatted(primerProducto().path("id").asLong(), suelto)))
+                .andExpect(status().isConflict());
+    }
+
+    private void datosDeTransferencia(String admin) throws Exception {
+        mvc.perform(put("/api/v1/pagos/transferencia")
+                        .header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"banco":"Banco de Prueba","titular":"TechStore S.A.",
+                                 "documento":"80000000-1","numeroCuenta":"0011223344",
+                                 "tipoCuenta":"Cuenta corriente"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.disponible").value(true));
+    }
+
+    private long subirSuelto(String token) throws Exception {
+        MvcResult subido = mvc.perform(multipart("/api/v1/pagos/comprobantes")
+                        .file(new MockMultipartFile("archivo", "boleta.jpg", "image/jpeg", JPEG))
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return json.readTree(subido.getResponse().getContentAsString()).path("id").asLong();
+    }
+
+    private JsonNode primerProducto() throws Exception {
         MvcResult catalogo = mvc.perform(get("/api/v1/productos").param("size", "1"))
                 .andExpect(status().isOk())
                 .andReturn();
-        long producto = json.readTree(catalogo.getResponse().getContentAsString())
-                .path("content").get(0).path("id").asLong();
+        return json.readTree(catalogo.getResponse().getContentAsString()).path("content").get(0);
+    }
+
+    /** Un pedido de retiro en tienda, que es el camino más corto a tener uno. */
+    private long nuevoPedido(String token) throws Exception {
+        datosDeTransferencia(login("admin@techstore.py", "admin123"));
+        long producto = primerProducto().path("id").asLong();
 
         MvcResult creado = mvc.perform(post("/api/v1/pedidos")
                         .header("Authorization", bearer(token))
