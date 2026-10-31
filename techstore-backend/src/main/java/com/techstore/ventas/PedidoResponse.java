@@ -18,6 +18,11 @@ public record PedidoResponse(
         String notas,
         String metodoEntrega,
         String metodoPago,
+        /** Verificación del pago por transferencia: NO_REQUERIDO, PENDIENTE_COMPROBANTE, EN_VERIFICACION, APROBADO o RECHAZADO. */
+        String estadoPago,
+        /** Por qué no se validó el último comprobante; nulo si no hubo rechazo. */
+        String pagoRechazoMotivo,
+        LocalDateTime pagoVerificadoEn,
         DireccionResponse direccionEntrega,
         String usuarioEmail,
         Boolean facturaDisponible,

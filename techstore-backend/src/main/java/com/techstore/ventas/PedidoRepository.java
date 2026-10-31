@@ -47,6 +47,12 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
     @Query("select p from Pedido p where p.id = :id")
     Optional<Pedido> findWithDetallesForUpdateById(@Param("id") Long id);
 
+    /** Los pagos por revisar, del más viejo al más nuevo: el que más espera va primero. */
+    @EntityGraph(attributePaths = {"usuario"})
+    List<Pedido> findByTipoAndEstadoPagoInOrderByFechaAsc(TipoPedido tipo, Collection<EstadoPago> estados);
+
+    long countByTipoAndEstadoPago(TipoPedido tipo, EstadoPago estado);
+
     @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario"})
     @Query("select p from Pedido p where p.usuario.id = :usuarioId and p.idempotencyKey = :clave")
     Optional<Pedido> findWithDetallesByUsuarioIdAndIdempotencyKey(

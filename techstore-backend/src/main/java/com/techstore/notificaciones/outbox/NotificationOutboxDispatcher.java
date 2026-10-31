@@ -105,7 +105,9 @@ public class NotificationOutboxDispatcher {
             case PEDIDO_CONFIRMADO -> orderContent(event, requirePedido(payload.pedidoId()), payload);
             case PEDIDO_CANCELADO -> orderContent(event, requirePedido(payload.pedidoId()), payload);
             case PAGO_CONFIRMADO -> paymentContent(requireFactura(payload.facturaId()), payload, attachment);
-            case PEDIDO_PREPARADO, ENVIO_DESPACHADO, ENVIO_EN_CAMINO, ENVIO_ENTREGADO ->
+            case PAGO_EN_VERIFICACION, PAGO_RECHAZADO ->
+                    verificationContent(event, requirePedido(payload.pedidoId()), payload);
+            case PEDIDO_PREPARADO, PEDIDO_LISTO_RETIRO, ENVIO_DESPACHADO, ENVIO_EN_CAMINO, ENVIO_ENTREGADO ->
                     shippingContent(event, requireEnvio(payload.envioId()), payload);
             case MENSAJE_NUEVO -> messageContent(requireMensaje(payload.mensajeId()), payload);
             case REPARTO_ASIGNADO, REPARTO_REASIGNADO, REPARTO_ACTUALIZADO,
@@ -123,9 +125,59 @@ public class NotificationOutboxDispatcher {
                 null, null, deepLink);
     }
 
+    /**
+     * La revisión del pago por transferencia.
+     *
+     * <p>El mismo evento le llega al cliente y a quienes cobran, con textos
+     * distintos: al cliente se le cuenta qué pasa con su plata; al personal, qué
+     * tiene que hacer. El motivo de un rechazo se lee del pedido ahora y no del
+     * evento, que solo lleva referencias.
+     */
+    private Content verificationContent(NotificationEventType event, Pedido pedido, NotificationPayload payload) {
+        Usuario user = requireUser(payload.recipientUserId());
+        String numero = pedido.getNumero().toString();
+        boolean esElCliente = pedido.getUsuario().getId().equals(user.getId());
+        if (event == NotificationEventType.PAGO_RECHAZADO) {
+            String motivo = pedido.getPagoRechazoMotivo() == null
+                    ? "No pudimos validar la transferencia."
+                    : pedido.getPagoRechazoMotivo();
+            return base(user, "Revisá el pago de tu pedido",
+                    "No pudimos validar el comprobante del pedido N.º " + numero + ": " + motivo
+                            + " Podés cargar uno nuevo desde el detalle del pedido.",
+                    "Motivo: " + motivo, "Revisá el pago del pedido N.º " + numero + " — TechStore",
+                    "Revisá el pago del pedido " + numero, motivo,
+                    "VER MI PEDIDO", emailTemplateService.url("/pedidos"),
+                    "techstore://pedido/" + pedido.getId());
+        }
+        if (esElCliente) {
+            return base(user, "Recibimos tu comprobante",
+                    "Estamos verificando la transferencia del pedido N.º " + numero
+                            + ". Te avisamos apenas la confirmemos.",
+                    "Total: " + pedido.getTotal(), "Comprobante recibido — pedido N.º " + numero + " — TechStore",
+                    "Comprobante recibido", "Estamos verificando tu transferencia.",
+                    "VER MI PEDIDO", emailTemplateService.url("/pedidos"),
+                    "techstore://pedido/" + pedido.getId());
+        }
+        return base(user, "Pago para verificar",
+                "El pedido N.º " + numero + " tiene un comprobante de transferencia esperando revisión.",
+                "Total: " + pedido.getTotal(), "Pago para verificar — pedido N.º " + numero + " — TechStore",
+                "Pago para verificar", "Pedido " + numero + " · " + pedido.getTotal(),
+                null, null, "techstore://pagos/" + pedido.getId());
+    }
+
     private Content orderContent(NotificationEventType event, Pedido pedido, NotificationPayload payload) {
         Usuario user = requireUser(payload.recipientUserId());
         String numero = pedido.getNumero().toString();
+        if (event == NotificationEventType.PEDIDO_CREADO
+                && pedido.getEstadoPago() == com.techstore.ventas.EstadoPago.EN_VERIFICACION) {
+            return base(user, "¡Recibimos tu pedido!",
+                    "Tu pedido N.º " + numero + " y el comprobante de la transferencia llegaron bien. "
+                            + "Lo preparamos apenas verifiquemos el pago.",
+                    "Total: " + pedido.getTotal(), "Recibimos tu pedido N.º " + numero + " — TechStore",
+                    "Pedido " + numero + " recibido", "Estamos verificando tu pago.",
+                    "VER MIS PEDIDOS", emailTemplateService.url("/pedidos"),
+                    "techstore://pedido/" + pedido.getId());
+        }
         if (event == NotificationEventType.PEDIDO_CREADO) {
             return base(user, "¡Recibimos tu pedido!",
                     "Tu pedido N.º " + numero + " quedó pendiente y el stock está reservado a tu nombre.",
@@ -190,6 +242,11 @@ public class NotificationOutboxDispatcher {
                 message = "El pedido N.º " + numero + " entró en preparación.";
                 push = "Tu compra ya se está preparando.";
             }
+            case PEDIDO_LISTO_RETIRO -> {
+                title = "Tu pedido está listo para retirar";
+                message = "El pedido N.º " + numero + " ya está separado. Pasá a buscarlo por la tienda.";
+                push = "Ya podés pasar a retirarlo.";
+            }
             case ENVIO_DESPACHADO -> {
                 title = "Tu pedido fue despachado";
                 message = "Despachamos el pedido N.º " + numero + ". Ya podés seguir su recorrido.";
@@ -240,7 +297,8 @@ public class NotificationOutboxDispatcher {
             case PEDIDO_CREADO -> TipoCorreo.PEDIDO;
             case PEDIDO_CONFIRMADO, PEDIDO_CANCELADO -> TipoCorreo.ESTADO_PEDIDO;
             case PAGO_CONFIRMADO -> TipoCorreo.FACTURA;
-            case PEDIDO_PREPARADO, ENVIO_DESPACHADO, ENVIO_EN_CAMINO, ENVIO_ENTREGADO -> TipoCorreo.ENVIO;
+            case PAGO_EN_VERIFICACION, PAGO_RECHAZADO -> TipoCorreo.ESTADO_PEDIDO;
+            case PEDIDO_PREPARADO, PEDIDO_LISTO_RETIRO, ENVIO_DESPACHADO, ENVIO_EN_CAMINO, ENVIO_ENTREGADO -> TipoCorreo.ENVIO;
             case MENSAJE_NUEVO -> TipoCorreo.MENSAJE;
             case REPARTO_ASIGNADO, REPARTO_REASIGNADO, REPARTO_ACTUALIZADO,
                     TRANSFERENCIA_SOLICITADA, TRANSFERENCIA_ACEPTADA, TRANSFERENCIA_RECHAZADA,

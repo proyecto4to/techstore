@@ -23,6 +23,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.HexFormat;
 import java.util.Map;
@@ -46,6 +47,10 @@ public class PedidoService {
     private final DireccionEntregaService direccionEntregaService;
     private final EnvioService envioService;
     private final CalculadorDePrecios calculadorDePrecios;
+    private final PagoComprobanteService comprobanteService;
+    private final DatosTransferenciaService datosTransferencia;
+    private final PedidoHistorial historial;
+    private final PedidoEventoRepository eventoRepository;
 
     /**
      * Crea un pedido de venta en estado Pendiente comprometiendo el stock.
@@ -102,6 +107,15 @@ public class PedidoService {
             throw new BusinessException("ventas.checkout.direccion.requerida");
         }
         validarMedioPago(metodoEntrega, metodoPago);
+        boolean porTransferencia = metodoPago == MetodoPagoCheckout.TRANSFERENCIA_BANCARIA;
+        if (porTransferencia && !datosTransferencia.disponible()) {
+            // Sin cuenta cargada, el cliente transferiría a ningún lado.
+            throw new BusinessException("ventas.checkout.transferencia.no.disponible");
+        }
+        boolean traeComprobantes = request.comprobanteIds() != null && !request.comprobanteIds().isEmpty();
+        if (traeComprobantes && !porTransferencia) {
+            throw new BusinessException("ventas.checkout.comprobante.sin.transferencia");
+        }
 
         Map<Long, Producto> productos = productoRepository.findAllForUpdate(cantidades.keySet()).stream()
                 .collect(LinkedHashMap::new, (map, p) -> map.put(p.getId(), p), Map::putAll);
@@ -166,16 +180,51 @@ public class PedidoService {
         pedido.setCostoEnvio(cotizacion.costo());
         pedido.setIvaEnvio(cotizacion.iva());
         pedido.setTotal(total.mas(cotizacion.costo()));
+        // Quien paga por transferencia ya transfirió un importe concreto antes de
+        // confirmar. Si mientras tanto cambió un precio o la tarifa del envío, el
+        // pedido no puede nacer por otro total: el comprobante no lo cubriría.
+        if (request.totalEsperado() != null
+                && pedido.getTotal().monto().compareTo(request.totalEsperado()) != 0) {
+            throw new BusinessException("ventas.checkout.total.cambio", pedido.getTotal().plano());
+        }
+        pedido.setEstadoPago(porTransferencia ? EstadoPago.PENDIENTE_COMPROBANTE : EstadoPago.NO_REQUERIDO);
         Pedido guardado = pedidoRepository.save(pedido);
         envioService.registrar(guardado, direccion, cotizacion);
+        historial.registrar(guardado, TipoEventoPedido.CREADO, "Pedido recibido", usuario);
+
+        int vinculados = comprobanteService.vincular(guardado, request.comprobanteIds(), usuario);
+        if (vinculados > 0) {
+            guardado.setEstadoPago(EstadoPago.EN_VERIFICACION);
+            guardado = pedidoRepository.save(guardado);
+            historial.registrar(guardado, TipoEventoPedido.COMPROBANTE_ADJUNTO,
+                    vinculados == 1
+                            ? "Se adjuntó el comprobante de la transferencia"
+                            : "Se adjuntaron " + vinculados + " comprobantes de la transferencia",
+                    usuario);
+        }
         notificationPublisher.pedidoCreado(guardado);
+        if (vinculados > 0) {
+            notificationPublisher.pagoEnVerificacion(guardado, Collections.max(request.comprobanteIds()),
+                    comprobanteService.personalQueCobra(), false);
+        }
         return pedidoMapper.toResponse(guardado);
     }
 
+    /**
+     * Qué pago admite cada entrega.
+     *
+     * <p>Un envío a domicilio se paga antes, por transferencia: es la regla del
+     * negocio, y por eso se valida acá y no solo en la pantalla. El efectivo al
+     * repartidor queda para los pedidos que ya existían con ese medio.
+     */
     private void validarMedioPago(MetodoEntrega entrega, MetodoPagoCheckout pago) {
         if (entrega == MetodoEntrega.ENVIO_DOMICILIO
                 && pago == MetodoPagoCheckout.PAGO_EN_LOCAL) {
             throw new BusinessException("ventas.checkout.pago.local.incompatible");
+        }
+        if (entrega == MetodoEntrega.ENVIO_DOMICILIO
+                && pago == MetodoPagoCheckout.PAGO_EFECTIVO_REPARTIDOR) {
+            throw new BusinessException("ventas.checkout.domicilio.requiere.transferencia");
         }
         if (entrega == MetodoEntrega.RETIRO_TIENDA
                 && pago == MetodoPagoCheckout.PAGO_EFECTIVO_REPARTIDOR) {
@@ -206,6 +255,10 @@ public class PedidoService {
         canonica.append('|').append(metodoEntrega.name());
         canonica.append('|').append(metodoPago.name());
         canonica.append('|').append(request.tarifaEnvioId() == null ? "" : request.tarifaEnvioId());
+        canonica.append('|').append(request.comprobanteIds() == null
+                ? "" : new java.util.TreeSet<>(request.comprobanteIds()));
+        canonica.append('|').append(request.totalEsperado() == null
+                ? "" : request.totalEsperado().stripTrailingZeros().toPlainString());
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(canonica.toString().getBytes(StandardCharsets.UTF_8));
@@ -220,8 +273,24 @@ public class PedidoService {
      */
     @Transactional
     public PedidoResponse confirmar(Long id) {
+        return confirmar(id, null);
+    }
+
+    /**
+     * Confirma un pedido pendiente y anota quién lo hizo en su historial.
+     *
+     * <p>Un pedido que se paga por transferencia no se confirma a mano mientras
+     * el pago no esté aprobado: confirmar es empezar a prepararlo, y la regla es
+     * que nada se prepara ni se despacha sin el pago verificado. Lo confirma la
+     * propia aprobación del pago.
+     */
+    @Transactional
+    public PedidoResponse confirmar(Long id, String emailActor) {
         Pedido pedido = buscarConDetalles(id);
         exigirEstado(pedido, EstadoPedido.P, "ventas.pedido.no.confirmable");
+        if (pedido.getEstadoPago() != null && pedido.getEstadoPago().pendiente()) {
+            throw new BusinessException("ventas.pedido.pago.no.verificado", pedido.getNumero());
+        }
 
         bloquearProductosDe(pedido);
         for (PedidoDetalle detalle : pedido.getDetalles()) {
@@ -237,8 +306,30 @@ public class PedidoService {
         pedido.setEstado(EstadoPedido.C);
         envioService.pedidoConfirmado(pedido);
         Pedido guardado = pedidoRepository.save(pedido);
-        notificationPublisher.pedidoConfirmado(guardado);
+        historial.registrar(guardado, TipoEventoPedido.CONFIRMADO, "Pedido confirmado", actor(emailActor));
+        // Con el pago por transferencia recién aprobado, el aviso de «pago
+        // confirmado» que sale enseguida ya lo cuenta: dos avisos por el mismo
+        // toque de la tienda son ruido.
+        if (guardado.getEstadoPago() != EstadoPago.APROBADO) {
+            notificationPublisher.pedidoConfirmado(guardado);
+        }
         return pedidoMapper.toResponse(guardado);
+    }
+
+    /** La línea de tiempo del pedido, para su dueño o para quien atiende. */
+    @Transactional(readOnly = true)
+    public java.util.List<PedidoEventoResponse> historial(Long id, String emailSolicitante, boolean esAdmin) {
+        Pedido pedido = buscarConDetalles(id);
+        if (!esAdmin && !pedido.getUsuario().getEmail().equals(emailSolicitante)) {
+            throw new AccessDeniedException("No puede ver pedidos de otro usuario");
+        }
+        return eventoRepository.findByPedidoIdOrderByCreatedAtAscIdAsc(id).stream()
+                .map(PedidoEventoResponse::from)
+                .toList();
+    }
+
+    private Usuario actor(String email) {
+        return email == null ? null : usuarioRepository.findByEmail(email).orElse(null);
     }
 
     /**
@@ -252,6 +343,12 @@ public class PedidoService {
             throw new AccessDeniedException("No puede anular pedidos de otro usuario");
         }
         exigirEstado(pedido, EstadoPedido.P, "ventas.pedido.no.anulable");
+        // Con el comprobante en revisión, el cliente ya transfirió: si se pudiera
+        // cancelar solo, la plata quedaría en la cuenta de la tienda sin pedido y
+        // sin que nadie se entere. Lo cancela la tienda, que es quien devuelve.
+        if (!esAdmin && pedido.getEstadoPago() == EstadoPago.EN_VERIFICACION) {
+            throw new BusinessException("ventas.pedido.cancelar.pago.en.revision", pedido.getNumero());
+        }
 
         bloquearProductosDe(pedido);
         for (PedidoDetalle detalle : pedido.getDetalles()) {
@@ -262,6 +359,8 @@ public class PedidoService {
         pedido.setEstado(EstadoPedido.X);
         envioService.pedidoCancelado(pedido);
         Pedido guardado = pedidoRepository.save(pedido);
+        historial.registrar(guardado, TipoEventoPedido.CANCELADO,
+                esAdmin ? "La tienda canceló el pedido" : "Cancelaste el pedido", actor(emailSolicitante));
         notificationPublisher.pedidoCancelado(guardado);
         return pedidoMapper.toResponse(guardado);
     }

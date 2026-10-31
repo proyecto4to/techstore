@@ -39,6 +39,35 @@ public class PedidoController {
     private final PedidoService pedidoService;
     private final PagoService pagoService;
     private final PagoComprobanteService comprobanteService;
+    private final VerificacionPagoService verificacionService;
+
+    @GetMapping("/{id}/historial")
+    @Operation(summary = "Línea de tiempo del pedido",
+            description = "Creación, comprobantes, verificación del pago, confirmación y cancelación")
+    public List<PedidoEventoResponse> historial(@PathVariable Long id, Authentication auth) {
+        return pedidoService.historial(id, auth.getName(), esStaff(auth));
+    }
+
+    @PutMapping("/{id}/pago/aprobar")
+    @PreAuthorize("hasAnyRole('Admin','Cajero')")
+    @Operation(summary = "Aprobar la transferencia (Admin/Cajero)",
+            description = "Confirma el pedido, registra el cobro por transferencia, emite la factura "
+                    + "y pone el envío en preparación, todo junto")
+    public PedidoResponse aprobarPago(@PathVariable Long id,
+                                      @Valid @RequestBody(required = false) AprobacionPagoRequest request,
+                                      Authentication auth) {
+        return verificacionService.aprobar(id, request, auth.getName());
+    }
+
+    @PutMapping("/{id}/pago/rechazar")
+    @PreAuthorize("hasAnyRole('Admin','Cajero')")
+    @Operation(summary = "Rechazar el comprobante (Admin/Cajero)",
+            description = "El pedido sigue pendiente con el stock reservado y el cliente puede mandar otro")
+    public PedidoResponse rechazarPago(@PathVariable Long id,
+                                       @Valid @RequestBody RechazoPagoRequest request,
+                                       Authentication auth) {
+        return verificacionService.rechazar(id, request, auth.getName());
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -80,8 +109,8 @@ public class PedidoController {
     @PutMapping("/{id}/confirmar")
     @PreAuthorize("hasAnyRole('Admin','Cajero')")
     @Operation(summary = "Confirmar pedido (Admin/Cajero)", description = "Descuenta stock real y libera el comprometido")
-    public PedidoResponse confirmar(@PathVariable Long id) {
-        return pedidoService.confirmar(id);
+    public PedidoResponse confirmar(@PathVariable Long id, Authentication auth) {
+        return pedidoService.confirmar(id, auth.getName());
     }
 
     @PutMapping("/{id}/cancelar")

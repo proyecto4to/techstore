@@ -3,6 +3,8 @@ package com.techstore.ventas;
 import com.techstore.usuarios.Usuario;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -34,9 +36,27 @@ public class PagoComprobante {
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "pedido_id", nullable = false)
+    /**
+     * Nulo mientras el comprobante espera el checkout que lo va a usar: el
+     * cliente transfiere y adjunta el respaldo antes de confirmar la compra.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pedido_id")
     private Pedido pedido;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private EstadoComprobante estado = EstadoComprobante.EN_REVISION;
+
+    @Column(name = "motivo_rechazo", length = 500)
+    private String motivoRechazo;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "revisado_por")
+    private Usuario revisadoPor;
+
+    @Column(name = "revisado_en")
+    private LocalDateTime revisadoEn;
 
     /**
      * El nombre con el que quedó guardado, con UUID.

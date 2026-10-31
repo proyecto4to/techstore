@@ -35,6 +35,49 @@ public class NotificationOutboxPublisher {
                 new NotificationPayload(pedido.getUsuario().getId(), pedido.getId(), null, null, null, null));
     }
 
+    /**
+     * Llegó un comprobante para revisar.
+     *
+     * <p>Al cliente se le confirma que lo recibimos; a quienes cobran se les
+     * avisa que hay uno esperando. Al personal no se le manda correo: el aviso
+     * le sirve en el momento, en el teléfono, no como un correo más por cada
+     * compra.
+     *
+     * <p>La clave del evento es el comprobante y no el pedido: si el primero se
+     * rechaza y el cliente manda otro, el segundo aviso tiene que salir igual.
+     *
+     * @param avisarCliente falso cuando el comprobante llegó con el checkout: el
+     *                      aviso de «recibimos tu pedido» ya lo cuenta, y dos
+     *                      avisos por el mismo toque son ruido
+     */
+    public void pagoEnVerificacion(Pedido pedido, Long comprobanteId, Collection<Long> personal,
+                                   boolean avisarCliente) {
+        if (avisarCliente) {
+            publicarUsuario(NotificationEventType.PAGO_EN_VERIFICACION, "COMPROBANTE", comprobanteId,
+                    new NotificationPayload(pedido.getUsuario().getId(), pedido.getId(), null, null, null, null));
+        }
+        for (Long usuarioId : personal) {
+            if (usuarioId.equals(pedido.getUsuario().getId())) {
+                continue;
+            }
+            NotificationPayload payload = new NotificationPayload(
+                    usuarioId, pedido.getId(), null, null, null, null);
+            publicar(NotificationEventType.PAGO_EN_VERIFICACION, OutboxChannel.PUSH,
+                    "COMPROBANTE", comprobanteId, payload);
+            publicar(NotificationEventType.PAGO_EN_VERIFICACION, OutboxChannel.INTERNAL,
+                    "COMPROBANTE", comprobanteId, payload);
+        }
+    }
+
+    /**
+     * La tienda no pudo validar el pago. El motivo no viaja en el evento: se lee
+     * del pedido al despacharlo, como el resto del contenido.
+     */
+    public void pagoRechazado(Pedido pedido, Long comprobanteId) {
+        publicarUsuario(NotificationEventType.PAGO_RECHAZADO, "COMPROBANTE", comprobanteId,
+                new NotificationPayload(pedido.getUsuario().getId(), pedido.getId(), null, null, null, null));
+    }
+
     public void pagoConfirmado(Factura factura, boolean notificarCuenta) {
         Long usuarioId = notificarCuenta ? factura.getPedido().getUsuario().getId() : null;
         NotificationPayload payload = new NotificationPayload(

@@ -493,6 +493,30 @@ class PagoServiceTest {
     }
 
     @Test
+    void unaTransferenciaEnVerificacionNoSeCobraAMano() {
+        pedido.setMetodoPago(com.techstore.ventas.MetodoPagoCheckout.TRANSFERENCIA_BANCARIA);
+        pedido.setEstadoPago(com.techstore.ventas.EstadoPago.EN_VERIFICACION);
+        when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> pagoService.registrarPago(10L, todoEfectivo(), "cajero@techstore.py"));
+
+        assertEquals("facturacion.pago.requiere.verificacion", error.getClave());
+        verify(pagoRepository, never()).save(any());
+        verify(facturaRepository, never()).save(any());
+    }
+
+    @Test
+    void elRepartidorNoCobraEnEfectivoUnPedidoQueSePagaPorTransferencia() {
+        pedido.setEstadoPago(com.techstore.ventas.EstadoPago.PENDIENTE_COMPROBANTE);
+        when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
+
+        assertThrows(BusinessException.class,
+                () -> pagoService.registrarPagoRepartidor(10L, "repartidor@techstore.py"));
+        verify(pagoRepository, never()).save(any());
+    }
+
+    @Test
     void pagoDuplicadoFalla() {
         when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
         when(pagoRepository.existsByPedidoId(10L)).thenReturn(true);

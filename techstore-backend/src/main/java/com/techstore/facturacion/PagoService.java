@@ -102,6 +102,24 @@ public class PagoService {
                 PoliticaReceptor.CUENTA_DEL_CLIENTE, false);
     }
 
+    /**
+     * Cobro de una transferencia que la tienda ya verificó contra el comprobante.
+     *
+     * <p>Lo llama solamente la aprobación del pago, que ya dejó el pedido
+     * confirmado y con el pago aprobado. Es una sola línea por el total, como
+     * transferencia, y queda en la caja general con ese medio para que el arqueo
+     * la separe del efectivo.
+     */
+    @Transactional
+    public PagoResponse registrarPagoTransferenciaVerificada(
+            Long pedidoId, String referencia, String emailVerificador) {
+        Pedido pedido = pedidoRepository.findWithDetallesById(pedidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("ventas.pedido.no.encontrado", pedidoId));
+        RegistroPagoRequest request = new RegistroPagoRequest(List.of(new RegistroPagoRequest.LineaPago(
+                TipoPago.Transferencia, pedido.getTotal().monto(), referencia)), null);
+        return registrarPago(pedidoId, request, emailVerificador, PoliticaReceptor.CUENTA_DEL_CLIENTE, true);
+    }
+
     private PagoResponse registrarPago(
             Long pedidoId,
             RegistroPagoRequest request,
@@ -111,6 +129,13 @@ public class PagoService {
         Pedido pedido = pedidoRepository.findWithDetallesById(pedidoId)
                 .orElseThrow(() -> new ResourceNotFoundException("ventas.pedido.no.encontrado", pedidoId));
 
+        // Un pedido que se paga por transferencia se cobra verificando el
+        // comprobante, no a mano: registrar acá un cobro mientras el pago está en
+        // revisión daba por pagado algo que nadie miró, y en un envío a domicilio
+        // permitía cobrarle en efectivo al repartidor un pedido ya transferido.
+        if (pedido.getEstadoPago() != null && pedido.getEstadoPago().pendiente()) {
+            throw new BusinessException("facturacion.pago.requiere.verificacion", pedido.getNumero());
+        }
         if (pedido.getEstado() != EstadoPedido.C) {
             throw new BusinessException("facturacion.solo.cobrar.confirmado", pedido.getEstado());
         }

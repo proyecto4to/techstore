@@ -58,6 +58,9 @@ public class PermisoInterceptor implements HandlerInterceptor {
         // que configurar desde cero.
         mapa.put("/api/v1/promociones", Modulo.PRODUCTOS);
         mapa.put("/api/v1/pedidos", Modulo.PEDIDOS);
+        // Cobrar por transferencia es parte de vender: el comprobante del
+        // cliente, la bandeja de verificación y los datos bancarios.
+        mapa.put("/api/v1/pagos", Modulo.PEDIDOS);
         mapa.put("/api/v1/carrito", Modulo.PEDIDOS);
         mapa.put("/api/v1/compras", Modulo.COMPRAS);
         mapa.put("/api/v1/proveedores", Modulo.PROVEEDORES);

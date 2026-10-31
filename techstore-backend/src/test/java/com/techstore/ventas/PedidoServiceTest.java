@@ -69,6 +69,18 @@ class PedidoServiceTest {
     @Mock
     private EnvioService envioService;
 
+    @Mock
+    private PagoComprobanteService comprobanteService;
+
+    @Mock
+    private DatosTransferenciaService datosTransferencia;
+
+    @Mock
+    private PedidoHistorial historial;
+
+    @Mock
+    private PedidoEventoRepository eventoRepository;
+
     private final PedidoMapper mapper = new PedidoMapperImpl();
 
     private PedidoService pedidoService;
@@ -80,7 +92,8 @@ class PedidoServiceTest {
     void setUp() {
         pedidoService = new PedidoService(
                 pedidoRepository, productoRepository, usuarioRepository, autonumeradorService, mapper,
-                notificationPublisher, direccionEntregaService, envioService, PromocionesDePrueba.sinNinguna());
+                notificationPublisher, direccionEntregaService, envioService, PromocionesDePrueba.sinNinguna(),
+                comprobanteService, datosTransferencia, historial, eventoRepository);
 
         lenient().when(envioService.seleccionar(
                         nullable(DireccionEntrega.class), anyMap(), any(Dinero.class),
@@ -155,7 +168,8 @@ class PedidoServiceTest {
                 pedidoRepository, productoRepository, usuarioRepository, autonumeradorService, mapper,
                 notificationPublisher, direccionEntregaService, envioService,
                 PromocionesDePrueba.con(
-                        PromocionesDePrueba.vigente("20% en todo", 20, AlcancePromocion.TODOS, null, null)));
+                        PromocionesDePrueba.vigente("20% en todo", 20, AlcancePromocion.TODOS, null, null)),
+                comprobanteService, datosTransferencia, historial, eventoRepository);
 
         PedidoResponse response = conPromocion.checkout("cliente@test.py",
                 new CheckoutRequest(List.of(new ItemCarrito(1L, 2)), null));
@@ -271,6 +285,7 @@ class PedidoServiceTest {
         direccion.setCiudad("San Lorenzo");
         direccion.setDireccionLinea1("Av. Principal");
         when(direccionEntregaService.buscarPropia(cliente, 7L)).thenReturn(direccion);
+        when(datosTransferencia.disponible()).thenReturn(true);
 
         PedidoResponse response = pedidoService.checkout("cliente@test.py", new CheckoutRequest(
                 List.of(new ItemCarrito(1L, 1)), null, 7L,
@@ -280,6 +295,107 @@ class PedidoServiceTest {
         assertEquals(MetodoPagoCheckout.TRANSFERENCIA_BANCARIA.name(), response.metodoPago());
         assertEquals("+595981123456", response.direccionEntrega().telefono());
         assertEquals("San Lorenzo", response.direccionEntrega().ciudad());
+        // Sin comprobante todavía: el pedido existe, pero no está en verificación.
+        assertEquals(EstadoPago.PENDIENTE_COMPROBANTE.name(), response.estadoPago());
+    }
+
+    private DireccionEntrega direccionDeCliente() {
+        DireccionEntrega direccion = new DireccionEntrega();
+        direccion.setId(7L);
+        direccion.setNombreDestinatario("Ada Lovelace");
+        direccion.setTelefono("+595981123456");
+        when(direccionEntregaService.buscarPropia(cliente, 7L)).thenReturn(direccion);
+        return direccion;
+    }
+
+    @Test
+    void envioADomicilioNoAceptaEfectivoAlRepartidor() {
+        when(usuarioRepository.findByEmail("cliente@test.py")).thenReturn(Optional.of(cliente));
+        direccionDeCliente();
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> pedidoService.checkout("cliente@test.py", new CheckoutRequest(
+                        List.of(new ItemCarrito(1L, 1)), null, 7L,
+                        MetodoEntrega.ENVIO_DOMICILIO, MetodoPagoCheckout.PAGO_EFECTIVO_REPARTIDOR)));
+
+        assertEquals("ventas.checkout.domicilio.requiere.transferencia", error.getClave());
+        verify(productoRepository, never()).findAllForUpdate(anyCollection());
+    }
+
+    @Test
+    void transferenciaSinDatosDeLaTiendaSeRechaza() {
+        when(usuarioRepository.findByEmail("cliente@test.py")).thenReturn(Optional.of(cliente));
+        direccionDeCliente();
+        when(datosTransferencia.disponible()).thenReturn(false);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> pedidoService.checkout("cliente@test.py", new CheckoutRequest(
+                        List.of(new ItemCarrito(1L, 1)), null, 7L,
+                        MetodoEntrega.ENVIO_DOMICILIO, MetodoPagoCheckout.TRANSFERENCIA_BANCARIA)));
+
+        assertEquals("ventas.checkout.transferencia.no.disponible", error.getClave());
+    }
+
+    @Test
+    void checkoutConComprobanteNaceEnVerificacionYAvisaAQuienCobra() {
+        prepararCheckoutFeliz();
+        when(productoRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(cpu));
+        direccionDeCliente();
+        when(datosTransferencia.disponible()).thenReturn(true);
+        when(comprobanteService.vincular(any(Pedido.class), any(), any(Usuario.class))).thenReturn(1);
+        when(comprobanteService.personalQueCobra()).thenReturn(List.of(1L));
+
+        PedidoResponse response = pedidoService.checkout("cliente@test.py", new CheckoutRequest(
+                List.of(new ItemCarrito(1L, 1)), null, 7L, MetodoEntrega.ENVIO_DOMICILIO,
+                MetodoPagoCheckout.TRANSFERENCIA_BANCARIA, null, List.of(55L), new BigDecimal("2500000.00")));
+
+        assertEquals(EstadoPago.EN_VERIFICACION.name(), response.estadoPago());
+        assertEquals(EstadoPedido.P.name(), response.estado());
+        verify(notificationPublisher).pagoEnVerificacion(any(Pedido.class), any(Long.class),
+                any(), org.mockito.ArgumentMatchers.eq(false));
+    }
+
+    @Test
+    void checkoutRechazaSiElTotalTransferidoNoCoincide() {
+        when(usuarioRepository.findByEmail("cliente@test.py")).thenReturn(Optional.of(cliente));
+        when(autonumeradorService.siguiente("PEDIDO")).thenReturn(1);
+        when(productoRepository.findAllForUpdate(anyCollection())).thenReturn(List.of(cpu));
+        direccionDeCliente();
+        when(datosTransferencia.disponible()).thenReturn(true);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> pedidoService.checkout("cliente@test.py", new CheckoutRequest(
+                        List.of(new ItemCarrito(1L, 1)), null, 7L, MetodoEntrega.ENVIO_DOMICILIO,
+                        MetodoPagoCheckout.TRANSFERENCIA_BANCARIA, null, List.of(55L), new BigDecimal("100.00"))));
+
+        assertEquals("ventas.checkout.total.cambio", error.getClave());
+        verify(pedidoRepository, never()).save(any(Pedido.class));
+    }
+
+    @Test
+    void pedidoConPagoSinVerificarNoSeConfirmaAMano() {
+        Pedido pedido = pedidoPendienteDe(cliente, cpu, 1);
+        pedido.setMetodoPago(MetodoPagoCheckout.TRANSFERENCIA_BANCARIA);
+        pedido.setEstadoPago(EstadoPago.EN_VERIFICACION);
+        when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> pedidoService.confirmar(10L));
+
+        assertEquals("ventas.pedido.pago.no.verificado", error.getClave());
+        assertEquals(5, cpu.getStockReal());
+    }
+
+    @Test
+    void clienteNoCancelaSoloUnPedidoConLaTransferenciaEnRevision() {
+        Pedido pedido = pedidoPendienteDe(cliente, cpu, 1);
+        pedido.setEstadoPago(EstadoPago.EN_VERIFICACION);
+        when(pedidoRepository.findWithDetallesById(10L)).thenReturn(Optional.of(pedido));
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> pedidoService.cancelar(10L, "cliente@test.py", false));
+
+        assertEquals("ventas.pedido.cancelar.pago.en.revision", error.getClave());
+        assertEquals(EstadoPedido.P, pedido.getEstado());
     }
 
     private Pedido pedidoPendienteDe(Usuario usuario, Producto producto, int cantidad) {

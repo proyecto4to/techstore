@@ -13,6 +13,7 @@ import com.techstore.notificaciones.outbox.NotificationOutboxPublisher;
 import com.techstore.reparto.EstadoReparto;
 import com.techstore.usuarios.Usuario;
 import com.techstore.usuarios.UsuarioRepository;
+import com.techstore.ventas.EstadoPedido;
 import com.techstore.ventas.MetodoEntrega;
 import com.techstore.ventas.Pedido;
 import lombok.RequiredArgsConstructor;
@@ -168,14 +169,41 @@ public class EnvioService {
         return respuesta(envio);
     }
 
+    /**
+     * Mueve el envío a mano, desde la administración o el mostrador.
+     *
+     * <p>Antes no miraba el pedido: se podía poner «en preparación» o
+     * «entregado» un pedido que nadie había confirmado ni cobrado. Ahora el envío
+     * avanza solo detrás del pedido: para prepararlo o despacharlo tiene que estar
+     * confirmado —lo que, si se paga por transferencia, quiere decir con el pago
+     * verificado— y para darlo por entregado tiene que estar cobrado. Al
+     * entregarlo, el pedido queda cerrado: era lo que le faltaba al retiro en el
+     * local, que no pasa por un repartidor.
+     */
     @Transactional
     public EnvioResponse actualizar(Long pedidoId, ActualizarEnvioRequest request) {
         Envio envio = buscarPorPedido(pedidoId);
+        Pedido pedido = envio.getPedido();
+        EstadoEnvio nuevo = request.estado();
+        if (nuevo != EstadoEnvio.CANCELADO && nuevo != EstadoEnvio.PENDIENTE && nuevo != envio.getEstado()) {
+            boolean confirmado = pedido.getEstado() == EstadoPedido.C
+                    || pedido.getEstado() == EstadoPedido.G
+                    || pedido.getEstado() == EstadoPedido.N;
+            if (!confirmado || (pedido.getEstadoPago() != null && pedido.getEstadoPago().pendiente())) {
+                throw new BusinessException("envios.pedido.sin.confirmar", pedido.getNumero());
+            }
+            if (nuevo == EstadoEnvio.ENTREGADO && pedido.getEstado() == EstadoPedido.C) {
+                throw new BusinessException("envios.entrega.sin.cobro", pedido.getNumero());
+            }
+        }
         if (request.transportista() != null) envio.setTransportista(request.transportista().trim());
         if (request.codigoSeguimiento() != null) envio.setCodigoSeguimiento(request.codigoSeguimiento().trim());
         String descripcion = request.descripcion() == null || request.descripcion().isBlank()
-                ? descripcionPorDefecto(request.estado()) : request.descripcion().trim();
-        cambiarEstado(envio, request.estado(), descripcion, request.ubicacion());
+                ? descripcionPorDefecto(nuevo) : request.descripcion().trim();
+        cambiarEstado(envio, nuevo, descripcion, request.ubicacion());
+        if (nuevo == EstadoEnvio.ENTREGADO && pedido.getEstado() == EstadoPedido.G) {
+            pedido.setEstado(EstadoPedido.N);
+        }
         return respuesta(envioRepository.save(envio));
     }
 
@@ -236,6 +264,11 @@ public class EnvioService {
         if (nuevo == EstadoEnvio.ENTREGADO) envio.setFechaEntrega(ahora);
         agregarEvento(envio, nuevo, descripcion, ubicacion);
         switch (nuevo) {
+            case LISTO_PARA_ENVIO -> {
+                if (envio.getTipo() == TipoEnvio.RETIRO_TIENDA) {
+                    notificationPublisher.envioActualizado(NotificationEventType.PEDIDO_LISTO_RETIRO, envio);
+                }
+            }
             case PREPARANDO -> notificationPublisher.envioActualizado(
                     NotificationEventType.PEDIDO_PREPARADO, envio);
             case DESPACHADO -> notificationPublisher.envioActualizado(

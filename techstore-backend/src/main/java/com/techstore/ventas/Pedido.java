@@ -145,6 +145,22 @@ public class Pedido implements ConMoneda {
     @Column(name = "metodo_pago_checkout", length = 40)
     private MetodoPagoCheckout metodoPago;
 
+    /** Verificación del pago por transferencia. Ver {@link EstadoPago}. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_pago", nullable = false, length = 30)
+    private EstadoPago estadoPago = EstadoPago.NO_REQUERIDO;
+
+    /** Por qué la tienda no validó el último comprobante. Nulo si no hubo rechazo. */
+    @Column(name = "pago_rechazo_motivo", length = 500)
+    private String pagoRechazoMotivo;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pago_verificado_por")
+    private Usuario pagoVerificadoPor;
+
+    @Column(name = "pago_verificado_en")
+    private LocalDateTime pagoVerificadoEn;
+
     @Column(name = "idempotency_key", length = 100)
     private String idempotencyKey;
 
