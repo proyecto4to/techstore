@@ -80,6 +80,7 @@ dependencies:
   # decodificador de Android (las pruebas y el banco de capturas). Ya venía
   # como dependencia de pdf; se fija en la misma versión.
   image: ^4.9.2
+  file_picker: 13.1.0
 
 dev_dependencies:
   flutter_test:

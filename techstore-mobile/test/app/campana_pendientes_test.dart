@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:techstore_mobile/app/home_page.dart';
 import 'package:techstore_mobile/core/di/providers.dart';
 import 'package:techstore_mobile/features/auth/application/session_controller.dart';
+import 'package:techstore_mobile/features/notifications/presentation/campana_de_avisos.dart';
 
 import '../support/sesion_de_prueba.dart';
 
@@ -42,13 +43,17 @@ void main() {
     await tester.pumpWidget(inicioCon({'noLeidas': 0}));
     await tester.pumpAndSettle();
 
-    expect(find.text('Notificaciones'), findsOneWidget);
+    // La campana va arriba a la izquierda, en el lugar de la flecha.
+    final campana = find.byType(CampanaDeAvisos);
+    expect(campana, findsOneWidget);
+    expect(
+      tester.getTopLeft(campana).dx,
+      lessThan(80),
+      reason: 'arriba a la izquierda',
+    );
     expect(find.text('0'), findsNothing);
     // Exactamente eso: sin el nombre repetido, que es como se escuchaba antes.
-    expect(
-      tester.getSemantics(find.text('Notificaciones')).label,
-      'Notificaciones',
-    );
+    expect(find.bySemanticsLabel('Notificaciones'), findsOneWidget);
     handle.dispose();
   });
 
@@ -60,14 +65,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('3'), findsOneWidget);
-    expect(
-      tester.getSemantics(find.text('Notificaciones')).label,
-      'Notificaciones, 3 sin leer',
-    );
+    expect(find.bySemanticsLabel('Notificaciones, 3 sin leer'), findsOneWidget);
     handle.dispose();
   });
 
-  testWidgets('un número largo no desborda la baldosa', (tester) async {
+  testWidgets('un número largo no desborda la campana', (tester) async {
     await tester.pumpWidget(inicioCon({'noLeidas': 150}));
     await tester.pumpAndSettle();
 

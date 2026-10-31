@@ -52,18 +52,8 @@ final class ImageUploadService {
     );
   }
 
-  /// Adjunta un comprobante al pago de un pedido.
-  ///
-  /// El tope de tres lo valida el servidor: la pantalla deshabilita el boton,
-  /// pero eso no impide mandar uno mas por la API.
-  Future<bool> pickAndUploadPaymentReceipt(int orderId, ImageOrigin origin) {
-    return _pickAndUpload(
-      origin: origin,
-      title: 'Recortar comprobante',
-      filename: 'comprobante-pago-$orderId.jpg',
-      endpoint: '/api/v1/pedidos/$orderId/comprobantes',
-    );
-  }
+  // Los comprobantes del pago de un pedido se eligen con [ReceiptPicker]:
+  // admiten también el PDF del banco, que acá no entra.
 
   Future<bool> _pickAndUpload({
     required ImageOrigin origin,

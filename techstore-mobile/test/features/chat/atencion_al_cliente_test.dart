@@ -51,8 +51,20 @@ void main() {
       await tester.pumpWidget(conSesion('Cliente'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Escribinos y te respondemos.'), findsOneWidget);
+      expect(find.text('Contanos en qué te podemos ayudar'), findsOneWidget);
     });
+
+    testWidgets(
+      'abre la conversación directamente, sin una lista en el medio',
+      (tester) async {
+        await tester.pumpWidget(conSesion('Cliente'));
+        await tester.pumpAndSettle();
+
+        // Se puede escribir apenas se entra: el campo del mensaje ya está.
+        expect(find.widgetWithText(TextField, 'Mensaje'), findsOneWidget);
+        expect(find.byIcon(Icons.chevron_right), findsNothing);
+      },
+    );
   });
 
   group('lo que ve la tienda', () {
@@ -132,4 +144,3 @@ void main() {
     });
   });
 }
-

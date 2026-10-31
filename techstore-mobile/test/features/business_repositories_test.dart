@@ -54,6 +54,7 @@ void main() {
       const [CartLine(product: product, quantity: 2)],
       delivery: false,
       paymentMethod: 'PAGO_EN_LOCAL',
+      idempotencyKey: 'clave-de-prueba',
     );
 
     expect(id, 91);

@@ -14,6 +14,7 @@ import '../features/chat/presentation/chat_page.dart';
 import '../features/checkout/application/checkout_providers.dart';
 import '../features/invoices/application/invoice_providers.dart';
 import '../features/notifications/presentation/notifications_page.dart';
+import '../features/payments/application/payments_providers.dart';
 
 final realtimeServiceProvider = Provider<RealtimeService>((ref) {
   final service = RealtimeService(
@@ -60,6 +61,17 @@ final realtimeCoordinatorProvider = Provider<void>((ref) {
       ref.invalidate(ordersProvider);
       ref.invalidate(orderProvider);
       ref.invalidate(shipmentProvider);
+      // La verificación del pago vive en el pedido: cuando la tienda aprueba o
+      // rechaza, el cliente lo ve sin tocar nada, y la bandeja de quien cobra
+      // se mueve cuando llega un comprobante.
+      ref.invalidate(orderReceiptsProvider);
+      ref.invalidate(orderHistoryProvider);
+      ref.invalidate(pendingPaymentsProvider);
+      ref.invalidate(pendingPaymentsCountProvider);
+    }
+    if (agregado == 'CONFIGURATION') {
+      // Si la tienda cambió de cuenta, nadie tiene que transferir a la vieja.
+      ref.invalidate(transferDetailsProvider);
     }
     if (agregadosDeFacturacion.contains(agregado)) {
       ref.invalidate(invoicesProvider);

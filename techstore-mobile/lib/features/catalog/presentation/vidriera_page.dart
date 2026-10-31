@@ -19,7 +19,7 @@ import '../../../core/widgets/marca/logotipo.dart';
 import '../../../core/widgets/marca/rotulo.dart';
 import '../../auth/application/session_controller.dart';
 import '../../cart/presentation/boton_carrito.dart';
-import '../../notifications/presentation/notifications_page.dart';
+import '../../notifications/presentation/campana_de_avisos.dart';
 import '../application/catalog_providers.dart';
 import '../domain/product.dart';
 import 'vitrina/carrusel_de_productos.dart';
@@ -53,7 +53,8 @@ class VidrieraPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        titleSpacing: 16,
+        leading: const CampanaDeAvisos(),
+        titleSpacing: 4,
         title: const Imagotipo(tamano: 19),
         actions: [
           IconButton(
@@ -631,9 +632,10 @@ class _TodoElCatalogo extends StatelessWidget {
 class _AccesosDeCuenta extends StatelessWidget {
   const _AccesosDeCuenta();
 
+  // Las notificaciones no están acá: tienen su campana arriba a la izquierda,
+  // con el contador, y repetirlas en el carril era ofrecer dos veces lo mismo.
   static const _accesos = <(IconData, String, String)>[
     (Icons.receipt_long_outlined, 'Mis pedidos', '/orders'),
-    (Icons.notifications_outlined, 'Notificaciones', '/notifications'),
     (Icons.favorite_border_rounded, 'Favoritos', '/favorites'),
     (Icons.description_outlined, 'Mis facturas', '/invoices'),
     // Para quien compra, ese canal se llama «Atención al Cliente» en todas las
@@ -661,26 +663,12 @@ class _AccesosDeCuenta extends StatelessWidget {
           separatorBuilder: (_, _) => const SizedBox(width: 10),
           itemBuilder: (context, indice) {
             final (icono, etiqueta, ruta) = _accesos[indice];
-            void abrir() => context.push(ruta);
-            final Widget baldosa = ruta != '/notifications'
-                ? BaldosaDeAcceso(
-                    icono: icono,
-                    etiqueta: etiqueta,
-                    onTap: abrir,
-                    compacta: true,
-                  )
-                // Un Consumer propio para que el número no reconstruya el carril
-                // entero cada vez que llega un aviso.
-                : Consumer(
-                    builder: (context, ref, _) => BaldosaDeAcceso(
-                      icono: icono,
-                      etiqueta: etiqueta,
-                      onTap: abrir,
-                      compacta: true,
-                      pendientes:
-                          ref.watch(unreadNotificationsProvider).value ?? 0,
-                    ),
-                  );
+            final Widget baldosa = BaldosaDeAcceso(
+              icono: icono,
+              etiqueta: etiqueta,
+              onTap: () => context.push(ruta),
+              compacta: true,
+            );
             return SizedBox(
               width: ancho,
               child: Aparicion(orden: indice + 3, child: baldosa),

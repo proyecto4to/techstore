@@ -12,6 +12,7 @@ import { useAuthStore } from '../store/authStore'
 import { pedidoService } from '../services/pedidoService'
 import { formatPrecio, formatRangoEntrega } from '../utils/format'
 import { checkoutService } from '../services/checkoutService'
+import { pagoService } from '../services/pagoService'
 import MapaDeDireccion from '../components/common/MapaDeDireccion'
 
 /**
@@ -58,7 +59,54 @@ function CartPage() {
   const [punto, setPunto] = useState(null)
   const [detectada, setDetectada] = useState(null)
   const intentoCheckout = useRef(null)
+  // Transferencia: los datos de la tienda y los comprobantes que el cliente ya
+  // subió para esta compra. Se suben apenas se eligen; el checkout los usa.
+  const [transferencia, setTransferencia] = useState(null)
+  const [qrUrl, setQrUrl] = useState(null)
+  const [comprobantes, setComprobantes] = useState([])
+  const [subiendo, setSubiendo] = useState(false)
+  const porTransferencia = metodoPago === 'TRANSFERENCIA_BANCARIA'
   const hayProductoSinStock = items.some(({ producto }) => !productoDisponible(producto))
+
+  useEffect(() => {
+    if (!usuario || !porTransferencia || transferencia) return
+    let activo = true
+    pagoService.datosTransferencia()
+      .then((datos) => {
+        if (!activo) return
+        setTransferencia(datos)
+        if (datos.tieneQr) pagoService.urlDelQr().then((url) => activo && setQrUrl(url)).catch(() => {})
+      })
+      .catch(() => activo && setError('No pudimos traer los datos para transferir.'))
+    return () => { activo = false }
+  }, [usuario, porTransferencia, transferencia])
+
+  useEffect(() => () => { if (qrUrl) URL.revokeObjectURL(qrUrl) }, [qrUrl])
+
+  const subirComprobante = async (event) => {
+    const archivo = event.target.files?.[0]
+    event.target.value = ''
+    if (!archivo) return
+    if (archivo.size > 5 * 1024 * 1024) {
+      setError('El comprobante pesa más de 5 MB. Probá con una captura de pantalla o el PDF del banco.')
+      return
+    }
+    setSubiendo(true)
+    setError(null)
+    try {
+      const subido = await pagoService.subirComprobante(archivo)
+      setComprobantes((actuales) => [...actuales, { ...subido, nombre: archivo.name }])
+    } catch (err) {
+      setError(err.response?.data?.detail ?? 'No pudimos subir el comprobante. Intentá de nuevo.')
+    } finally {
+      setSubiendo(false)
+    }
+  }
+
+  const quitarComprobante = async (id) => {
+    setComprobantes((actuales) => actuales.filter((c) => c.id !== id))
+    pagoService.quitarComprobante(id).catch(() => {})
+  }
 
   // El stock pudo cambiar desde que se agregaron las cosas. Se revisa al
   // abrir el carrito para mostrarlo ya corregido, en vez de que el cliente se
@@ -114,15 +162,15 @@ function CartPage() {
     return () => { active = false }
   }, [direccionId, metodoEntrega, items])
 
+  // Un envío a domicilio se paga antes, por transferencia: es la regla del
+  // negocio y la valida el servidor. El efectivo al repartidor ya no existe.
   const cambiarEntrega = (value) => {
     setMetodoEntrega(value)
-    if (value === 'ENVIO_DOMICILIO' && metodoPago === 'PAGO_EN_LOCAL') {
-      setMetodoPago('PAGO_EFECTIVO_REPARTIDOR')
-    }
-    if (value === 'RETIRO_TIENDA' && metodoPago === 'PAGO_EFECTIVO_REPARTIDOR') {
-      setMetodoPago('PAGO_EN_LOCAL')
-    }
+    if (value === 'ENVIO_DOMICILIO') setMetodoPago('TRANSFERENCIA_BANCARIA')
   }
+
+  const costoEnvio = cotizaciones.find((quote) => String(quote.tarifaId) === tarifaId)?.costo ?? 0
+  const totalAPagar = total + (metodoEntrega === 'ENVIO_DOMICILIO' ? costoEnvio : 0)
 
   const handleCheckout = async () => {
     if (hayProductoSinStock) {
@@ -135,6 +183,10 @@ function CartPage() {
     }
     if (metodoEntrega === 'ENVIO_DOMICILIO' && (!direccionId || !tarifaId)) {
       setError('Seleccioná una dirección y una modalidad de envío antes de continuar.')
+      return
+    }
+    if (porTransferencia && comprobantes.length === 0) {
+      setError('Adjuntá el comprobante de la transferencia antes de confirmar la compra.')
       return
     }
     setError(null)
@@ -161,6 +213,7 @@ function CartPage() {
         metodoPago,
         direccionId: metodoEntrega === 'ENVIO_DOMICILIO' ? Number(direccionId) : null,
         tarifaId: metodoEntrega === 'ENVIO_DOMICILIO' ? Number(tarifaId) : null,
+        comprobantes: porTransferencia ? comprobantes.map((c) => c.id).sort() : [],
       })
       if (intentoCheckout.current?.firma !== firma) {
         intentoCheckout.current = { firma, clave: crypto.randomUUID() }
@@ -170,9 +223,14 @@ function CartPage() {
         metodoPago,
         direccionEntregaId: metodoEntrega === 'ENVIO_DOMICILIO' ? Number(direccionId) : null,
         tarifaEnvioId: metodoEntrega === 'ENVIO_DOMICILIO' ? Number(tarifaId) : null,
+        comprobanteIds: porTransferencia ? comprobantes.map((c) => c.id) : [],
+        // Lo que se le mostró y transfirió: si el servidor calcula otro total,
+        // rechaza la compra en vez de crear un pedido que el comprobante no cubre.
+        totalEsperado: porTransferencia ? totalAPagar : null,
       })
       setPedidoCreado(pedido)
       intentoCheckout.current = null
+      setComprobantes([])
       vaciar()
     } catch (err) {
       setError(err.response?.data?.detail ?? 'No se pudo completar la compra. Intente de nuevo.')
@@ -231,7 +289,9 @@ function CartPage() {
             <span className="font-bold text-neutral-text">{formatPrecio(pedidoCreado.total)}</span>.
           </p>
           <p className="mb-6 text-sm text-neutral-muted">
-            Estado: Pendiente — el stock quedó reservado a tu nombre.
+            {pedidoCreado.estadoPago === 'EN_VERIFICACION'
+              ? 'Estamos verificando tu transferencia. Te avisamos apenas la confirmemos y empezamos a prepararlo.'
+              : 'Estado: Pendiente — el stock quedó reservado a tu nombre.'}
           </p>
           <div className="flex justify-center gap-4">
             <Link to="/pedidos" className="btn btn-primary">
@@ -383,15 +443,85 @@ function CartPage() {
           <label className="block text-sm font-medium text-neutral-text">
             Forma de pago
             <select value={metodoPago} onChange={(event) => setMetodoPago(event.target.value)} className="input mt-2">
-              {metodoEntrega === 'RETIRO_TIENDA' ? (
+              {metodoEntrega === 'RETIRO_TIENDA' && (
                 <option value="PAGO_EN_LOCAL">Pago en el local</option>
-              ) : (
-                <option value="PAGO_EFECTIVO_REPARTIDOR">Efectivo al repartidor</option>
               )}
               <option value="TRANSFERENCIA_BANCARIA">Transferencia bancaria</option>
             </select>
+            {metodoEntrega === 'ENVIO_DOMICILIO' && (
+              <span className="mt-1 block text-xs text-neutral-muted">
+                Los envíos a domicilio se pagan por adelantado. Preparamos tu pedido al verificar la transferencia.
+              </span>
+            )}
           </label>
         </div>
+
+        {porTransferencia && usuario && (
+          <div className="space-y-4 rounded-md border border-dark-border p-4">
+            {!transferencia ? (
+              <p className="text-sm text-neutral-muted">Trayendo los datos para transferir…</p>
+            ) : !transferencia.disponible ? (
+              <p className="alerta-error">
+                La tienda todavía no habilitó sus datos para transferir.
+                {metodoEntrega === 'RETIRO_TIENDA' ? ' Elegí pagar en el local.' : ' Por ahora solo se puede retirar en el local.'}
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-1 text-sm">
+                    <p className="text-neutral-muted">Transferí exactamente</p>
+                    <p className="text-2xl font-bold text-neutral-text">{formatPrecio(totalAPagar)}</p>
+                    {[
+                      ['Banco', transferencia.banco],
+                      ['Titular', transferencia.titular],
+                      ['RUC o CI', transferencia.documento],
+                      ['Tipo de cuenta', transferencia.tipoCuenta],
+                      ['N.º de cuenta', transferencia.numeroCuenta],
+                      ['Alias', transferencia.alias],
+                    ].filter(([, valor]) => valor).map(([etiqueta, valor]) => (
+                      <p key={etiqueta} className="text-neutral-secondary">
+                        {etiqueta}: <span className="font-semibold text-neutral-text">{valor}</span>{' '}
+                        <button type="button" className="text-xs text-primary-300 underline"
+                          onClick={() => navigator.clipboard?.writeText(valor)}>copiar</button>
+                      </p>
+                    ))}
+                    {transferencia.instrucciones && (
+                      <p className="text-xs text-neutral-muted">{transferencia.instrucciones}</p>
+                    )}
+                  </div>
+                  {qrUrl && (
+                    <img src={qrUrl} alt="QR para transferir" className="h-40 w-40 rounded bg-white p-2" />
+                  )}
+                </div>
+                <div>
+                  <p className="mb-2 font-semibold text-neutral-text">Comprobante de la transferencia</p>
+                  {comprobantes.length === 0 && (
+                    <p className="mb-2 text-sm text-neutral-muted">
+                      Cuando hayas transferido, adjuntá la captura o el PDF del comprobante. Sin él no podemos confirmar tu compra.
+                    </p>
+                  )}
+                  <ul className="mb-2 space-y-1 text-sm">
+                    {comprobantes.map((c) => (
+                      <li key={c.id} className="flex items-center justify-between gap-2 text-neutral-secondary">
+                        <span>✓ {c.nombre}</span>
+                        <button type="button" className="text-xs text-red-400 underline" onClick={() => quitarComprobante(c.id)}>
+                          Quitar
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {comprobantes.length < 3 && (
+                    <label className="btn btn-secondary inline-block cursor-pointer text-sm">
+                      {subiendo ? 'Subiendo…' : comprobantes.length === 0 ? 'Adjuntar comprobante' : 'Adjuntar otro'}
+                      <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden"
+                        disabled={subiendo} onChange={subirComprobante} />
+                    </label>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {metodoEntrega === 'ENVIO_DOMICILIO' && (
           <div className="space-y-4 rounded-md border border-dark-border p-4">
@@ -512,9 +642,7 @@ function CartPage() {
         />
         <div className="text-right">
           <p className="mb-3 text-2xl font-bold text-neutral-text">
-            Total: <span className="gradient-text">{formatPrecio(
-              total + (cotizaciones.find((quote) => String(quote.tarifaId) === tarifaId)?.costo ?? 0),
-            )}</span>
+            Total: <span className="gradient-text">{formatPrecio(totalAPagar)}</span>
           </p>
           <button
             onClick={handleCheckout}

@@ -12,7 +12,10 @@ import 'package:techstore_mobile/core/storage/secure_store.dart';
 /// falsificarlo se le da lo que necesita para restaurar sesión: un refresh
 /// guardado y un servidor que responde a `/auth/refresh`. El caso termina
 /// ejercitando el mismo camino que la app, no una copia hecha para el test.
-ApiClient apiClientDeRol(String rol, {Map<String, Object?> respuestas = const {}}) => ApiClient(
+ApiClient apiClientDeRol(
+  String rol, {
+  Map<String, Object?> respuestas = const {},
+}) => ApiClient(
   baseUrl: 'https://techstore.local',
   logger: const LoggerMudo(),
   dio: Dio()..httpClientAdapter = AdaptadorDeRol(rol, respuestas: respuestas),
@@ -84,20 +87,33 @@ final class AdaptadorDeRol implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// Un teléfono donde la persona entró con «Mantener sesión iniciada»: la app
+/// arranca con la sesión restaurada, que es lo que necesitan las pruebas de
+/// pantallas con sesión.
 final class StoreConSesion implements SecureStore {
+  /// El token de renovación guardado.
   String? value = 'refresh-guardado';
+  bool mantener = true;
+
+  static const _claveMantener = 'techstore.keep_session';
 
   @override
-  Future<void> clear() async => value = null;
+  Future<void> clear() async {
+    value = null;
+    mantener = false;
+  }
 
   @override
-  Future<void> delete(String key) async => value = null;
+  Future<void> delete(String key) async =>
+      key == _claveMantener ? mantener = false : value = null;
 
   @override
-  Future<String?> read(String key) async => value;
+  Future<String?> read(String key) async =>
+      key == _claveMantener ? (mantener ? 'true' : null) : value;
 
   @override
-  Future<void> write(String key, String value) async => this.value = value;
+  Future<void> write(String key, String value) async =>
+      key == _claveMantener ? mantener = value == 'true' : this.value = value;
 }
 
 final class LoggerMudo implements AppLogger {

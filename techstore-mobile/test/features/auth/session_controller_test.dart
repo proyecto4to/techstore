@@ -137,19 +137,30 @@ final class _AuthAdapter implements HttpClientAdapter {
 }
 
 final class _MemorySecureStore implements SecureStore {
+  /// El token de renovación guardado. La marca de «mantener sesión» va
+  /// encendida: es la única forma en que la app restaura una sesión.
   String? value;
+  bool mantener = true;
+
+  static const _claveMantener = 'techstore.keep_session';
 
   @override
-  Future<void> clear() async => value = null;
+  Future<void> clear() async {
+    value = null;
+    mantener = false;
+  }
 
   @override
-  Future<void> delete(String key) async => value = null;
+  Future<void> delete(String key) async =>
+      key == _claveMantener ? mantener = false : value = null;
 
   @override
-  Future<String?> read(String key) async => value;
+  Future<String?> read(String key) async =>
+      key == _claveMantener ? (mantener ? 'true' : null) : value;
 
   @override
-  Future<void> write(String key, String value) async => this.value = value;
+  Future<void> write(String key, String value) async =>
+      key == _claveMantener ? mantener = value == 'true' : this.value = value;
 }
 
 final class _SilentLogger implements AppLogger {

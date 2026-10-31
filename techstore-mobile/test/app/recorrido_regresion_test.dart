@@ -411,6 +411,39 @@ void main() {
     );
   }
 
+  testWidgets(
+    'con transferencia no se puede seguir sin adjuntar el comprobante',
+    (tester) async {
+      await abrir(tester, '/checkout', conProducto: true);
+      await tester.tap(find.text('Continuar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Transferencia bancaria'));
+      await tester.pumpAndSettle();
+
+      // Los datos de la tienda, listos para copiar, y el pedido del comprobante.
+      expect(find.text('Transferí exactamente'), findsOneWidget);
+      expect(find.text('Banco de Prueba'), findsOneWidget);
+      expect(find.text('Adjuntar comprobante'), findsOneWidget);
+      final continuar = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Continuar'),
+      );
+      expect(continuar.onPressed, isNull, reason: 'falta el comprobante');
+
+      // Pagando al retirar no hace falta.
+      await tester.tap(find.text('Pago al retirar'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Continuar'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('envío a domicilio excluye el retiro de la cotización', (
     tester,
   ) async {
@@ -422,9 +455,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.textContaining('Casa').last);
     await tester.pumpAndSettle();
-    expect(find.text('Elegí cómo querés recibirlo'), findsOneWidget);
+    // Sin el retiro queda una sola tarifa a domicilio: se elige sola, sin
+    // abrir una hoja con una opción.
+    expect(find.text('Elegí cómo querés recibirlo'), findsNothing);
     expect(find.text('Transportadora de prueba'), findsOneWidget);
     expect(find.text('Retiro en tienda'), findsNothing);
+    // Y se dice antes de pagar que el envío va por transferencia.
+    expect(find.textContaining('por transferencia'), findsWidgets);
   });
 
   for (final sinStock in [false, true]) {
@@ -520,6 +557,21 @@ final class _Red implements HttpClientAdapter {
       escrituras.add(options.path);
       return ResponseBody.fromString(
         '{"id":78}',
+        200,
+        headers: {
+          Headers.contentTypeHeader: ['application/json'],
+        },
+      );
+    }
+    if (options.path.endsWith('/pagos/transferencia')) {
+      return ResponseBody.fromString(
+        jsonEncode({
+          'disponible': true,
+          'banco': 'Banco de Prueba',
+          'titular': 'TechStore S.A.',
+          'numeroCuenta': '0011223344',
+          'tieneQr': false,
+        }),
         200,
         headers: {
           Headers.contentTypeHeader: ['application/json'],

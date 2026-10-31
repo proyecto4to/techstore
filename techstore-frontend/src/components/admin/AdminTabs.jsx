@@ -26,6 +26,7 @@ const grupos = [
     nombre: 'Mostrador',
     tabs: [
       { to: '/admin', label: 'Pedidos', end: true, modulo: 'PEDIDOS' },
+      { to: '/admin/pagos', label: 'Verificar pagos', modulo: 'PEDIDOS' },
       { to: '/admin/venta', label: 'Venta directa', modulo: 'FACTURAS' },
       { to: '/admin/facturas', label: 'Facturas', modulo: 'FACTURAS' },
       { to: '/admin/caja', label: 'Caja', modulo: 'CAJA' },

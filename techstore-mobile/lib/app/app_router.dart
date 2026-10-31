@@ -32,6 +32,8 @@ import '../features/courier/presentation/courier_vehicles_page.dart';
 import '../features/invoices/presentation/invoices_page.dart';
 import '../features/notifications/presentation/notifications_page.dart';
 import '../features/orders/presentation/orders_page.dart';
+import '../features/payments/presentation/transfer_settings_page.dart';
+import '../features/payments/presentation/verify_payments_page.dart';
 import '../features/purchases/presentation/purchase_form_page.dart';
 import '../features/sales/presentation/direct_sale_page.dart';
 import '../features/security/application/security_providers.dart';
@@ -53,6 +55,9 @@ const _modulosPorRuta = <String, String>{
   '/sales/new': Modulos.facturas,
   '/cash/actions': Modulos.caja,
   '/purchases/new': Modulos.compras,
+  // Verificar una transferencia es cobrar un pedido: lo gobierna Pedidos,
+  // igual que en el backend.
+  '/pagos': Modulos.pedidos,
 };
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -112,6 +117,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       if (path.startsWith('/courier') && !auth.user!.role.isCourier) return '/';
       if (path == '/documents' && !auth.user!.role.canAdminister) return '/';
+      if (path.startsWith('/pagos') && !auth.user!.role.canOperateStore) {
+        return '/';
+      }
       if ((path.startsWith('/operations') ||
               path.startsWith('/cash/') ||
               path.startsWith('/sales/') ||
@@ -244,6 +252,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/admin/promociones',
         builder: (context, state) => const PromotionsPage(),
       ),
+      GoRoute(
+        path: '/admin/transferencia',
+        builder: (context, state) => const TransferSettingsPage(),
+      ),
+      GoRoute(
+        path: '/pagos',
+        builder: (context, state) => const VerifyPaymentsPage(),
+      ),
+      GoRoute(
+        path: '/pagos/:id',
+        builder: (context, state) => VerifyPaymentDetailPage(
+          orderId: int.parse(state.pathParameters['id']!),
+        ),
+      ),
       GoRoute(path: '/chat', builder: (context, state) => const ChatPage()),
       GoRoute(
         path: '/chat/destinatarios',
@@ -260,12 +282,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           recipientId: int.tryParse(
             state.uri.queryParameters['destinatario'] ?? '',
           ),
+          // Una consulta sobre un pedido queda atada a ese pedido.
+          orderId: int.tryParse(state.uri.queryParameters['pedido'] ?? ''),
         ),
       ),
       GoRoute(
         path: '/orders/:id',
-        builder: (context, state) =>
-            OrderDetailPage(orderId: int.parse(state.pathParameters['id']!)),
+        builder: (context, state) => OrderDetailPage(
+          orderId: int.parse(state.pathParameters['id']!),
+          // Lo pone el checkout al terminar: arriba se muestra la confirmación.
+          justPlaced: state.uri.queryParameters['recien'] == '1',
+        ),
       ),
       GoRoute(
         path: '/admin',

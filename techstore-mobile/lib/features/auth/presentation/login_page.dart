@@ -22,6 +22,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _obscure = true;
+  bool _mantener = false;
 
   @override
   void dispose() {
@@ -170,11 +171,41 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                               ? 'Ingresá tu contraseña'
                                               : null,
                                         ),
+                                        const SizedBox(height: 6),
+                                        // Apagado de entrada: en un teléfono
+                                        // compartido, quedar adentro tiene
+                                        // que ser una decisión de quien entra.
+                                        // Su propio Material: sobre el fondo
+                                        // de la tarjeta, el toque no se vería.
+                                        Material(
+                                          type: MaterialType.transparency,
+                                          child: CheckboxListTile(
+                                            value: _mantener,
+                                            onChanged: auth.isBusy
+                                                ? null
+                                                : (v) => setState(
+                                                    () =>
+                                                        _mantener = v ?? false,
+                                                  ),
+                                            contentPadding: EdgeInsets.zero,
+                                            controlAffinity:
+                                                ListTileControlAffinity.leading,
+                                            dense: true,
+                                            title: const Text(
+                                              'Mantener sesión iniciada',
+                                            ),
+                                            subtitle: const Text(
+                                              'No te la pedimos de nuevo al '
+                                              'cerrar la app. Usalo solo en '
+                                              'tu teléfono.',
+                                            ),
+                                          ),
+                                        ),
                                         if (auth.message != null) ...[
-                                          const SizedBox(height: 14),
+                                          const SizedBox(height: 8),
                                           _Aviso(mensaje: auth.message!),
                                         ],
-                                        const SizedBox(height: 22),
+                                        const SizedBox(height: 16),
                                         FilledButton.icon(
                                           style: FilledButton.styleFrom(
                                             minimumSize: const Size.fromHeight(
@@ -192,9 +223,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                                         strokeWidth: 2,
                                                       ),
                                                 )
-                                              : const Icon(
-                                                  Icons.login_rounded,
-                                                ),
+                                              : const Icon(Icons.login_rounded),
                                           label: Text(
                                             auth.isBusy
                                                 ? 'Ingresando…'
@@ -267,7 +296,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     TextInput.finishAutofillContext();
     await ref
         .read(authSessionProvider.notifier)
-        .login(email: _email.text, password: _password.text);
+        .login(
+          email: _email.text,
+          password: _password.text,
+          keepSignedIn: _mantener,
+        );
   }
 }
 
@@ -286,9 +319,8 @@ class _Marca extends StatelessWidget {
         orden: 2,
         child: Text(
           'Precio claro. Stock real.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Paleta.textoSecundario,
-          ),
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: Paleta.textoSecundario),
         ),
       ),
     ],

@@ -80,6 +80,24 @@ final class ApiClient {
   Future<Response<T>> delete<T>(String path, {Options? options}) =>
       _guard(() => _dio.delete<T>(path, options: options));
 
+  /// Sube un archivo con `multipart/form-data` y cuenta cuánto se mandó.
+  ///
+  /// Un comprobante por el túnel puede tardar varios segundos: sin el progreso
+  /// la pantalla parece colgada y la persona vuelve a tocar el botón.
+  Future<Response<T>> upload<T>(
+    String path,
+    FormData data, {
+    ProgressCallback? onSendProgress,
+  }) => _guard(
+    () => _dio.post<T>(
+      path,
+      data: data,
+      onSendProgress: onSendProgress,
+      // Una foto de varios MB por una conexión móvil no entra en 20 segundos.
+      options: Options(sendTimeout: const Duration(seconds: 90)),
+    ),
+  );
+
   Future<Uint8List> getBytes(String path) async {
     final response = await _guard<List<int>>(
       () => _dio.get<List<int>>(

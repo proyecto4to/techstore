@@ -29,6 +29,9 @@ String? rutaDeEnlaceTechstore(Uri uri) {
       return '/courier/vehicles';
     case 'chat':
       return id == null ? '/chat' : '/chat/$id';
+    // Lo manda el aviso de «pago para verificar» a quien cobra.
+    case 'pagos':
+      return id == null ? '/pagos' : '/pagos/$id';
   }
   return null;
 }

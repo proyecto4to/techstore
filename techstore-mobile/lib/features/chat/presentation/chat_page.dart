@@ -59,82 +59,40 @@ class ChatPage extends ConsumerWidget {
   }
 }
 
-/// Lo que ve el cliente: un solo canal, sin elegir con quién habla.
+/// Lo que ve el cliente: la conversación con la tienda, directamente.
+///
+/// Antes «Atención al Cliente» abría una lista con una sola tarjeta, y había
+/// que tocarla para llegar al chat: un paso que no decidía nada. Ahora se abre
+/// la conversación general; las consultas atadas a un pedido se retoman desde
+/// ese pedido, o desde el botón de la barra si hay alguna.
 class _AtencionAlCliente extends ConsumerWidget {
   const _AtencionAlCliente();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final conversaciones = ref.watch(conversationsProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text(nombreAtencionAlCliente)),
-      body: RefreshIndicator(
-        onRefresh: () => ref.refresh(conversationsProvider.future),
-        child: conversaciones.when(
-          loading: () => const AppLoading(label: 'Abriendo tu conversación'),
-          // Sin conversación previa el error no bloquea: igual se puede
-          // escribir, y el primer mensaje abre el canal.
-          error: (error, _) => _lista(context, ref, null, theme),
-          data: (items) =>
-              _lista(context, ref, items.isEmpty ? null : items.first, theme),
-        ),
+    return conversaciones.when(
+      skipLoadingOnRefresh: true,
+      loading: () => Scaffold(
+        appBar: AppBar(title: const Text(nombreAtencionAlCliente)),
+        body: const AppLoading(label: 'Abriendo tu conversación'),
       ),
-    );
-  }
-
-  Widget _lista(
-    BuildContext context,
-    WidgetRef ref,
-    Map<String, Object?>? conversacion,
-    ThemeData theme,
-  ) {
-    final sinLeer = (conversacion?['noLeidos'] as num?)?.toInt() ?? 0;
-    final ultimo = conversacion?['ultimoMensaje'] as Map?;
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            leading: Badge(
-              isLabelVisible: sinLeer > 0,
-              label: Text('$sinLeer'),
-              child: CircleAvatar(
-                backgroundColor: theme.colorScheme.primaryContainer,
-                child: Icon(
-                  Icons.support_agent_outlined,
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ),
-            title: const Text(nombreAtencionAlCliente),
-            subtitle: Text(
-              ultimo?['contenido']?.toString() ??
-                  'Escribinos y te respondemos.',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push(
-              conversacion == null
-                  ? '/chat/nuevo'
-                  : '/chat/${conversacion['id']}',
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Te contestamos en el horario de la tienda.',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
+      // Sin poder leer las anteriores igual se puede escribir: el primer
+      // mensaje abre el canal, y si ya existía el servidor lo retoma.
+      error: (error, _) => const ConversationPage(),
+      data: (items) {
+        final general = items.where((c) => c['pedidoId'] == null).firstOrNull;
+        final porPedido = [
+          for (final c in items)
+            if (c['pedidoId'] != null) c,
+        ];
+        final id = (general?['id'] as num?)?.toInt();
+        return ConversationPage(
+          key: ValueKey(id),
+          conversationId: id,
+          otherConversations: porPedido,
+        );
+      },
     );
   }
 }
@@ -168,8 +126,9 @@ class _Bandeja extends ConsumerWidget {
                 : 'No pudimos cargar las conversaciones.',
             onRetry: () => ref.invalidate(conversationsProvider),
           ),
-          data: (items) =>
-              items.isEmpty ? const _BandejaVacia() : _BandejaLlena(items: items),
+          data: (items) => items.isEmpty
+              ? const _BandejaVacia()
+              : _BandejaLlena(items: items),
         ),
       ),
     );
@@ -292,7 +251,21 @@ class _BandejaLlena extends StatelessWidget {
 }
 
 class ConversationPage extends ConsumerStatefulWidget {
-  const ConversationPage({super.key, this.conversationId, this.recipientId});
+  const ConversationPage({
+    super.key,
+    this.conversationId,
+    this.recipientId,
+    this.orderId,
+    this.otherConversations = const [],
+  });
+
+  /// El pedido por el que se consulta, cuando la conversación todavía no
+  /// existe: el primer mensaje la abre atada a ese pedido.
+  final int? orderId;
+
+  /// Las otras consultas del cliente (las atadas a un pedido), para poder
+  /// saltar a ellas desde la barra.
+  final List<Map<String, Object?>> otherConversations;
 
   /// `null` cuando todavía no se escribió: el primer mensaje abre la
   /// conversación. Así no hay que pedir un texto en un diálogo antes de
@@ -311,6 +284,11 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   final _scroll = ScrollController();
   bool _busy = false;
   int? _id;
+
+  /// Si en esta pantalla quedó algún mensaje en la cola sin conexión. Recién
+  /// ahí se mira la cola: abrir la base local cada vez que se entra al chat,
+  /// para mostrar un aviso que casi nunca aplica, era trabajo de más.
+  bool _hayCola = false;
 
   @override
   void initState() {
@@ -336,10 +314,78 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
     final usuario = ref.watch(authSessionProvider).user;
     final esCliente = usuario?.role == AppRole.customer;
     final abierta = _id;
+    final repositorio = ref.watch(chatRepositoryProvider);
+    final pedidoAsociado = abierta == null
+        ? widget.orderId
+        : (ref.watch(conversationProvider(abierta)).value?['pedidoNumero']
+                  as num?)
+              ?.toInt();
     return Scaffold(
-      appBar: AppBar(title: _Titulo(conversationId: abierta, esCliente: esCliente)),
+      appBar: AppBar(
+        title: _Titulo(conversationId: abierta, esCliente: esCliente),
+        actions: [
+          if (widget.otherConversations.isNotEmpty)
+            IconButton(
+              tooltip: 'Consultas por pedidos',
+              onPressed: () => _otrasConsultas(context),
+              icon: Badge(
+                isLabelVisible: widget.otherConversations.any(
+                  (c) => ((c['noLeidos'] as num?)?.toInt() ?? 0) > 0,
+                ),
+                child: const Icon(Icons.forum_outlined),
+              ),
+            ),
+        ],
+      ),
       body: Column(
         children: [
+          if (pedidoAsociado != null)
+            Material(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: ListTile(
+                dense: true,
+                leading: const Icon(Icons.receipt_long_outlined, size: 20),
+                title: Text(
+                  abierta == null
+                      ? 'Consulta sobre tu pedido'
+                      : 'Consulta sobre el pedido N.º $pedidoAsociado',
+                ),
+              ),
+            ),
+          // Los mensajes que se escribieron sin conexión quedan en cola: se
+          // dice cuántos son y se pueden reintentar, en vez de que desaparezcan
+          // en silencio hasta que vuelva la red.
+          if (_hayCola)
+            StreamBuilder<int>(
+              stream: repositorio.pendingCount(),
+              builder: (context, snapshot) {
+                final pendientes = snapshot.data ?? 0;
+                if (pendientes == 0) return const SizedBox.shrink();
+                return Material(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.cloud_off_outlined, size: 20),
+                    title: Text(
+                      pendientes == 1
+                          ? '1 mensaje sin enviar'
+                          : '$pendientes mensajes sin enviar',
+                    ),
+                    subtitle: const Text(
+                      'Se mandan solos cuando vuelva la conexión.',
+                    ),
+                    trailing: TextButton(
+                      onPressed: () async {
+                        await repositorio.retryPending();
+                        final id = _id;
+                        if (id != null) ref.invalidate(messagesProvider(id));
+                      },
+                      child: const Text('Reintentar'),
+                    ),
+                  ),
+                );
+              },
+            ),
           Expanded(
             child: abierta == null
                 ? _Vacio(esCliente: esCliente)
@@ -413,6 +459,7 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
         final creada = await repositorio.create(
           message: texto,
           recipientId: widget.recipientId,
+          orderId: widget.orderId,
         );
         _message.clear();
         await haptics.play(HapticCue.success);
@@ -429,6 +476,7 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
         _alUltimo();
       } else {
         await haptics.play(HapticCue.warning);
+        if (mounted) setState(() => _hayCola = true);
         _avisar('Mensaje guardado. Se enviará al reconectar.');
       }
     } on AppFailure catch (falla) {
@@ -438,6 +486,44 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  Future<void> _otrasConsultas(BuildContext context) =>
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Tus consultas por pedidos',
+                  style: Theme.of(sheet).textTheme.titleMedium,
+                ),
+              ),
+              for (final c in widget.otherConversations)
+                ListTile(
+                  leading: Badge(
+                    isLabelVisible: ((c['noLeidos'] as num?)?.toInt() ?? 0) > 0,
+                    child: const Icon(Icons.receipt_long_outlined),
+                  ),
+                  title: Text('Pedido N.º ${c['pedidoNumero'] ?? ''}'),
+                  subtitle: Text(
+                    (c['ultimoMensaje'] as Map?)?['contenido']?.toString() ??
+                        '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheet);
+                    context.push('/chat/${c['id']}');
+                  },
+                ),
+            ],
+          ),
+        ),
+      );
 
   /// Lleva la vista al último mensaje.
   ///
@@ -484,7 +570,8 @@ class _Titulo extends ConsumerWidget {
     final conversacion = ref.watch(conversationProvider(id));
     return conversacion.maybeWhen(
       data: (datos) {
-        final titulo = datos['titulo']?.toString() ??
+        final titulo =
+            datos['titulo']?.toString() ??
             (esCliente ? nombreAtencionAlCliente : 'Conversación');
         final rol = datos['rolContraparte']?.toString();
         if (rol == null || rol.isEmpty) return Text(titulo);
@@ -502,8 +589,7 @@ class _Titulo extends ConsumerWidget {
           ],
         );
       },
-      orElse: () =>
-          Text(esCliente ? nombreAtencionAlCliente : 'Conversación'),
+      orElse: () => Text(esCliente ? nombreAtencionAlCliente : 'Conversación'),
     );
   }
 }
@@ -645,7 +731,8 @@ class _SeparadorDeDia extends StatelessWidget {
     final fecha = _Historial._fecha(mensaje);
     if (fecha == null) return const SizedBox.shrink();
     final hoy = DateTime.now();
-    final esHoy = fecha.year == hoy.year &&
+    final esHoy =
+        fecha.year == hoy.year &&
         fecha.month == hoy.month &&
         fecha.day == hoy.day;
     return Padding(

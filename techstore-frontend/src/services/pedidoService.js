@@ -9,6 +9,8 @@ export const pedidoService = {
       metodoPago: opciones.metodoPago ?? 'PAGO_EN_LOCAL',
       direccionEntregaId: opciones.direccionEntregaId ?? null,
       tarifaEnvioId: opciones.tarifaEnvioId ?? null,
+      comprobanteIds: opciones.comprobanteIds ?? [],
+      totalEsperado: opciones.totalEsperado ?? null,
     }, {
       headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     })

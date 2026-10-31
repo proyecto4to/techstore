@@ -14,6 +14,7 @@ const CartPage = lazy(() => import('./pages/CartPage'))
 const PedidosPage = lazy(() => import('./pages/PedidosPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
+const AdminPagosPage = lazy(() => import('./pages/AdminPagosPage'))
 const AdminProductosPage = lazy(() => import('./pages/AdminProductosPage'))
 const AdminReportesPage = lazy(() => import('./pages/AdminReportesPage'))
 const AdminContabilidadPage = lazy(() => import('./pages/AdminContabilidadPage'))
@@ -80,6 +81,14 @@ function App() {
                 element={
                   <ProtectedRoute roles={['Admin', 'Cajero']} modulo="PEDIDOS">
                     <AdminPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/pagos"
+                element={
+                  <ProtectedRoute roles={['Admin', 'Cajero']} modulo="PEDIDOS">
+                    <AdminPagosPage />
                   </ProtectedRoute>
                 }
               />

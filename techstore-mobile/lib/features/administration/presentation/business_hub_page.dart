@@ -50,6 +50,19 @@ class BusinessHubPage extends ConsumerWidget {
       ruta: '/admin/promociones',
       modulo: Modulos.productos,
     ),
+    // Sin estos datos no hay transferencia, y sin transferencia no hay envío
+    // a domicilio.
+    _Baldosa(
+      icono: Icons.account_balance_outlined,
+      titulo: 'Cobro por transferencia',
+      ruta: '/admin/transferencia',
+    ),
+    _Baldosa(
+      icono: Icons.fact_check_outlined,
+      titulo: 'Verificar pagos',
+      ruta: '/pagos',
+      modulo: Modulos.pedidos,
+    ),
     _Baldosa(
       icono: Icons.archive_outlined,
       titulo: 'Documentos y exportaciones',

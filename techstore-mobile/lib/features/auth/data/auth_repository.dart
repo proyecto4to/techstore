@@ -94,4 +94,18 @@ final class AuthRepository {
       _secureStore.write(_refreshKey, token);
 
   Future<void> clearRefreshToken() => _secureStore.delete(_refreshKey);
+
+  /// Si la persona pidió mantener la sesión en este teléfono.
+  ///
+  /// Se guarda junto al token, en el almacén cifrado del sistema. La
+  /// contraseña no se guarda nunca: lo que sobrevive es el token de
+  /// renovación, que el servidor puede revocar y que vence solo.
+  Future<bool> keepSession() async =>
+      (await _secureStore.read(_keepKey)) == 'true';
+
+  Future<void> storeKeepSession({required bool keep}) => keep
+      ? _secureStore.write(_keepKey, 'true')
+      : _secureStore.delete(_keepKey);
+
+  static const _keepKey = 'techstore.keep_session';
 }

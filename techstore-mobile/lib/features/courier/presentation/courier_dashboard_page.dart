@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../auth/application/session_controller.dart';
+import '../../notifications/presentation/campana_de_avisos.dart';
 import '../application/courier_providers.dart';
 
 class CourierDashboardPage extends ConsumerWidget {
@@ -16,13 +17,11 @@ class CourierDashboardPage extends ConsumerWidget {
     final vehicle = ref.watch(courierCurrentVehicleProvider);
     return Scaffold(
       appBar: AppBar(
+        // La campana arriba a la izquierda, como en el resto de los inicios, y
+        // ahora con el número de avisos sin leer.
+        leading: const CampanaDeAvisos(),
         title: const Text('Mi jornada'),
         actions: [
-          IconButton(
-            tooltip: 'Notificaciones',
-            onPressed: () => context.push('/notifications'),
-            icon: const Icon(Icons.notifications_outlined),
-          ),
           IconButton(
             tooltip: 'Cerrar sesión',
             onPressed: ref.read(authSessionProvider.notifier).logout,

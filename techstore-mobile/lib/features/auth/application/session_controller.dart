@@ -24,9 +24,20 @@ final class SessionController extends Notifier<AuthState> {
   String? _refreshToken;
   Future<String?>? _refreshInFlight;
   Timer? _refreshTimer;
+  bool _keepSignedIn = false;
 
   AuthRepository get _repository => ref.read(authRepositoryProvider);
   String? get accessToken => _accessToken;
+
+  /// Si la persona pidió mantener la sesión iniciada en este teléfono.
+  ///
+  /// Con esto apagado —lo de siempre— la sesión vive solo mientras la app está
+  /// abierta: el token no se guarda en el teléfono y se corta al pasar a
+  /// segundo plano, que es lo que necesita un equipo compartido en el
+  /// mostrador. Encendido, el token de renovación se guarda cifrado y la
+  /// sesión sobrevive a cerrar la app y a reiniciar el teléfono, hasta que la
+  /// persona salga o el servidor la dé por vencida.
+  bool get keepSignedIn => _keepSignedIn;
 
   @override
   AuthState build() {
@@ -41,10 +52,16 @@ final class SessionController extends Notifier<AuthState> {
     return const AuthState.initializing();
   }
 
-  Future<bool> login({required String email, required String password}) async {
+  Future<bool> login({
+    required String email,
+    required String password,
+    bool keepSignedIn = false,
+  }) async {
     state = const AuthState.authenticating();
     try {
-      await _apply(await _repository.login(email: email, password: password));
+      final tokens = await _repository.login(email: email, password: password);
+      await _setKeepSignedIn(keepSignedIn);
+      await _apply(tokens);
       return true;
     } on UnauthorizedFailure {
       state = const AuthState.unauthenticated(
@@ -65,14 +82,14 @@ final class SessionController extends Notifier<AuthState> {
   }) async {
     state = const AuthState.authenticating();
     try {
-      await _apply(
-        await _repository.register(
-          firstName: firstName,
-          lastName: lastName,
-          email: email,
-          password: password,
-        ),
+      final tokens = await _repository.register(
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        password: password,
       );
+      await _setKeepSignedIn(false);
+      await _apply(tokens);
       return true;
     } on AppFailure catch (failure) {
       state = AuthState.unauthenticated(failure.message);
@@ -96,7 +113,10 @@ final class SessionController extends Notifier<AuthState> {
     try {
       if (token != null) await _repository.logout(token);
     } finally {
+      // Salir es salir: también se olvida el «mantener sesión», para que la
+      // próxima persona que use el teléfono no entre como la anterior.
       await _repository.clearRefreshToken();
+      await _setKeepSignedIn(false);
     }
   }
 
@@ -111,6 +131,9 @@ final class SessionController extends Notifier<AuthState> {
   /// teléfono. La baja en el servidor es el mejor esfuerzo posible.
   Future<void> closeForBackground() async {
     if (!state.isAuthenticated) return;
+    // La persona eligió seguir con la sesión iniciada: salir de la app no la
+    // corta.
+    if (_keepSignedIn) return;
     final token = _refreshToken;
     _clearMemory();
     await _repository.clearRefreshToken();
@@ -144,6 +167,14 @@ final class SessionController extends Notifier<AuthState> {
       state = const AuthState.unauthenticated();
       return;
     }
+    // Un token guardado sin el «mantener sesión» es de una versión anterior,
+    // que lo guardaba siempre: no se usa para entrar solo.
+    if (!await _repository.keepSession()) {
+      await _repository.clearRefreshToken();
+      state = const AuthState.unauthenticated();
+      return;
+    }
+    _keepSignedIn = true;
     _refreshToken = stored;
     await refreshAccessToken();
   }
@@ -169,6 +200,7 @@ final class SessionController extends Notifier<AuthState> {
       }
       _clearMemory();
       await _repository.clearRefreshToken();
+      await _setKeepSignedIn(false);
       state = const AuthState.unauthenticated(
         'Tu sesión expiró. Iniciá sesión nuevamente.',
       );
@@ -176,10 +208,21 @@ final class SessionController extends Notifier<AuthState> {
     }
   }
 
+  Future<void> _setKeepSignedIn(bool keep) async {
+    _keepSignedIn = keep;
+    await _repository.storeKeepSession(keep: keep);
+  }
+
   Future<void> _apply(AuthTokens tokens) async {
     _accessToken = tokens.accessToken;
     _refreshToken = tokens.refreshToken;
-    await _repository.storeRefreshToken(tokens.refreshToken);
+    // Sin «mantener sesión», el token vive solo en memoria: cerrar la app es
+    // cerrar la sesión, aunque el sistema la mate sin pasar por segundo plano.
+    if (_keepSignedIn) {
+      await _repository.storeRefreshToken(tokens.refreshToken);
+    } else {
+      await _repository.clearRefreshToken();
+    }
     _refreshTimer?.cancel();
     final delay = tokens.expiresIn > const Duration(seconds: 45)
         ? tokens.expiresIn - const Duration(seconds: 30)

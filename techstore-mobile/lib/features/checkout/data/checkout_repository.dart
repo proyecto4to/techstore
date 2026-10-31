@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../cart/application/cart_controller.dart';
@@ -119,17 +118,30 @@ final class CheckoutRepository {
         .toList(growable: false);
   }
 
+  /// Crea el pedido.
+  ///
+  /// [idempotencyKey] tiene que ser la misma en cada reintento de la misma
+  /// compra. Antes se generaba una nueva en cada llamada, así que si la red se
+  /// cortaba justo después de que el servidor creara el pedido, tocar de nuevo
+  /// «Confirmar» creaba otro igual.
+  ///
+  /// [expectedTotal] es lo que la pantalla mostró y la persona transfirió: si
+  /// el servidor calcula otro total, rechaza la compra en vez de crear un
+  /// pedido que el comprobante no cubre.
   Future<int> checkout(
     List<CartLine> lines, {
     required bool delivery,
     int? addressId,
     int? tariffId,
     required String paymentMethod,
+    required String idempotencyKey,
     String? notes,
+    List<int> receiptIds = const [],
+    double? expectedTotal,
   }) async {
     final response = await _api.post<Map<String, Object?>>(
       '/api/v1/pedidos',
-      options: Options(headers: {'Idempotency-Key': const Uuid().v4()}),
+      options: Options(headers: {'Idempotency-Key': idempotencyKey}),
       data: {
         'items': _items(lines),
         'metodoEntrega': delivery ? 'ENVIO_DOMICILIO' : 'RETIRO_TIENDA',
@@ -137,6 +149,8 @@ final class CheckoutRepository {
         if (delivery) 'direccionEntregaId': addressId,
         if (delivery) 'tarifaEnvioId': tariffId,
         if (notes != null && notes.trim().isNotEmpty) 'notas': notes.trim(),
+        if (receiptIds.isNotEmpty) 'comprobanteIds': receiptIds,
+        'totalEsperado': ?expectedTotal,
       },
     );
     return (response.data!['id'] as num).toInt();

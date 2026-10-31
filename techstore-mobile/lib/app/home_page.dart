@@ -13,7 +13,8 @@ import '../features/auth/application/session_controller.dart';
 import '../features/auth/domain/auth_user.dart';
 import '../features/catalog/presentation/vidriera_page.dart';
 import '../features/courier/presentation/courier_dashboard_page.dart';
-import '../features/notifications/presentation/notifications_page.dart';
+import '../features/notifications/presentation/campana_de_avisos.dart';
+import '../features/payments/application/payments_providers.dart';
 import '../features/security/application/security_providers.dart';
 import '../features/security/domain/app_permissions.dart';
 
@@ -23,7 +24,7 @@ final class _Module {
     this.icon,
     this.label,
     this.route, {
-    this.cuentaPendientes = false,
+    this.cuentaPagos = false,
     this.modulo,
   });
 
@@ -38,12 +39,12 @@ final class _Module {
   /// mal puesto no puede dejar a un cliente sin poder comprar.
   final String? modulo;
 
-  /// Si la baldosa muestra cuántos avisos quedan sin leer.
+  /// Si la baldosa muestra cuántas transferencias esperan revisión.
   ///
-  /// Solo la campana. El número se pide aparte —es una consulta liviana— y el
-  /// coordinador de tiempo real lo invalida cuando llega una notificación, así
-  /// que se mueve solo, sin entrar a la pantalla.
-  final bool cuentaPendientes;
+  /// El número se pide aparte —es una consulta liviana— y el coordinador de
+  /// tiempo real lo invalida cuando cambia un pedido, así que se mueve solo
+  /// cuando llega un comprobante.
+  final bool cuentaPagos;
 }
 
 /// Un bloque de módulos con su título.
@@ -70,20 +71,26 @@ class HomePage extends ConsumerWidget {
   /// No se le quita nada a nadie: un cajero también puede comprar, así que sus
   /// módulos de cliente siguen ahí, más abajo.
   List<_Section> _sectionsFor(AppRole role) {
+    // Las notificaciones tienen su campana arriba a la izquierda, con el
+    // contador; acá quedan solo los accesos de la cuenta.
     const account = [
-      _Module(
-        Icons.notifications_outlined,
-        'Notificaciones',
-        '/notifications',
-        cuentaPendientes: true,
-      ),
       _Module(Icons.chat_bubble_outline_rounded, 'Conversaciones', '/chat'),
       _Module(Icons.person_outline_rounded, 'Mi cuenta', '/account'),
     ];
+    // Lo primero que tiene que ver quien cobra: un envío no sale hasta que
+    // alguien apruebe la transferencia.
+    const verificarPagos = _Module(
+      Icons.fact_check_outlined,
+      'Verificar pagos',
+      '/pagos',
+      cuentaPagos: true,
+      modulo: Modulos.pedidos,
+    );
 
     if (role.isCashier) {
       return [
         _Section('En el mostrador', [
+          verificarPagos,
           _Module(
             Icons.point_of_sale_outlined,
             'Vender',
@@ -130,6 +137,7 @@ class HomePage extends ConsumerWidget {
 
     return [
       _Section('Gestión', [
+        verificarPagos,
         const _Module(
           Icons.admin_panel_settings_outlined,
           'Administración',
@@ -202,7 +210,8 @@ class HomePage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        titleSpacing: 16,
+        leading: const CampanaDeAvisos(),
+        titleSpacing: 4,
         title: const Imagotipo(tamano: 19),
         actions: [
           IconButton(
@@ -255,21 +264,22 @@ class HomePage extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final module = section.modules[index];
                 void abrir() => context.push(module.route);
-                final baldosa = !module.cuentaPendientes
+                final baldosa = !module.cuentaPagos
                     ? BaldosaDeAcceso(
                         icono: module.icon,
                         etiqueta: module.label,
                         onTap: abrir,
                       )
                     // Un Consumer propio para que el número no reconstruya
-                    // la grilla entera cada vez que llega un aviso.
+                    // la grilla entera cada vez que llega un comprobante.
                     : Consumer(
                         builder: (context, ref, _) => BaldosaDeAcceso(
                           icono: module.icon,
                           etiqueta: module.label,
                           onTap: abrir,
                           pendientes:
-                              ref.watch(unreadNotificationsProvider).value ?? 0,
+                              ref.watch(pendingPaymentsCountProvider).value ??
+                              0,
                         ),
                       );
                 return Aparicion(orden: orden++, child: baldosa);
