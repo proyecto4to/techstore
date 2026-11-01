@@ -79,3 +79,51 @@ ni se genera un QR propio, porque no lo leería ninguna app bancaria.
   aviso con «Reintentar».
 - **Web**: el carrito aplica la misma regla y pide el comprobante; hay una
   pestaña «Verificar pagos» en la administración.
+
+## Pruebas
+
+| Qué | Resultado |
+|---|---|
+| Backend, pruebas unitarias | 391 aprobadas (6 nuevas de checkout, 6 de verificación, 2 de cobro) |
+| Backend, integración contra PostgreSQL real | 29 de las suites tocadas aprobadas, incluido el recorrido completo: comprobante antes del pedido, rechazo, reenvío, aprobación con factura y envío en preparación |
+| App, análisis y pruebas | sin avisos; 290 aprobadas (recorrido del pedido, tipo de comprobante, checkout que no avanza sin comprobante, detalle en verificación y rechazado, revisión del pago, sesión mantenida) |
+| Web | lint sin avisos, 54 pruebas, compila |
+
+### QA en el emulador (backend aislado, base nueva)
+
+Recorrido hecho en `TechStore_QA_20261022` contra el backend de QA del
+puerto 8091, con datos sintéticos (`artifacts/qa-final-20261031`):
+
+1. Ingreso con «Mantener sesión iniciada»; campana arriba a la izquierda.
+2. Producto al carrito → envío a domicilio → dirección → tarifa de 35.000 ₲.
+3. Pago: solo transferencia; monto 135.000 ₲ (producto + envío), datos con
+   botón de copiar; «Continuar» bloqueado sin comprobante.
+4. Comprobante elegido desde archivos: miniatura, «Listo para enviar», 1/3.
+5. Confirmación → pedido N.º 3 creado **una sola vez**, Pendiente / En
+   verificación; detalle con «¡Recibimos tu pedido!», código TS-3 y el
+   recorrido en «Verificación».
+6. Admin: baldosa «Verificar pagos» con 1, bandeja, comprobante grande,
+   rechazo con el motivo «El monto no coincide…» → «Esperando cliente».
+7. El cliente manda otro comprobante → la bandeja vuelve a mostrarlo sola
+   (tiempo real).
+8. Aprobación (diálogo verificado en pantalla; el toque final se hizo por la
+   API porque el emulador se cerró) → Pagado, pago Aprobado, factura
+   disponible, envío en preparación; historial completo y el comprobante
+   rechazado guardado con su motivo.
+
+Encontrado y corregido en esa pasada: la etiqueta del comprobante desbordaba
+33 px con letra grande, el estado se estiraba a todo el ancho, «Rechazar» se
+partía en dos renglones y decía «1 productos».
+
+Lo que el emulador no puede probar: el push con el teléfono bloqueado contra
+el servidor público y el comprobante sacado con la cámara de un teléfono real.
+
+## Para ponerla en producción
+
+1. **Respaldar la base** (`backup-techstore.ps1`). El jar de
+   `techstore-backend/target` ya es el nuevo: el próximo arranque aplica V58.
+2. Arrancar el backend y cargar **Cobro por transferencia** con los datos
+   reales del banco (y el QR, si se quiere).
+3. Instalar el APK 1.0.24 en el Moto G42 y hacer una compra real chica.
+4. Recién ahí, si se quiere, publicar la versión para que la app la ofrezca
+   como actualización (eso escribe `release-metadata.json`).
