@@ -345,7 +345,11 @@ class _VerifyPaymentDetailPageState
               const SizedBox(height: 8),
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
-                title: Text('${detalles.length} productos'),
+                title: Text(
+                  detalles.length == 1
+                      ? '1 producto'
+                      : '${detalles.length} productos',
+                ),
                 children: [
                   for (final raw in detalles)
                     ListTile(
@@ -383,6 +387,8 @@ class _VerifyPaymentDetailPageState
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 child: Row(
                   children: [
+                    // Mitad y mitad: con un tercio, «Rechazar» se partía en
+                    // dos renglones al lado del ícono.
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _busy ? null : _rechazar,
@@ -391,12 +397,15 @@ class _VerifyPaymentDetailPageState
                           foregroundColor: theme.colorScheme.error,
                         ),
                         icon: const Icon(Icons.block),
-                        label: const Text('Rechazar'),
+                        label: const Text(
+                          'Rechazar',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      flex: 2,
                       child: FilledButton.icon(
                         onPressed: _busy ? null : _aprobar,
                         style: FilledButton.styleFrom(
@@ -410,7 +419,11 @@ class _VerifyPaymentDetailPageState
                                 ),
                               )
                             : const Icon(Icons.verified_outlined),
-                        label: const Text('Aprobar pago'),
+                        label: const Text(
+                          'Aprobar pago',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ],
@@ -669,7 +682,7 @@ class _ComprobanteGrande extends ConsumerWidget {
                 if (subido != null)
                   Expanded(
                     child: Text(
-                      'Subido ${DateFormat("d MMM, HH:mm", 'es').format(subido.toLocal())}',
+                      'Subido ${DateFormat("d MMM, HH:mm", 'es_PY').format(subido.toLocal())}',
                       style: theme.textTheme.bodySmall,
                     ),
                   ),

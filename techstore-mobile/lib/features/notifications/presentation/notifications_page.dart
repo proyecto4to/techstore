@@ -288,7 +288,7 @@ class _Dia extends StatelessWidget {
         ? 'Hoy'
         : mismo(f, ayer)
         ? 'Ayer'
-        : DateFormat("EEEE d 'de' MMMM", 'es').format(f);
+        : DateFormat("EEEE d 'de' MMMM", 'es_PY').format(f);
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 16, 6, 8),
       child: Text(
@@ -381,7 +381,7 @@ class _Aviso extends StatelessWidget {
                               Padding(
                                 padding: const EdgeInsets.only(left: 8),
                                 child: Text(
-                                  DateFormat.Hm('es').format(fecha),
+                                  DateFormat.Hm('es_PY').format(fecha),
                                   style: theme.textTheme.labelSmall?.copyWith(
                                     color: Paleta.textoSecundario,
                                   ),

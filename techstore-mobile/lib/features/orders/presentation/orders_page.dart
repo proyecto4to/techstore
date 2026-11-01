@@ -400,7 +400,10 @@ class _OrderDetail extends ConsumerWidget {
           children: [
             if (date != null)
               Text(
-                DateFormat("d 'de' MMMM y, HH:mm", 'es').format(date.toLocal()),
+                DateFormat(
+                  "d 'de' MMMM y, HH:mm",
+                  'es_PY',
+                ).format(date.toLocal()),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -410,7 +413,11 @@ class _OrderDetail extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 12),
-        StatusChip(status: tracking.summary),
+        // Del ancho de su texto: estirado a toda la pantalla parecía un campo.
+        Align(
+          alignment: Alignment.centerLeft,
+          child: StatusChip(status: tracking.summary),
+        ),
         if (tracking.summary.detail != null) ...[
           const SizedBox(height: 8),
           Text(

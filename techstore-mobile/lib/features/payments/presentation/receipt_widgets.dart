@@ -83,10 +83,16 @@ class ReceiptReviewBadge extends StatelessWidget {
         children: [
           Icon(icono, size: 13, color: color),
           const SizedBox(width: 4),
-          Text(
-            texto,
-            style: Theme.of(context).textTheme.labelSmall
-                ?.copyWith(color: color, fontWeight: FontWeight.w700),
+          // Va debajo de una miniatura angosta: con la letra del sistema
+          // agrandada, «Rechazado» se salía del costado.
+          Flexible(
+            child: Text(
+              texto,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(color: color, fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
